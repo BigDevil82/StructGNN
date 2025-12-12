@@ -3,3 +3,9 @@ imgs
 dxf
 *.dxf
 processed_data
+data_cache
+**/__pycache__/*
+*.pyc
+.vscode
+*.pth
+result

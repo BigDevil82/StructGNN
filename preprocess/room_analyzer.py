@@ -75,6 +75,11 @@ class RoomAnalyzer:
         """计算边两端的剪力墙比例"""
         if not intervals:
             return 0.0, 0.0
+        # if len(intervals) == 1:
+        #     if intervals[0][0] < 1e-3:
+        #         return intervals[0][1], 0.0
+        #     else:
+        #         return 0.0, 1.0 - intervals[0][0]
         start_ratio = intervals[0][1] if intervals[0][0] < 1e-3 else 0.0
         end_ratio = 1.0 - intervals[-1][0] if intervals[-1][1] > 1.0 - 1e-3 else 0.0
         return start_ratio, end_ratio
@@ -105,9 +110,9 @@ class RoomAnalyzer:
                 start_ratio, end_ratio = self._compute_anchor_ratios(sw_intervals)
                 sw_vector.extend([start_ratio, end_ratio])
 
-            # 计算整条边的可布置区间
-            buildable_intervals = self._compute_intervals(edge, self.buildable_union)
-            masks.append(buildable_intervals)
+                # 计算可布置区间
+                buildable_intervals = self._compute_intervals(half, self.buildable_union)
+                masks.append(buildable_intervals)
 
         return np.array(sw_vector), masks
 
@@ -116,59 +121,81 @@ def _walls_from_vector(
     room_poly: Polygon, sw_vector: np.ndarray, masks: List[List[Tuple[float, float]]] = None
 ) -> MultiLineString:
     """
-    从剪力墙向量重建墙体线段
+    从剪力墙向量重建墙体线段 (修复了掩码裁剪逻辑)
 
     Args:
         room_poly: 房间多边形
         sw_vector: 16维剪力墙向量
-        masks: 可布置区域掩码（如果提供则裁剪墙体）
-
-    Returns:
-        重建的墙体线段集合
+        masks: 列表长度应为8 (4条边x2半边)，每个元素为该半边上的可布置区间列表 [(s, e), ...]
     """
     edges = get_room_edges(room_poly)
     sw_ratios = sw_vector.reshape(4, 2, 2)  # [4条边, 2半边, 2端点]
     result_walls = []
+
+    # 扁平化索引，用于追踪当前处理的是第几个半边 (总共0-7)
+    half_edge_idx = 0
 
     for i, edge in enumerate(edges):
         # 将边分为两半
         p_mid = edge.interpolate(0.5, normalized=True)
         halves = [LineString([edge.coords[0], p_mid]), LineString([p_mid, edge.coords[-1]])]
 
-        edge_walls = []
         for j, half in enumerate(halves):
+            # 1. 生成预测的原始墙体
             start_ratio, end_ratio = sw_ratios[i][j]
+            current_half_walls = []
+
             # 生成起点墙体
             if start_ratio > 1e-3:
                 w_start = half.interpolate(0, normalized=True)
                 w_end = half.interpolate(start_ratio, normalized=True)
-                edge_walls.append(LineString([w_start, w_end]))
+                current_half_walls.append(LineString([w_start, w_end]))
+
             # 生成终点墙体
             if end_ratio > 1e-3:
                 w_start = half.interpolate(1.0 - end_ratio, normalized=True)
                 w_end = half.interpolate(1.0, normalized=True)
-                edge_walls.append(LineString([w_start, w_end]))
+                current_half_walls.append(LineString([w_start, w_end]))
 
-        if not edge_walls:
-            continue
+            # 如果该半边没有预测墙体，跳过并更新索引
+            if not current_half_walls:
+                half_edge_idx += 1
+                continue
 
-        # 如果有掩码，进行裁剪
-        if masks and i < len(masks):
-            mask_lines = [
-                LineString([edge.interpolate(s, normalized=True), edge.interpolate(e, normalized=True)])
-                for s, e in masks[i]
-            ]
-            if mask_lines:
-                predicted_union = unary_union(edge_walls)
-                mask_union = unary_union(mask_lines)
-                final_walls = predicted_union.intersection(mask_union)
+            # 2. 应用掩码裁剪 (Mask Clipping)
+            # 确保 masks 存在且索引未越界
+            if masks:
+                valid_intervals = masks[half_edge_idx]
 
-                if isinstance(final_walls, LineString):
-                    result_walls.append(final_walls)
-                elif isinstance(final_walls, MultiLineString):
-                    result_walls.extend(final_walls.geoms)
-        else:
-            result_walls.extend(edge_walls)
+                # 如果该半边有可布置区间信息
+                if valid_intervals:
+                    # 将区间转换为当前半边上的几何线段
+                    mask_lines = []
+                    for s, e in valid_intervals:
+                        # s, e 是相对于 half 的归一化坐标
+                        p_s = half.interpolate(s, normalized=True)
+                        p_e = half.interpolate(e, normalized=True)
+                        mask_lines.append(LineString([p_s, p_e]))
+
+                    # 使用布尔运算求交集
+                    pred_union = unary_union(current_half_walls)
+                    mask_union = unary_union(mask_lines)
+                    final_walls = pred_union.intersection(mask_union)
+
+                    if not final_walls.is_empty:
+                        if isinstance(final_walls, LineString):
+                            result_walls.append(final_walls)
+                        elif isinstance(final_walls, MultiLineString):
+                            result_walls.extend(final_walls.geoms)
+                else:
+                    # 如果 valid_intervals 为空列表，说明该半边完全不可布置，不添加任何墙体
+                    pass
+            else:
+                # 如果没有提供掩码，保留原始预测
+                result_walls.extend(current_half_walls)
+
+            # 更新半边计数器
+            half_edge_idx += 1
 
     return MultiLineString(result_walls) if result_walls else MultiLineString([])
 
@@ -236,16 +263,21 @@ def plot_room_analysis(
     edges = [LineString([tl, tr]), LineString([tr, br]), LineString([bl, br]), LineString([tl, bl])]
 
     # 绘制可布置区域（灰色）
+    half_idx = 0
     for i, edge in enumerate(edges):
-        if i < len(masks):
-            for start, end in masks[i]:
-                p1, p2 = edge.interpolate(start, normalized=True), edge.interpolate(end, normalized=True)
-                ax.plot([p1.x, p2.x], [p1.y, p2.y], color="gray", linewidth=10, alpha=0.3, zorder=3)
+        # 将边分为两半
+        p_mid = edge.interpolate(0.5, normalized=True)
+        halves = [LineString([edge.coords[0], p_mid]), LineString([p_mid, edge.coords[-1]])]
+        for half in halves:
+            if half_idx < len(masks):
+                for start, end in masks[half_idx]:
+                    p1, p2 = half.interpolate(start, normalized=True), half.interpolate(end, normalized=True)
+                    ax.plot([p1.x, p2.x], [p1.y, p2.y], color="#BBBBBB", linewidth=8, zorder=3)
+            half_idx += 1
 
     # 绘制剪力墙
     if walls is None:
         walls = extract_ground_truth_walls(room_poly, sw_vector)
-
     if not walls.is_empty:
         geoms = walls.geoms if hasattr(walls, "geoms") else [walls]
         for wall in geoms:

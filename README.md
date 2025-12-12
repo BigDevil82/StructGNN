@@ -143,26 +143,3 @@ extractor.extract_batch("dxf_files/", "output_json/")
   ]
 }
 ```
-
-### 支持的构件类型
-- **剪力墙**: 从`SHEAR_WALLS`图层提取多段线并拆分为线段
-- **梁**: 从`BEAMS`图层提取直线和多段线
-
-## 完整工作流程
-
-1. **PNG转DXF**: `python png2dxf_converter.py`
-2. **工程师绘制梁**: 在`BEAMS`图层绘制直线
-3. **提取构件信息**: `python dxf_extractor.py`
-4. **获得JSON结果**: 包含所有墙和梁的坐标信息
-
-## 扩展开发
-
-### 添加新构件类型
-1. 在`element_extractor.py`中添加HSV分割逻辑
-2. 在`PNG2DXFConverter`中添加对应配置
-3. 在`DXFExtractor`中添加提取逻辑
-
-### 优化轮廓检测
-- 调整形态学操作参数
-- 修改多边形简化系数
-- 增加轮廓后处理逻辑

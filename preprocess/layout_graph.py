@@ -8,12 +8,18 @@
 4. 可视化：在平面图上叠加显示图拓扑结构
 """
 
+import os
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from shapely.geometry import Point, Polygon
+
+from dxf_extractor import DXFExtractor
+from preprocess.room_analyzer import RoomAnalyzer, plot_room_analysis
+from preprocess.room_calibrator import calibrate_rooms
 
 
 class LayoutGraphBuilder:
@@ -185,12 +191,12 @@ class LayoutGraphBuilder:
             room: Polygon = self.graph.nodes[node_id]["poly"]
             x, y = room.exterior.xy
             ax.plot(x, y, color="black", linewidth=2, alpha=0.5)
-            ax.fill(x, y, color="lightgray", alpha=0.4)
+            ax.fill(x, y, color="#A8A8A8", alpha=0.15)
 
             # 绘制节点 (质心)
             geo = self.graph.nodes[node_id]["geo_feature"]
             cx, cy = geo[7], geo[8]  # center_x, center_y
-            ax.scatter(cx, cy, c="green", s=400, zorder=5, edgecolors="white")
+            ax.scatter(cx, cy, c="green", s=300, zorder=5, edgecolors="white")
             if show_labels:
                 ax.text(
                     cx,
@@ -199,7 +205,7 @@ class LayoutGraphBuilder:
                     color="white",
                     ha="center",
                     va="center",
-                    fontsize=14,
+                    fontsize=12,
                     fontweight="bold",
                     zorder=6,
                 )
@@ -229,28 +235,11 @@ class LayoutGraphBuilder:
         ax.set_title("Room Graph Structure")
 
 
-# ==========================================
-# 整合测试 pipeline
-# ==========================================
-if __name__ == "__main__":
-    import os
-    import sys
-
-    # 确保能导入同级模块
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-    from dxf_extractor import DXFExtractor
-    from preprocess.room_analyzer import RoomAnalyzer, plot_room_analysis
-    from preprocess.room_calibrator import calibrate_rooms
-
-    print("=" * 60)
-    print("Pipeline 测试：DXF -> 校准 -> 分析 -> 图构建")
-    print("=" * 60)
+def convert_to_graph(dxf_path: str, save_path: str = None):
 
     # 1. 提取
-    dxf_path = r"dxf/to_process/room_finished/L1L28_232.dxf"
     if not os.path.exists(dxf_path):
-        print(f"文件不存在: {dxf_path}")
+        # print(f"文件不存在: {dxf_path}")
         exit()
 
     extractor = DXFExtractor()
@@ -262,17 +251,16 @@ if __name__ == "__main__":
     infill_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.infill_walls]
 
     # 2. 校准
-    print(f"校准前房间数: {len(raw_rooms)}")
+    # print(f"校准前房间数: {len(raw_rooms)}")
     calibrated_rooms = calibrate_rooms(raw_rooms, alignment_threshold=200)
-    print("房间坐标已校准")
+    # print("房间坐标已校准")
 
     # 3. 分析 (获取 Ground Truth)
     # Note: 这一步用的是未校准的原始room, 因为校准后可能导致墙边不在构件多边形框内部
     # 获取分析结果后，原始room_poly就没用了，一切基于校准后的room_poly操作
     analyzer = RoomAnalyzer(sw_polys, infill_polys)
     analysis_results = []
-
-    print("正在分析房间剪力墙分布...")
+    # print("正在分析房间剪力墙分布...")
     for i, room in enumerate(raw_rooms):
         if not room.is_valid or room.area < 1:
             raise ValueError(f"房间{i}无效或面积小于1")
@@ -280,26 +268,12 @@ if __name__ == "__main__":
         analysis_results.append({"room_index": i, "sw_vector": sw_vector.tolist(), "masks": masks})
 
     # 4. 构建图
-    print("构建图结构...")
+    # print("构建图结构...")
     graph_builder = LayoutGraphBuilder(calibrated_rooms)
     graph_builder.add_analysis_results(analysis_results)
 
-    G = graph_builder.graph
-    print(f"图构建完成:")
-    print(f"  - 节点数: {G.number_of_nodes()}")
-    print(f"  - 边数: {G.number_of_edges()}")
-
-    # 打印一个节点的示例数据
-    if len(G.nodes) > 0:
-        node_0 = G.nodes[0]
-        print("\n示例节点 (ID=0) 特征:")
-        print(f"  - Geo Feature (shape={node_0['geo_feature'].shape}): {node_0['geo_feature'][:4]}...")
-        if node_0["sw_vector"] is not None:
-            print(f"  - SW Vector (shape={node_0['sw_vector'].shape})")
-
     # 5. 可视化
     fig, ax = plt.subplots(figsize=(12, 8))
-
     # 绘制图结构
     graph_builder.visualize(ax, show_labels=True)
 
@@ -309,4 +283,29 @@ if __name__ == "__main__":
         room = calibrated_rooms[res["room_index"]]
         plot_room_analysis(room, np.array(res["sw_vector"]), res["masks"], ax, wall_color="green")
 
-    plt.show()
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        # print(f"图已保存到: {save_path}")
+    else:
+        plt.show()
+
+    plt.close()
+
+
+# ==========================================
+# 整合测试 pipeline
+# ==========================================
+if __name__ == "__main__":
+    # test single file
+    dxf_path = r"dxf/to_process/room_finished/L1L28_232.dxf"
+    convert_to_graph(dxf_path)
+
+    # # convert batch files
+    # from tqdm import tqdm
+
+    # dxf_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished"
+    # dxf_files = [f for f in os.listdir(dxf_dir) if f.endswith(".dxf")]
+    # for dxf_file in tqdm(dxf_files):
+    #     dxf_path = os.path.join(dxf_dir, dxf_file)
+    #     save_path = Path(dxf_path).with_suffix(".png")
+    #     convert_to_graph(dxf_path, save_path)
