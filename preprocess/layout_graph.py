@@ -35,13 +35,35 @@ class LayoutGraphBuilder:
         self.num_rooms = len(rooms)
         self.room_indices = room_indices if room_indices else list(range(self.num_rooms))
 
+        # 计算户型整体的包围盒和归一化参数
+        self._compute_normalization_params()
+
         # 初始化有向图
         self.graph = nx.DiGraph()
         self._init_nodes()
         self._build_edges()
 
+    def _compute_normalization_params(self):
+        """计算户型整体的包围盒和归一化参数"""
+        all_bounds = [room.bounds for room in self.rooms]
+        total_minx = min(b[0] for b in all_bounds)
+        total_miny = min(b[1] for b in all_bounds)
+        total_maxx = max(b[2] for b in all_bounds)
+        total_maxy = max(b[3] for b in all_bounds)
+
+        # 户型中心
+        self.total_center_x = (total_minx + total_maxx) / 2
+        self.total_center_y = (total_miny + total_maxy) / 2
+
+        # 归一化尺度因子（取最大边长）
+        self.scale_factor = max(total_maxx - total_minx, total_maxy - total_miny)
+
+        # 避免除零
+        if self.scale_factor < 1e-6:
+            self.scale_factor = 1.0
+
     def _init_nodes(self):
-        """初始化图节点及基础几何特征"""
+        """初始化图节点及基础几何特征（归一化）"""
         for i, room in enumerate(self.rooms):
             room_id = self.room_indices[i]
             minx, miny, maxx, maxy = room.bounds
@@ -51,10 +73,32 @@ class LayoutGraphBuilder:
             height = maxy - miny
             area = width * height
 
-            # 基础几何特征向量 (9维)
-            # [minx, miny, maxx, maxy, width, height, area, cx, cy]
+            # 归一化到 [-1, 1] 范围
+            norm_minx = (minx - self.total_center_x) / (self.scale_factor / 2)
+            norm_miny = (miny - self.total_center_y) / (self.scale_factor / 2)
+            norm_maxx = (maxx - self.total_center_x) / (self.scale_factor / 2)
+            norm_maxy = (maxy - self.total_center_y) / (self.scale_factor / 2)
+            norm_width = width / (self.scale_factor / 2)
+            norm_height = height / (self.scale_factor / 2)
+            norm_area = area / (self.scale_factor**2)
+            norm_cx = (center_x - self.total_center_x) / (self.scale_factor / 2)
+            norm_cy = (center_y - self.total_center_y) / (self.scale_factor / 2)
+
+            # 归一化后的几何特征向量 (9维)
+            # [norm_minx, norm_miny, norm_maxx, norm_maxy, norm_width, norm_height, norm_area, norm_cx, norm_cy]
             geo_feature = np.array(
-                [minx, miny, maxx, maxy, width, height, area, center_x, center_y], dtype=np.float32
+                [
+                    norm_minx,
+                    norm_miny,
+                    norm_maxx,
+                    norm_maxy,
+                    norm_width,
+                    norm_height,
+                    norm_area,
+                    norm_cx,
+                    norm_cy,
+                ],
+                dtype=np.float32,
             )
 
             self.graph.add_node(
@@ -144,10 +188,15 @@ class LayoutGraphBuilder:
                 # 水平/垂直边标志
                 is_horizontal = direction_vec[0] == 1.0 or direction_vec[1] == 1.0
 
+                # 归一化边特征
+                norm_shared_length = shared_length / (self.scale_factor / 2)
+                norm_overlap_cx = (centroid.x - self.total_center_x) / (self.scale_factor / 2)
+                norm_overlap_cy = (centroid.y - self.total_center_y) / (self.scale_factor / 2)
+
                 # 边特征向量 (7维)
-                # [shared_length, overlap_cx, overlap_cy, is_top, is_bottom, is_left, is_right, is_horizontal]
+                # [norm_shared_length, norm_overlap_cx, norm_overlap_cy, is_top, is_bottom, is_left, is_right, is_horizontal]
                 edge_feature = np.concatenate(
-                    [[shared_length, centroid.x, centroid.y], direction_vec, [is_horizontal]]
+                    [[norm_shared_length, norm_overlap_cx, norm_overlap_cy], direction_vec, [is_horizontal]]
                 ).astype(np.float32)
 
                 self.graph.add_edge(id_i, id_j, feature=edge_feature, shared_geom=intersection)
@@ -193,9 +242,8 @@ class LayoutGraphBuilder:
             ax.plot(x, y, color="black", linewidth=2, alpha=0.5)
             ax.fill(x, y, color="#A8A8A8", alpha=0.15)
 
-            # 绘制节点 (质心)
-            geo = self.graph.nodes[node_id]["geo_feature"]
-            cx, cy = geo[7], geo[8]  # center_x, center_y
+            # 绘制节点 (质心) - 使用原始坐标
+            cx, cy = room.centroid.x, room.centroid.y
             ax.scatter(cx, cy, c="green", s=300, zorder=5, edgecolors="white")
             if show_labels:
                 ax.text(
@@ -212,8 +260,11 @@ class LayoutGraphBuilder:
 
         # 2. 绘制边
         for u, v in self.graph.edges:
-            pos_u = self.graph.nodes[u]["geo_feature"][7:9]  # [cx, cy]
-            pos_v = self.graph.nodes[v]["geo_feature"][7:9]
+            # 使用原始坐标
+            room_u = self.graph.nodes[u]["poly"]
+            room_v = self.graph.nodes[v]["poly"]
+            pos_u = [room_u.centroid.x, room_u.centroid.y]
+            pos_v = [room_v.centroid.x, room_v.centroid.y]
 
             # 绘制连接线
             ax.plot(
@@ -226,9 +277,10 @@ class LayoutGraphBuilder:
                 zorder=4,
             )
 
-            # 可选：绘制边的接触点/重叠中心
-            overlap_center = self.graph.edges[u, v]["feature"][1:3]
-            ax.scatter(overlap_center[0], overlap_center[1], c="red", s=20, marker="x", zorder=5)
+            # 可选：绘制边的接触点/重叠中心 (使用原始几何)
+            shared_geom = self.graph.edges[u, v]["shared_geom"]
+            overlap_center = shared_geom.centroid
+            ax.scatter(overlap_center.x, overlap_center.y, c="red", s=20, marker="x", zorder=5)
 
         ax.set_aspect("equal")
         ax.axis("off")

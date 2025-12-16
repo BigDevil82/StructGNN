@@ -133,6 +133,8 @@ def visualize_single_case(dxf_path, model: ShearWallGNN, save_path=None):
 
             # 获取该房间的预测向量
             pred_vec = pred_out[i]
+            # 将小于0.2的值置0，模拟阈值处理
+            pred_vec = np.where(pred_vec < 0.2, 0.0, pred_vec)
 
             # 获取对应的 Masks (用于后处理裁剪)
             # 注意：需在 analysis_results 中找到对应数据

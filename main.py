@@ -8,8 +8,8 @@ from train.visualize_test import visualize_single_case
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-MODEL_PATH = "shear_wall_predictor.pth"  # 训练好的模型路径
-DXF_FILE_PATH = r"dxf/to_process/room_finished/L17_101.dxf"  # 替换为你想要测试的具体DXF文件路径
+MODEL_PATH = "result/ckpt/shear_wall_predictor.pth"  # 训练好的模型路径
+DXF_FILE_PATH = r"dxf/to_process/room_finished/L27_231.dxf"  # 替换为你想要测试的具体DXF文件路径
 
 # 1. 加载模型结构
 # 注意：这里参数要和你训练时的一致 (node_in_dim=25)

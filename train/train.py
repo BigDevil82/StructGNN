@@ -1,3 +1,4 @@
+import os
 import random
 
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ from torch_geometric.loader import DataLoader
 
 from train.dataset import ShearWallDataset
 from train.model import ShearWallGNN
+from train.visualize_test import visualize_single_case
 
 torch.manual_seed(42)
 random.seed(42)
@@ -96,7 +98,7 @@ def main():
             validate(model, val_loader, criterion)
 
     # 4. 保存模型
-    torch.save(model.state_dict(), "shear_wall_predictor.pth")
+    torch.save(model.state_dict(), "result/ckpt/shear_wall_predictor.pth")
     print("模型已保存！")
 
     # 绘制 Loss 曲线
@@ -104,13 +106,17 @@ def main():
     plt.title("Training Loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
-    plt.savefig("training_loss.png")
+    plt.savefig("result/ckpt/training_loss.png")
     plt.show()
     # save loss
 
     # test the model
     test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
     validate(model, test_loader, criterion)
+
+    # 运行并保存测试集上的可视化结果
+    print("\n正在可视化测试集结果...")
+    visualize_test_set(model, dataset, test_set)
 
 
 def validate(model, loader, criterion):
@@ -123,6 +129,47 @@ def validate(model, loader, criterion):
             loss = criterion(out, batch.y, batch.constraint_mask)
             val_loss += loss.item()
     print(f"   >>> Val Loss: {val_loss / len(loader):.4f}")
+    return out
+
+
+def visualize_test_set(model, dataset, test_set):
+    """
+    在测试集上运行可视化并保存结果
+    """
+    import os
+    from pathlib import Path
+
+    # 创建保存目录
+    save_dir = Path("result/visualization")
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    # 获取测试集的原始索引
+    test_indices = test_set.indices
+
+    # 获取原始 DXF 文件列表
+    dxf_files = [f for f in os.listdir(dataset.dxf_dir) if f.endswith(".dxf")]
+
+    print(f"测试集共 {len(test_indices)} 个样本")
+
+    # 遍历测试集
+    for idx in test_indices:
+        if idx >= len(dxf_files):
+            print(f"警告：索引 {idx} 超出范围")
+            continue
+
+        dxf_file = dxf_files[idx]
+        dxf_path = os.path.join(dataset.dxf_dir, dxf_file)
+
+        # 生成保存路径
+        save_path = save_dir / f"{Path(dxf_file).stem}_pred.png"
+
+        try:
+            visualize_single_case(dxf_path, model, save_path=str(save_path))
+        except Exception as e:
+            print(f"可视化 {dxf_file} 时出错: {e}")
+            continue
+
+    print(f"\n所有可视化结果已保存到: {save_dir}")
 
 
 if __name__ == "__main__":
