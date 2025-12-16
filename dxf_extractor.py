@@ -5,6 +5,7 @@
 
 import json
 import os
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -120,66 +121,115 @@ class DXFExtractor:
         entity_type = entity.dxftype()
         layer_name = entity.dxf.layer
 
-        # 处理剪力墙 - 来自SHEAR_WALLS图层的多段线
-        if layer_name == "SHEAR_WALLS" and entity_type == "LWPOLYLINE":
-            polygon = self._extract_polygon(entity)
-            if polygon:
-                self.shear_walls.append(polygon)
-        # 处理梁 - 来自BEAMS图层的直线
-        elif layer_name == "BEAMS" and entity_type == "LINE":
-            line_segment = self._extract_line(entity)
-            if line_segment:
-                self.beams.append(line_segment)
-        elif layer_name == "DOORS" and entity_type == "LWPOLYLINE":
-            polygon = self._extract_polygon(entity)
-            if polygon:
-                self.doors.append(polygon)
-        elif layer_name == "WINDOWS" and entity_type == "LWPOLYLINE":
-            polygon = self._extract_polygon(entity)
-            if polygon:
-                self.windows.append(polygon)
-        elif layer_name == "INFILL_WALLS" and entity_type == "LWPOLYLINE":
-            polygon = self._extract_polygon(entity)
-            if polygon:
-                self.infill_walls.append(polygon)
-        elif layer_name == "ROOM" and entity_type == "LWPOLYLINE":
-            self.rooms.append(self._extract_rect(entity))
+        # 图层到构件列表的映射
+        layer_mapping = {
+            "SHEAR_WALLS": self.shear_walls,
+            "DOORS": self.doors,
+            "WINDOWS": self.windows,
+            "INFILL_WALLS": self.infill_walls,
+        }
 
-    def _extract_polygon(self, entity) -> Polygon:
-        """从LWPOLYLINE实体中提取多边形顶点"""
+        # 处理多边形类型的构件（剪力墙、门、窗、填充墙）
+        if layer_name in layer_mapping:
+            polygon = self._extract_geometry(entity)
+            if polygon:
+                layer_mapping[layer_name].append(polygon)
+
+        # 处理梁 - 拆分为线段
+        elif layer_name == "BEAMS":
+            segments = self._extract_line_segments(entity)
+            if segments:
+                self.beams.extend(segments)
+
+        # 处理房间
+        elif layer_name == "ROOM":
+            polygon = self._extract_geometry(entity)
+            if polygon:
+                self.rooms.append(Room(polygon))
+
+    def _extract_points_from_entity(self, entity) -> List[Tuple[float, float]]:
+        """从任意实体（LINE, LWPOLYLINE, POLYLINE）提取点坐标列表
+
+        Args:
+            entity: DXF实体
+
+        Returns:
+            点坐标列表 [(x1, y1), (x2, y2), ...]
+        """
+        entity_type = entity.dxftype()
+        points: List[Tuple[float, float]] = []
+
         try:
-            # ezdxf `get_points` for closed polylines does not repeat the start point
-            points = list(entity.get_points())
-            return [Point(p[0], p[1]) for p in points]
+            if entity_type == "LINE":
+                # 直线：起点和终点
+                start = entity.dxf.start
+                end = entity.dxf.end
+                points = [(float(start[0]), float(start[1])), (float(end[0]), float(end[1]))]
+
+            elif entity_type == "LWPOLYLINE":
+                # 轻量级多段线
+                for p in entity.get_points():
+                    x, y = p[0], p[1]
+                    points.append((float(x), float(y)))
+
+            elif entity_type == "POLYLINE":
+                # 经典多段线
+                for v in entity.vertices:
+                    loc = getattr(v.dxf, "location", None)
+                    if loc is not None:
+                        points.append((float(loc.x), float(loc.y)))
+                    else:
+                        x = getattr(v.dxf, "x", None)
+                        y = getattr(v.dxf, "y", None)
+                        if x is not None and y is not None:
+                            points.append((float(x), float(y)))
+
         except Exception as e:
-            print(f"提取多边形失败: {e}")
+            print(f"提取点坐标失败 ({entity_type}): {e}")
             return []
 
-    def _extract_line(self, line):
-        """从直线实体提取梁"""
-        try:
-            start = line.dxf.start
-            end = line.dxf.end
+        return points
 
-            start_point = Point(start[0], start[1])
-            end_point = Point(end[0], end[1])
+    def _extract_geometry(self, entity) -> Polygon:
+        """提取几何图形为多边形（点列表）
 
-            return LineSegment(start_point, end_point)
+        支持 LINE, LWPOLYLINE, POLYLINE
 
-        except Exception as e:
-            print(f"提取梁直线失败: {e}")
+        Args:
+            entity: DXF实体
 
-    def _extract_rect(self, entity):
-        """从矩形实体提取线段"""
-        try:
-            points = list(entity.get_points())
+        Returns:
+            多边形点列表
+        """
+        points = self._extract_points_from_entity(entity)
+        if not points:
+            return []
 
-            room = Room([Point(p[0], p[1]) for p in points])
+        return [Point(x, y) for x, y in points]
 
-        except Exception as e:
-            print(f"提取矩形线段失败: {e}")
+    def _extract_line_segments(self, entity) -> List[LineSegment]:
+        """将实体拆分为线段列表
 
-        return room
+        - LINE: 返回单个线段
+        - LWPOLYLINE/POLYLINE: 将顶点按顺序拆分为多条线段
+
+        Args:
+            entity: DXF实体
+
+        Returns:
+            线段列表
+        """
+        points = self._extract_points_from_entity(entity)
+        if len(points) < 2:
+            return []
+
+        segments: List[LineSegment] = []
+        for i in range(len(points) - 1):
+            x1, y1 = points[i]
+            x2, y2 = points[i + 1]
+            segments.append(LineSegment(Point(x1, y1), Point(x2, y2)))
+
+        return segments
 
     def _calculate_distance(self, p1: Point, p2: Point) -> float:
         """计算两点距离"""
@@ -258,36 +308,74 @@ class DXFExtractor:
         """
         color = {
             "shear_walls": "red",
-            # "beams": "cyan",
-            "doors": "blue",
-            "windows": "green",
-            "infill_walls": "gray",
+            "beams": "orange",
+            # "doors": "blue",
+            # "windows": "green",
+            # "infill_walls": "gray",
         }
 
         # 创建绘图
-        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        fig, ax = plt.subplots(1, 1, figsize=(10, 8))
 
-        # 绘制剪力墙 - 红色粗线
-        for name, lines in data.items():
+        # 根据数据结构分别绘制
+        for name, items in data.items():
             if name not in color:
                 continue
             c = color.get(name, "k")
-            for line in lines:
-                start = line["StartPoint"]
-                end = line["EndPoint"]
-                ax.plot(
-                    [start["X"], end["X"]],
-                    [start["Y"], end["Y"]],
-                    color=c,
-                    linewidth=1,
-                    alpha=0.8,
-                    label=name if line == lines[0] else "",
-                )
+
+            if name == "beams":
+                # beams 为字典列表，包含 StartPoint/EndPoint
+                for i, seg in enumerate(items):
+                    start = seg["StartPoint"]
+                    end = seg["EndPoint"]
+                    ax.plot(
+                        [start["X"], end["X"]],
+                        [start["Y"], end["Y"]],
+                        color=c,
+                        linewidth=5,
+                        label=name if i == 0 else "",
+                    )
+            else:
+                # 其它（shear_walls/doors/windows/infill_walls）为多边形列表
+                # 在 extract_from_file 中，这些是 Point 对象列表；
+                # 在批量导出的 JSON 中，这些会是点字典列表。
+                for i, polygon in enumerate(items):
+                    # 兼容 Point 对象或字典
+                    def get_xy(pt):
+                        if isinstance(pt, dict):
+                            return pt.get("X", 0), pt.get("Y", 0)
+                        else:
+                            return pt.x, pt.y
+
+                    if not polygon:
+                        continue
+
+                    xs = []
+                    ys = []
+                    for pt in polygon:
+                        x, y = get_xy(pt)
+                        xs.append(x)
+                        ys.append(y)
+                    # 闭合多边形
+                    xs.append(xs[0])
+                    ys.append(ys[0])
+
+                    ax.plot(
+                        xs,
+                        ys,
+                        color=c,
+                        linewidth=1,
+                        alpha=0.8,
+                        label=name if i == 0 else "",
+                    )
+                    # fill 多边形
+                    ax.fill(xs, ys, color=c)
 
         # 设置图形属性
         ax.set_aspect("equal")
         ax.grid(False)
-        ax.set_title(f"结构平面图")
+        ax.axis("off")
+        # ax.set_title("结构平面图")
 
         # 调整布局
         plt.tight_layout()
@@ -343,32 +431,57 @@ class DXFExtractor:
         plt.close()
 
 
+def process_dxf(dxf_file: str):
+    """处理单个DXF文件（顶层函数，便于多进程 pickling）"""
+    extractor = DXFExtractor()
+    data = extractor.extract_from_file(dxf_file)
+    save_path = os.path.join("dxf/plots", Path(dxf_file).stem + ".png")
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    extractor.plot_structure(data, save_path=str(save_path))
+    return Path(dxf_file).stem
+
+
 def main():
     """主函数"""
+    # import shutil
+
+    # # 复制所有文件到新文件夹
+    # src_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finished"
+    # target_dir = (
+    #     r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finished_extracted"
+    # )
+    # for root, dirs, files in os.walk(src_dir):
+    #     for fname in files:
+    #         fpath = os.path.join(root, fname)
+    #         if os.path.isfile(fpath) and fname.lower().endswith(".dxf"):
+    #             shutil.copy(fpath, os.path.join(target_dir, fname.replace("-XG", "")))
+
     extractor = DXFExtractor()
 
-    # 示例：提取单个DXF文件
-    f_path = (
-        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished\L1L28_232.dxf"
-    )
-    data = extractor.extract_from_file(f_path)
+    # # 示例：提取单个DXF文件
+    # f_path = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finished_extracted\L1L28_232.dxf"
+    # data = extractor.extract_from_file(f_path)
+    # extractor.plot_structure(data)
 
-    extractor.plot_rooms(extractor.rooms)
+    # 批量处理DXF文件，使用多进程加速
 
-    # # 批量提取
-    # dxf_directory = "output"  # DXF文件目录
+    dxf_files = []
+    for root, dirs, files in os.walk(
+        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finished_extracted"
+    ):
+        dxf_files.extend([os.path.join(root, f) for f in files if f.lower().endswith(".dxf")])
 
-    # if os.path.exists(dxf_directory):
-    #     results = extractor.extract_batch(dxf_directory)
-
-    #     # 验证第一个结果
-    #     if results:
-    #         first_result = next(iter(results.values()))
-    #         extractor.validate_extraction(first_result["json_file"])
-    # else:
-    #     print(f"❌ 目录不存在: {dxf_directory}")
-    #     print("请先运行PNG到DXF转换，生成DXF文件")
+    if dxf_files:
+        with Pool(processes=cpu_count()) as pool:
+            results = pool.map(process_dxf, dxf_files)
+        print(f"✅ 完成处理 {len(results)} 个DXF文件")
 
 
 if __name__ == "__main__":
+    try:
+        from multiprocessing import freeze_support
+
+        freeze_support()
+    except Exception:
+        pass
     main()
