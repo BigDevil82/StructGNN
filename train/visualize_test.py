@@ -100,7 +100,8 @@ def visualize_single_case(dxf_path, model: ShearWallGNN, save_path=None):
     # 5. 模型推理
     model.eval()
     with torch.no_grad():
-        pred_out = model(data)  # Output: (N_nodes, 16)
+        pred_prob, pred_ratio = model(data)  # Output: (N_nodes, 16)
+        pred_out = (pred_prob > 0.5) * pred_ratio  # 逐元素相乘得到最终预测
         pred_out = pred_out.cpu().numpy()
 
     # 6. 可视化绘图
@@ -134,7 +135,7 @@ def visualize_single_case(dxf_path, model: ShearWallGNN, save_path=None):
             # 获取该房间的预测向量
             pred_vec = pred_out[i]
             # 将小于0.2的值置0，模拟阈值处理
-            pred_vec = np.where(pred_vec < 0.2, 0.0, pred_vec)
+            pred_vec = np.where(pred_vec < 0.1, 0.0, pred_vec)
 
             # 获取对应的 Masks (用于后处理裁剪)
             # 注意：需在 analysis_results 中找到对应数据
@@ -175,3 +176,4 @@ def visualize_single_case(dxf_path, model: ShearWallGNN, save_path=None):
     else:
         plt.show()
     plt.close()
+    return avg_iou

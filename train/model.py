@@ -6,7 +6,7 @@ from torch_geometric.nn import BatchNorm, GATv2Conv
 
 
 class ShearWallGNN(nn.Module):
-    def __init__(self, node_in_dim=25, edge_in_dim=8, hidden_dim=128, out_dim=16):
+    def __init__(self, node_in_dim=25, edge_in_dim=8, hidden_dim=128, out_dim=32):
         super(ShearWallGNN, self).__init__()
 
         # 1. Input Encoder
@@ -30,7 +30,7 @@ class ShearWallGNN(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.2),
             nn.Linear(hidden_dim, out_dim),
-            nn.Sigmoid(),  # 输出归一化到 [0, 1]，表示剪力墙比例
+            # nn.Sigmoid(),  # 输出归一化到 [0, 1]，表示剪力墙比例
         )
 
     def forward(self, data: Data):
@@ -60,4 +60,8 @@ class ShearWallGNN(nn.Module):
 
         # Decode
         out = self.decoder(x)
-        return out
+        # 分割输出
+        prob_logits = out[:, :16]  # 前16维：分类
+        ratio_logits = out[:, 16:]  # 后16维：回归
+
+        return torch.sigmoid(prob_logits), torch.sigmoid(ratio_logits)  # 输出概率和比例
