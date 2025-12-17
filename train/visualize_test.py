@@ -1,179 +1,204 @@
+"""
+测试集可视化模块
+
+功能：
+1. 加载DXF文件并进行预测
+2. 对比Ground Truth和模型预测结果
+3. 计算IoU指标
+4. 生成可视化对比图
+"""
+
 import os
+from pathlib import Path
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from shapely.geometry import Polygon
 
-from dxf_extractor import DXFExtractor
-from preprocess.layout_graph import LayoutGraphBuilder
-from preprocess.room_analyzer import RoomAnalyzer, calculate_wall_iou, plot_room_analysis, reconstruct_walls
-from preprocess.room_calibrator import calibrate_rooms
-from train.dataset import compute_anchor_ratios
+from preprocess.room_analyzer import calculate_wall_iou, plot_room_analysis, reconstruct_walls
+from train.config import viz_config
 from train.model import ShearWallGNN
+from train.utils import build_graph_from_dxf, mask_to_constraint_vector
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def mask_to_vector(buildable_masks_list):
-    """复用 dataset.py 中的逻辑，确保特征一致"""
-    vector = np.ones(16, dtype=np.float32)
-    buildable_ratios = []
-    for intervals in buildable_masks_list:
-        start_ratio, end_ratio = compute_anchor_ratios(intervals)
-        buildable_ratios.extend([start_ratio, end_ratio])
-    for i, ratio in enumerate(buildable_ratios):
-        if ratio < 0.4:
-            vector[i] = 0.0
-    return vector
-
-
-def visualize_single_case(dxf_path, model: ShearWallGNN, save_path=None):
+def prepare_graph_data_for_inference(dxf_path: str):
     """
-    流程：提取DXF -> 构建图 -> 模型预测 -> 可视化对比
+    从DXF文件准备用于推理的图数据
+
+    Args:
+        dxf_path: DXF文件路径
+
+    Returns:
+        (data_batch, calibrated_rooms, analysis_results, node_ids):
+            - data_batch: PyG Batch对象（单个图）
+            - calibrated_rooms: 校准后的房间列表
+            - analysis_results: Ground Truth分析结果
+            - node_ids: 节点ID列表（用于映射回房间）
     """
-    print(f"正在处理: {os.path.basename(dxf_path)}")
-
-    # 1. 提取与校准 (为了获取几何信息用于绘图)
-    extractor = DXFExtractor()
-    extractor.extract_from_file(dxf_path)
-
-    raw_rooms = [Polygon([(p.x, p.y) for p in r.polygon]) for r in extractor.rooms]
-    sw_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.shear_walls]
-    infill_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.infill_walls]
-
-    if not raw_rooms:
-        print("无有效房间")
-        return
-
-    calibrated_rooms = calibrate_rooms(raw_rooms, alignment_threshold=200)
-
-    # 2. GT 分析 (获取 Ground Truth 和 Masks)
-    analyzer = RoomAnalyzer(sw_polys, infill_polys)
-    analysis_results = []
-    # 注意：这里逻辑要和 dataset.py 保持严格一致
-    for i, room in enumerate(raw_rooms):
-        if room.is_valid and room.area > 1:
-            sw, ms = analyzer.process_room(room)
-            analysis_results.append({"room_index": i, "sw_vector": sw, "masks": ms})
-
-    # 3. 构建图 (为了获取特征喂给模型)
-    gb = LayoutGraphBuilder(calibrated_rooms)
-    gb.add_analysis_results(analysis_results)
-    G = gb.graph
-
-    # 4. 转换为 Tensor (模拟 DataLoader 的行为)
     from torch_geometric.data import Batch, Data
 
+    # 构建图
+    graph_builder, calibrated_rooms, analysis_results = build_graph_from_dxf(dxf_path)
+    G = graph_builder.graph
+
+    # 准备特征
     x_list = []
-    mask_feat_list = []
     node_mapping = {node: i for i, node in enumerate(G.nodes())}
-    node_ids = list(G.nodes())  # 保持顺序以便后续映射回房间
+    node_ids = list(G.nodes())
 
     for node in node_ids:
         node_data = G.nodes[node]
-        geo = node_data["geo_feature"]
+        geo_feature = node_data["geo_feature"]
+        masks = node_data.get("masks", [])
+        constraint_vector = mask_to_constraint_vector(masks)
 
-        # 处理 Masks 特征
-        constraint_vec = mask_to_vector(node_data["masks"])
-
-        # 拼接输入: [Geo(9) + Constraint(16)]
-        x_feat = np.concatenate([geo, constraint_vec])
-
+        # 拼接输入特征
+        x_feat = np.concatenate([geo_feature, constraint_vector])
         x_list.append(x_feat)
-        mask_feat_list.append(constraint_vec)
 
+    # 构建边
     edge_index = []
     edge_attr = []
     for u, v, edge_data in G.edges(data=True):
         edge_index.append([node_mapping[u], node_mapping[v]])
         edge_attr.append(edge_data["feature"])
 
-    # 转换为 PyG Batch (虽然只有一个图，但模型通常预期有batch维)
+    # 转换为Tensor
     x = torch.tensor(np.array(x_list), dtype=torch.float)
     edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
     edge_attr = torch.tensor(np.array(edge_attr), dtype=torch.float)
 
+    # 创建PyG Data并转为Batch
     data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
-    data = Batch.from_data_list([data]).to(DEVICE)  # 增加 batch 维度
+    data_batch = Batch.from_data_list([data]).to(DEVICE)
 
-    # 5. 模型推理
+    return data_batch, calibrated_rooms, analysis_results, node_ids
+
+
+def predict_shear_walls(model: ShearWallGNN, data_batch) -> np.ndarray:
+    """
+    使用模型预测剪力墙分布
+
+    Args:
+        model: 训练好的模型
+        data_batch: PyG Batch对象
+
+    Returns:
+        predictions: 预测结果 (N_nodes, 16)，经过阈值处理
+    """
     model.eval()
     with torch.no_grad():
-        pred_prob, pred_ratio = model(data)  # Output: (N_nodes, 16)
-        pred_out = (pred_prob > 0.5) * pred_ratio  # 逐元素相乘得到最终预测
-        pred_out = pred_out.cpu().numpy()
+        pred_prob, pred_ratio = model(data_batch)
 
-    # 6. 可视化绘图
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
+        # 组合分类和回归结果：只有概率>阈值的位置才保留回归值
+        pred_combined = (pred_prob > viz_config.PRED_PROB_THRESHOLD) * pred_ratio
+        predictions = pred_combined.cpu().numpy()
+
+        # 过滤小值
+        predictions = np.where(predictions < viz_config.PRED_RATIO_THRESHOLD, 0.0, predictions)
+
+    return predictions
+
+
+def visualize_single_case(dxf_path: str, model: ShearWallGNN, save_path: Optional[str] = None) -> float:
+    """
+    可视化单个案例的预测结果
+
+    流程：
+    1. 提取DXF → 构建图 → 模型预测
+    2. 重建Ground Truth和预测墙体
+    3. 计算IoU指标
+    4. 并排绘制对比图
+
+    Args:
+        dxf_path: DXF文件路径
+        model: 训练好的模型
+        save_path: 保存路径（可选）
+
+    Returns:
+        avg_iou: 平均IoU分数
+    """
+    print(f"正在处理: {os.path.basename(dxf_path)}")
+
+    # 1. 准备数据
+    data_batch, calibrated_rooms, analysis_results, node_ids = prepare_graph_data_for_inference(dxf_path)
+
+    # 2. 模型预测
+    predictions = predict_shear_walls(model, data_batch)
+
+    # 3. 可视化绘图
+    fig, (ax_gt, ax_pred) = plt.subplots(2, 1, figsize=viz_config.FIG_SIZE_DOUBLE)
 
     # 左图：Ground Truth
-    ax1.set_title("Ground Truth (真实分布)")
+    ax_gt.set_title("Ground Truth (真实分布)", fontsize=14, fontweight="bold")
     for res in analysis_results:
         idx = res["room_index"]
-        # 只有在 calibrated_rooms 对应的房间才绘制
         if idx < len(calibrated_rooms):
             room_poly = calibrated_rooms[idx]
             gt_vec = np.array(res["sw_vector"])
             masks = res["masks"]
-            plot_room_analysis(room_poly, gt_vec, masks, ax1, wall_color="green")
+
+            plot_room_analysis(room_poly, gt_vec, masks, ax_gt, wall_color=viz_config.GT_WALL_COLOR)
 
             # 标注房间号
             c = room_poly.centroid
-            ax1.text(c.x, c.y, str(idx), color="blue", fontsize=10)
+            ax_gt.text(c.x, c.y, str(idx), color="blue", fontsize=10)
 
     # 右图：Prediction
-    ax2.set_title("Model Prediction (模型预测)")
+    ax_pred.set_title("Model Prediction (模型预测)", fontsize=14, fontweight="bold")
     iou_scores = []
 
-    # 遍历每个节点，找到对应的房间并绘制预测结果
+    # 遍历每个节点，绘制预测结果
     for i, node_id in enumerate(node_ids):
-        # node_id 对应的是 analysis_results 中的 room_index (如果 LayoutGraphBuilder 逻辑没变)
-        if node_id < len(calibrated_rooms):
-            room_poly = calibrated_rooms[node_id]
+        if node_id >= len(calibrated_rooms):
+            continue
 
-            # 获取该房间的预测向量
-            pred_vec = pred_out[i]
-            # 将小于0.2的值置0，模拟阈值处理
-            pred_vec = np.where(pred_vec < 0.1, 0.0, pred_vec)
+        room_poly = calibrated_rooms[node_id]
+        pred_vec = predictions[i]
 
-            # 获取对应的 Masks (用于后处理裁剪)
-            # 注意：需在 analysis_results 中找到对应数据
-            masks = []
-            gt_vec = np.zeros(16)
-            for res in analysis_results:
-                if res["room_index"] == node_id:
-                    masks = res["masks"]
-                    gt_vec = np.array(res["sw_vector"])
-                    break
+        # 获取对应的Ground Truth和Masks
+        gt_vec = np.zeros(16)
+        masks = []
+        for res in analysis_results:
+            if res["room_index"] == node_id:
+                gt_vec = np.array(res["sw_vector"])
+                masks = res["masks"]
+                break
 
-            # 重建墙体 (核心步骤)
-            pred_walls = reconstruct_walls(room_poly, pred_vec, masks)
-            gt_walls = reconstruct_walls(room_poly, gt_vec, masks)  # 重新生成GT墙体用于计算IoU
+        # 重建墙体
+        pred_walls = reconstruct_walls(room_poly, pred_vec, masks)
+        gt_walls = reconstruct_walls(room_poly, gt_vec, masks)
 
-            # 绘图
-            plot_room_analysis(room_poly, pred_vec, masks, ax2, walls=pred_walls, wall_color="red")
+        # 绘图
+        plot_room_analysis(
+            room_poly, pred_vec, masks, ax_pred, walls=pred_walls, wall_color=viz_config.PRED_WALL_COLOR
+        )
 
-            # 计算并显示 IoU
-            iou = calculate_wall_iou(gt_walls, pred_walls)
-            iou_scores.append(iou)
+        # 计算并显示IoU
+        iou = calculate_wall_iou(gt_walls, pred_walls, buffer_width=viz_config.IOU_BUFFER_WIDTH)
+        iou_scores.append(iou)
 
-            # 在房间中心显示 IoU
-            c = room_poly.centroid
-            ax2.text(c.x, c.y, f"{iou:.2f}", color="black", fontsize=9, fontweight="bold")
+        # 在房间中心显示IoU
+        c = room_poly.centroid
+        ax_pred.text(c.x, c.y, f"{iou:.2f}", color="black", fontsize=9, fontweight="bold")
 
     # 设置样式
     avg_iou = np.mean(iou_scores) if iou_scores else 0
     fig.suptitle(f"File: {os.path.basename(dxf_path)} | Avg IoU: {avg_iou:.4f}", fontsize=16)
 
-    for ax in [ax1, ax2]:
+    for ax in [ax_gt, ax_pred]:
         ax.set_aspect("equal")
         ax.axis("off")
 
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.savefig(save_path, dpi=viz_config.DPI, bbox_inches="tight")
         print(f"结果已保存至: {save_path}")
     else:
         plt.show()
+
     plt.close()
     return avg_iou

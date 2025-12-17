@@ -1,11 +1,17 @@
 """
-布局图构建模块 (Graph Construction)
+布局图构建模块
 
 功能：
-1. 根据校准后的房间布局构建图结构 (NetworkX DiGraph)
-2. 提取节点特征：几何信息 (Box, Area) + 剪力墙分布 (Label)
-3. 提取边特征：邻接关系、重合长度、相对方位 (Top/Bottom/Left/Right)
+1. 根据校准后的房间布局构建图结构（NetworkX DiGraph）
+2. 提取节点特征：几何信息（Box, Area）+ 剪力墙分布（Label）
+3. 提取边特征：邻接关系、重合长度、相对方位（Top/Bottom/Left/Right）
 4. 可视化：在平面图上叠加显示图拓扑结构
+
+图结构说明：
+- 节点：每个房间对应一个节点
+- 边：相邻房间（共享边）之间建立有向边
+- 节点特征：归一化几何特征 + 剪力墙向量 + 约束掩码
+- 边特征：共享边长度、位置、方向等
 """
 
 import os
@@ -23,13 +29,17 @@ from preprocess.room_calibrator import calibrate_rooms
 
 
 class LayoutGraphBuilder:
-    """布局图构建器"""
+    """
+    布局图构建器
+
+    将房间布局转换为图结构，用于GNN模型输入
+    """
 
     def __init__(self, rooms: List[Polygon], room_indices: List[int] = None):
         """
         Args:
             rooms: 校准后的房间多边形列表
-            room_indices: 房间的原始索引列表（用于追踪），默认自动生成 0..N
+            room_indices: 房间的原始索引列表（用于追踪），默认自动生成 0..N-1
         """
         self.rooms = rooms
         self.num_rooms = len(rooms)
@@ -44,14 +54,19 @@ class LayoutGraphBuilder:
         self._build_edges()
 
     def _compute_normalization_params(self):
-        """计算户型整体的包围盒和归一化参数"""
+        """
+        计算户型整体的包围盒和归一化参数
+
+        目的：将所有房间的坐标归一化到[-1, 1]范围，
+             使模型对不同尺度的户型具有更好的泛化能力
+        """
         all_bounds = [room.bounds for room in self.rooms]
         total_minx = min(b[0] for b in all_bounds)
         total_miny = min(b[1] for b in all_bounds)
         total_maxx = max(b[2] for b in all_bounds)
         total_maxy = max(b[3] for b in all_bounds)
 
-        # 户型中心
+        # 户型中心点
         self.total_center_x = (total_minx + total_maxx) / 2
         self.total_center_y = (total_miny + total_maxy) / 2
 
@@ -63,7 +78,15 @@ class LayoutGraphBuilder:
             self.scale_factor = 1.0
 
     def _init_nodes(self):
-        """初始化图节点及基础几何特征（归一化）"""
+        """
+        初始化图节点及基础几何特征
+
+        每个节点包含：
+        - poly: 房间多边形
+        - geo_feature: 归一化几何特征向量(9维)
+        - sw_vector: 剪力墙向量(16维) - 后续通过add_analysis_results添加
+        - masks: 可布置区域掩码 - 后续添加
+        """
         for i, room in enumerate(self.rooms):
             room_id = self.room_indices[i]
             minx, miny, maxx, maxy = room.bounds
@@ -85,7 +108,7 @@ class LayoutGraphBuilder:
             norm_cy = (center_y - self.total_center_y) / (self.scale_factor / 2)
 
             # 归一化后的几何特征向量 (9维)
-            # [norm_minx, norm_miny, norm_maxx, norm_maxy, norm_width, norm_height, norm_area, norm_cx, norm_cy]
+            # [minx, miny, maxx, maxy, width, height, area, center_x, center_y]
             geo_feature = np.array(
                 [
                     norm_minx,
@@ -101,11 +124,12 @@ class LayoutGraphBuilder:
                 dtype=np.float32,
             )
 
+            # 添加节点
             self.graph.add_node(
                 room_id,
                 poly=room,
                 geo_feature=geo_feature,
-                # 后续可通过 add_node_features 添加更多信息（如 shear wall label）
+                # 剪力墙标签将在后续通过 add_analysis_results 添加
                 sw_vector=None,
                 masks=None,
             )

@@ -1,154 +1,125 @@
-import os
-from typing import List, Tuple
+"""
+剪力墙预测数据集模块
 
-import networkx as nx
+功能：
+1. 从DXF文件批量构建图数据
+2. 提取节点特征（几何 + 约束）和标签（剪力墙向量）
+3. 构建边特征和邻接关系
+4. 缓存处理后的PyTorch Geometric数据
+"""
+
+import os
+from typing import List
+
 import numpy as np
 import torch
 from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
 
-from dxf_extractor import DXFExtractor
-from preprocess.layout_graph import LayoutGraphBuilder
-from preprocess.room_analyzer import RoomAnalyzer
-from preprocess.room_calibrator import calibrate_rooms
-
-
-def compute_anchor_ratios(intervals: List[Tuple[float, float]]) -> Tuple[float, float]:
-    """计算边两端的剪力墙比例"""
-    if not intervals:
-        return 0.0, 0.0
-    if len(intervals) == 1:
-        if intervals[0][0] < 1e-3:
-            return intervals[0][1], 0.0
-        else:
-            return 0.0, 1.0 - intervals[0][0]
-    start_ratio = intervals[0][1] if intervals[0][0] < 1e-3 else 0.0
-    end_ratio = 1.0 - intervals[-1][0]
-    return start_ratio, end_ratio
+from train.config import model_config
+from train.utils import build_graph_from_dxf, mask_to_constraint_vector
 
 
 class ShearWallDataset(InMemoryDataset):
-    def __init__(self, root, dxf_dir, transform=None, pre_transform=None):
+    """剪力墙分布预测数据集"""
+
+    def __init__(self, root: str, dxf_dir: str, transform=None, pre_transform=None):
+        """
+        Args:
+            root: 缓存目录路径
+            dxf_dir: DXF文件目录路径
+            transform: PyG数据转换函数
+            pre_transform: PyG数据预转换函数
+        """
         self.dxf_dir = dxf_dir
         super(ShearWallDataset, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> List[str]:
+        """返回所有原始DXF文件名"""
         return [f for f in os.listdir(self.dxf_dir) if f.endswith(".dxf")]
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> List[str]:
+        """返回处理后的缓存文件名"""
         return ["data.pt"]
 
-    def mask_to_vector(self, buildable_masks_list):
-        """
-        将 list 形式的 masks [(start_ratio, end_ratio), ...] 转换为 16维的 0/1 向量
-        1.0 表示可布置区域，0.0 表示不可布置（门窗）
-        """
-        # 对应 4条边 x 2半边 x 2端点 (Start/End)
-        # 这里简化处理：如果端点所在的半边大部分被 mask 覆盖，则标记为 0
-        # 实际逻辑需根据你的 RoomAnalyzer 对齐，这里提供一个特征占位
-        vector = np.ones(16, dtype=np.float32)
-
-        buildable_ratios = []
-        for intervals in buildable_masks_list:
-            start_ratio, end_ratio = compute_anchor_ratios(intervals)
-            buildable_ratios.extend([start_ratio, end_ratio])
-
-        for i, ratio in enumerate(buildable_ratios):
-            if ratio < 0.4:
-                vector[i] = 0.0
-
-        return vector
-
     def process(self):
+        """
+        处理所有DXF文件，构建PyG数据对象
+
+        流程：
+        1. 遍历所有DXF文件
+        2. 提取几何数据 → 校准 → 分析 → 构图
+        3. 从图中提取节点/边特征
+        4. 构建PyG Data对象
+        5. 保存到缓存
+        """
         data_list = []
         dxf_files = self.raw_file_names
 
-        for dxf_file in tqdm(dxf_files, desc="Processing DXFs"):
+        for dxf_file in tqdm(dxf_files, desc="Processing DXF files"):
             dxf_path = os.path.join(self.dxf_dir, dxf_file)
 
             try:
-                # ================= 你的原始 Pipeline =================
-                extractor = DXFExtractor()
-                extractor.extract_from_file(dxf_path)
+                # 使用工具函数构建图（封装了提取、校准、分析、构图全流程）
+                graph_builder, calibrated_rooms, analysis_results = build_graph_from_dxf(dxf_path)
+                G = graph_builder.graph
 
-                # 转换几何体 & 校准
-                from shapely.geometry import Polygon
+                # 提取节点特征和标签
+                x_list = []  # 节点特征：[几何(9) + 约束(16)]
+                y_list = []  # 标签：剪力墙向量(16)
+                mask_list = []  # 约束掩码(16)
 
-                raw_rooms = [Polygon([(p.x, p.y) for p in r.polygon]) for r in extractor.rooms]
-                sw_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.shear_walls]
-                infill_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.infill_walls]
-
-                if not raw_rooms:
-                    continue
-                calibrated_rooms = calibrate_rooms(raw_rooms, alignment_threshold=200)
-
-                # Ground Truth 分析
-                analyzer = RoomAnalyzer(sw_polys, infill_polys)
-                analysis_results = []
-                for i, room in enumerate(raw_rooms):  # 注意：Analyzer用原始room匹配墙体
-                    if room.is_valid and room.area > 1:
-                        sw, ms = analyzer.process_room(room)
-                        analysis_results.append({"room_index": i, "sw_vector": sw, "masks": ms})
-
-                # 建图
-                gb = LayoutGraphBuilder(calibrated_rooms)
-                gb.add_analysis_results(analysis_results)
-                G = gb.graph
-                # =====================================================
-
-                # NetworkX -> PyG Data
-                x_list = []  # 节点特征
-                y_list = []  # 标签 (剪力墙分布)
-                mask_feat_list = []  # 物理约束特征
-
-                # 建立节点索引映射
                 node_mapping = {node: i for i, node in enumerate(G.nodes())}
 
                 for node in G.nodes():
                     node_data = G.nodes[node]
 
                     # 1. 几何特征 (9维)
-                    geo = node_data["geo_feature"]
+                    geo_feature = node_data["geo_feature"]
 
                     # 2. 标签 (16维)
-                    if node_data["sw_vector"] is None:
-                        # 异常处理：如果没有标签（可能是非房间区域），填0
-                        sw_vec = np.zeros(16, dtype=np.float32)
-                    else:
-                        sw_vec = node_data["sw_vector"]
+                    sw_vector = node_data.get("sw_vector")
+                    if sw_vector is None:
+                        # 如果没有标签，填充零向量（异常情况）
+                        sw_vector = np.zeros(model_config.CONSTRAINT_DIM, dtype=np.float32)
 
-                    # 3. 约束特征 (16维) - 非常重要！
-                    # 你需要把 masks 转化为向量，告诉模型哪里是窗户
-                    # 这里的逻辑需要你根据 mask 数据结构具体实现
-                    # 假设我们将其处理为：1=可布置，0=有门窗不可布置
-                    constraint_vec = self.mask_to_vector(node_data["masks"])
+                    # 3. 约束特征 (16维) - 从masks转换
+                    masks = node_data.get("masks", [])
+                    constraint_vector = mask_to_constraint_vector(masks)
 
                     # 拼接输入特征: [Geo(9) + Constraint(16)] = 25维
-                    x_feat = np.concatenate([geo, constraint_vec])
+                    x_feat = np.concatenate([geo_feature, constraint_vector])
 
                     x_list.append(x_feat)
-                    y_list.append(sw_vec)
-                    mask_feat_list.append(constraint_vec)
+                    y_list.append(sw_vector)
+                    mask_list.append(constraint_vector)
 
                 # 构建边索引和边特征
                 edge_index = []
                 edge_attr = []
+
                 for u, v, edge_data in G.edges(data=True):
                     edge_index.append([node_mapping[u], node_mapping[v]])
-                    edge_attr.append(edge_data["feature"])  # 7维边特征
+                    edge_attr.append(edge_data["feature"])
 
+                # 转换为Tensor
                 x = torch.tensor(np.array(x_list), dtype=torch.float)
                 y = torch.tensor(np.array(y_list), dtype=torch.float)
-                mask_feat = torch.tensor(np.array(mask_feat_list), dtype=torch.float)
+                constraint_mask = torch.tensor(np.array(mask_list), dtype=torch.float)
                 edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
                 edge_attr = torch.tensor(np.array(edge_attr), dtype=torch.float)
 
-                data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
-                # 将 mask_feat 保存到 data 中，方便在 Loss 中调用
-                data.constraint_mask = mask_feat
+                # 创建PyG Data对象
+                data = Data(
+                    x=x,
+                    edge_index=edge_index,
+                    edge_attr=edge_attr,
+                    y=y,
+                    constraint_mask=constraint_mask,  # 保存约束掩码用于Loss计算
+                )
 
                 data_list.append(data)
 
@@ -156,5 +127,6 @@ class ShearWallDataset(InMemoryDataset):
                 print(f"Error processing {dxf_file}: {e}")
                 continue
 
+        # 保存处理后的数据
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])

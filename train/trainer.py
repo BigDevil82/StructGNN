@@ -1,218 +1,295 @@
+"""
+训练脚本
+
+功能：
+1. 加载数据集并划分训练/验证/测试集
+2. 初始化模型和优化器
+3. 训练循环（带验证）
+4. 保存模型和训练曲线
+5. 测试集可视化评估
+"""
+
 import os
 import random
+from pathlib import Path
+from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import torch
-import torch.nn as nn
 from torch.utils.data import Subset, random_split
+from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
+from train.config import data_config, model_config, training_config
 from train.dataset import ShearWallDataset
+from train.losses import HybridLoss, PhysicsInformedLoss
 from train.model import ShearWallGNN
 from train.visualize_test import visualize_single_case
 
-torch.manual_seed(42)
-random.seed(42)
-# ================= 配置参数 =================
-BATCH_SIZE = 16
-LR = 1e-3
-EPOCHS = 100
-DXF_PATH = r"dxf/to_process/room_finished"  # 你的DXF文件夹路径
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SAVE_DIR = "result/ckpt_1217"
-os.makedirs(SAVE_DIR, exist_ok=True)
+# 设置随机种子以确保可复现性
+torch.manual_seed(training_config.RANDOM_SEED)
+random.seed(training_config.RANDOM_SEED)
+
+# 配置设备
+DEVICE = torch.device(training_config.DEVICE if torch.cuda.is_available() else "cpu")
+print(f"Using device: {DEVICE}")
+
+# 创建保存目录
+os.makedirs(data_config.SAVE_DIR, exist_ok=True)
 
 
-# ================= 自定义 Loss =================
-class PhysicsInformedLoss(nn.Module):
-    def __init__(self, mask_penalty_weight=2.0):
-        super().__init__()
-        self.mse = nn.MSELoss()
-        self.penalty_weight = mask_penalty_weight
+# ================= 辅助函数 =================
+def prepare_data() -> Tuple[DataLoader, DataLoader, DataLoader, Subset]:
+    """
+    准备训练、验证和测试数据加载器
 
-    def forward(self, pred, target, constraint_mask):
-        """
-        pred: 模型预测 (N, 16)
-        target: 真实标签 (N, 16)
-        constraint_mask: 可布置区域掩码 (N, 16). 1=可布置, 0=不可布置
-        """
-        # 1. 基础回归 Loss (MSE)
-        basic_loss = self.mse(pred, target)
+    Returns:
+        (train_loader, val_loader, test_loader, test_set)
+    """
+    print("正在加载数据集...")
+    dataset = ShearWallDataset(root=data_config.CACHE_DIR, dxf_dir=data_config.DXF_DIR)
 
-        # 2. 物理约束 Loss (Mask Penalty)
-        # 如果 constraint_mask 为 0 (不能布置)，但 pred > 0，则惩罚
-        # logic: 惩罚项 = pred * (1 - mask)
-        # 如果 mask=1 (可布置), (1-mask)=0, 惩罚为0
-        # 如果 mask=0 (不可布置), (1-mask)=1, 惩罚为 pred 的值
-        violation = pred * (1 - constraint_mask)
-        penalty_loss = torch.mean(violation**2)
+    print(f"数据集大小: {len(dataset)} 个样本")
 
-        return basic_loss + self.penalty_weight * penalty_loss
-
-
-class HybridLoss(nn.Module):
-    def __init__(self, cls_weight=1.0, reg_weight=2.0):
-        super().__init__()
-        self.bce = nn.BCELoss()  # 二分类交叉熵
-        self.mse = nn.MSELoss(reduction="none")  # 回归 Loss
-        self.cls_weight = cls_weight
-        self.reg_weight = reg_weight
-
-    def forward(self, pred_prob, pred_ratio, target_ratio, mask):
-        # 1. 生成分类标签 (Target Classification)
-        # 如果真实长度 > 0，则分类标签为 1，否则为 0
-        target_cls = (target_ratio > 0.01).float()
-
-        # 2. 分类 Loss (BCE)
-        # 即使 mask=0 (不可布置)，如果 GT 没有墙，模型也该预测 0，所以这里是否应用 mask 看情况
-        # 建议：仅在 mask=1 的区域计算 Loss，或者全局计算
-        cls_loss = self.bce(pred_prob, target_cls)
-
-        # 3. 回归 Loss (只在有墙的地方计算！)
-        # 关键点：如果 GT 没墙，不要惩罚回归头预测了什么，防止干扰
-        reg_loss_all = self.mse(pred_ratio, target_ratio)
-
-        # 掩码1：只计算 ground truth 中有墙的部分 (正样本)
-        pos_mask = target_cls
-        # 掩码2：同时也得是物理可布置区域 (双重保险)
-        valid_mask = pos_mask * mask
-
-        # 避免除以 0
-        num_pos = valid_mask.sum() + 1e-6
-        reg_loss = (reg_loss_all * valid_mask).sum() / num_pos
-
-        return self.cls_weight * cls_loss + self.reg_weight * reg_loss
-
-
-# ================= 训练流程 =================
-def main():
-    # 1. 准备数据
-    print("正在准备数据集...")
-    dataset = ShearWallDataset(root="data_cache", dxf_dir=DXF_PATH)
-
-    # 划分训练/验证集 (80/20)
-    train_size = int(len(dataset) * 0.7)
-    val_size = int(len(dataset) * 0.2)
+    # 划分数据集
+    train_size = int(len(dataset) * training_config.TRAIN_RATIO)
+    val_size = int(len(dataset) * training_config.VAL_RATIO)
     test_size = len(dataset) - train_size - val_size
+
     train_set, val_set, test_set = random_split(dataset, [train_size, val_size, test_size])
 
-    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
+    print(f"训练集: {len(train_set)}, 验证集: {len(val_set)}, 测试集: {len(test_set)}")
 
-    # 2. 初始化模型
-    model = ShearWallGNN(node_in_dim=25).to(DEVICE)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=1e-4)
-    # criterion = PhysicsInformedLoss(mask_penalty_weight=5.0)  # 强惩罚
-    criterion = HybridLoss(cls_weight=1.0, reg_weight=2.0)
+    # 创建数据加载器
+    train_loader = DataLoader(train_set, batch_size=training_config.BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_set, batch_size=training_config.BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_set, batch_size=training_config.BATCH_SIZE, shuffle=False)
 
-    # 3. 训练循环
-    print("开始训练...")
-    loss_history = []
-
-    for epoch in range(EPOCHS):
-        model.train()
-        total_loss = 0
-
-        for batch in train_loader:
-            batch = batch.to(DEVICE)
-            optimizer.zero_grad()
-
-            # 前向传播
-            pred_prob, pred_ratio = model(batch)
-
-            # 计算 Loss
-            # 注意：dataset中需要把 constraint_mask 传递过来
-            loss = criterion(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-
-        avg_loss = total_loss / len(train_loader)
-        loss_history.append(avg_loss)
-
-        if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch+1}/{EPOCHS} | Loss: {avg_loss:.4f}")
-            validate(model, val_loader, criterion)
-
-    # 4. 保存模型
-    torch.save(model.state_dict(), os.path.join(SAVE_DIR, "shear_wall_predictor.pth"))
-    print("模型已保存！")
-
-    # 绘制 Loss 曲线
-    plt.plot(loss_history)
-    plt.title("Training Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.savefig(os.path.join(SAVE_DIR, "training_loss.png"))
-    plt.show()
-    # save loss
-
-    # test the model
-    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
-    validate(model, test_loader, criterion)
-
-    # 运行并保存测试集上的可视化结果
-    print("\n正在可视化测试集结果...")
-    visualize_test_set(model, dataset, test_set)
+    return train_loader, val_loader, test_loader, test_set
 
 
-def validate(model, loader, criterion):
+def train_epoch(
+    model: ShearWallGNN, loader: DataLoader, optimizer: torch.optim.Optimizer, criterion: HybridLoss
+) -> float:
+    """
+    训练一个epoch
+
+    Args:
+        model: 模型
+        loader: 数据加载器
+        optimizer: 优化器
+        criterion: 损失函数
+
+    Returns:
+        avg_loss: 平均损失
+    """
+    model.train()
+    total_loss = 0.0
+
+    for batch in loader:
+        batch: Data = batch.to(DEVICE)
+        optimizer.zero_grad()
+
+        # 前向传播
+        pred_prob, pred_ratio = model(batch)
+
+        # 计算损失
+        loss: torch.Tensor = criterion(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
+
+        # 反向传播
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+
+    return total_loss / len(loader)
+
+
+def validate(model: ShearWallGNN, loader: DataLoader, criterion: HybridLoss) -> float:
+    """
+    在验证/测试集上评估模型
+
+    Args:
+        model: 模型
+        loader: 数据加载器
+        criterion: 损失函数
+
+    Returns:
+        avg_loss: 平均损失
+    """
     model.eval()
-    val_loss = 0
+    total_loss = 0.0
+
     with torch.no_grad():
         for batch in loader:
-            batch = batch.to(DEVICE)
-            out = model(batch)
-            pred_prob, pred_ratio = out
-            loss = criterion(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
-            val_loss += loss.item()
-    print(f"   >>> Val Loss: {val_loss / len(loader):.4f}")
-    return out
+            batch: Data = batch.to(DEVICE)
+            pred_prob, pred_ratio = model(batch)
+            loss: torch.Tensor = criterion(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
+            total_loss += loss.item()
+
+    return total_loss / len(loader)
 
 
-def visualize_test_set(model, dataset: ShearWallDataset, test_set: Subset, save_dir):
+def save_training_curve(loss_history: List[float], save_path: str):
+    """
+    保存训练损失曲线
+
+    Args:
+        loss_history: 损失历史记录
+        save_path: 保存路径
+    """
+    plt.figure(figsize=(10, 6))
+    plt.plot(loss_history, linewidth=2)
+    plt.title("Training Loss Curve", fontsize=16, fontweight="bold")
+    plt.xlabel("Epoch", fontsize=12)
+    plt.ylabel("Loss", fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"训练曲线已保存到: {save_path}")
+
+
+# ================= 主训练流程 =================
+def main():
+    """
+    主训练流程
+
+    步骤：
+    1. 准备数据
+    2. 初始化模型、优化器和损失函数
+    3. 训练循环
+    4. 保存模型和训练曲线
+    5. 测试集评估和可视化
+    """
+    # 1. 准备数据
+    train_loader, val_loader, test_loader, test_set = prepare_data()
+
+    # 2. 初始化模型
+    print("\n初始化模型...")
+    model = ShearWallGNN(
+        node_in_dim=model_config.NODE_FEATURE_DIM,
+        edge_in_dim=model_config.EDGE_FEATURE_DIM,
+        hidden_dim=model_config.HIDDEN_DIM,
+        out_dim=model_config.OUTPUT_DIM,
+    ).to(DEVICE)
+
+    # 优化器
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=training_config.LEARNING_RATE, weight_decay=training_config.WEIGHT_DECAY
+    )
+
+    # 损失函数
+    criterion = HybridLoss(cls_weight=training_config.CLS_WEIGHT, reg_weight=training_config.REG_WEIGHT)
+
+    # 3. 训练循环
+    print(f"\n开始训练 (共{training_config.EPOCHS}个epoch)...")
+    print("=" * 60)
+
+    train_loss_history = []
+    val_loss_history = []
+    best_val_loss = float("inf")
+
+    for epoch in range(training_config.EPOCHS):
+        # 训练
+        train_loss = train_epoch(model, train_loader, optimizer, criterion)
+        train_loss_history.append(train_loss)
+
+        # 验证
+        val_loss = validate(model, val_loader, criterion)
+        val_loss_history.append(val_loss)
+
+        # 打印进度
+        if (epoch + 1) % 10 == 0 or epoch == 0:
+            print(
+                f"Epoch [{epoch+1:3d}/{training_config.EPOCHS}] | "
+                f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}"
+            )
+
+        # 保存最佳模型
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_model_path = os.path.join(data_config.SAVE_DIR, "best_model.pth")
+            torch.save(model.state_dict(), best_model_path)
+
+    print("=" * 60)
+    print(f"训练完成！最佳验证损失: {best_val_loss:.4f}")
+
+    # 4. 保存最终模型和训练曲线
+    final_model_path = os.path.join(data_config.SAVE_DIR, "final_model.pth")
+    torch.save(model.state_dict(), final_model_path)
+    print(f"最终模型已保存到: {final_model_path}")
+
+    loss_curve_path = os.path.join(data_config.SAVE_DIR, "training_loss.png")
+    save_training_curve(train_loss_history, loss_curve_path)
+
+    # 5. 测试集评估
+    print("\n在测试集上评估...")
+    test_loss = validate(model, test_loader, criterion)
+    print(f"测试集损失: {test_loss:.4f}")
+
+    # 6. 测试集可视化
+    print("\n生成测试集可视化结果...")
+    viz_save_dir = os.path.join(data_config.SAVE_DIR, "visualizations")
+    visualize_test_set(model, test_set, viz_save_dir)
+
+    print("\n所有任务完成！")
+
+
+def visualize_test_set(model, test_set: Subset, save_dir: str):
     """
     在测试集上运行可视化并保存结果
-    """
-    import os
-    from pathlib import Path
 
+    Args:
+        model: 训练好的模型
+        test_set: 测试集子集
+        save_dir: 可视化结果保存目录
+    """
     # 创建保存目录
-    save_dir = Path(save_dir)
+    save_dir: Path = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # 获取测试集的原始索引
     test_indices = test_set.indices
 
-    # 获取原始 DXF 文件列表
-    dxf_files = [f for f in os.listdir(dataset.dxf_dir) if f.endswith(".dxf")]
+    dxf_files = sorted([f for f in os.listdir(data_config.DXF_DIR) if f.endswith(".dxf")])
 
-    print(f"测试集共 {len(test_indices)} 个样本")
+    print(f"测试集样本数: {len(test_indices)}")
+    print("=" * 60)
 
-    # 遍历测试集
-    IoU_scores = []
+    # 遍历测试集并可视化
+    iou_scores = []
     for idx in test_indices:
         if idx >= len(dxf_files):
-            print(f"警告：索引 {idx} 超出范围")
+            print(f"⚠️  警告：索引 {idx} 超出范围，跳过")
             continue
 
         dxf_file = dxf_files[idx]
-        dxf_path = os.path.join(dataset.dxf_dir, dxf_file)
+        dxf_path = os.path.join(data_config.DXF_DIR, dxf_file)
 
         # 生成保存路径
         save_path = save_dir / f"{Path(dxf_file).stem}.png"
 
-        # try:
-        IoU = visualize_single_case(dxf_path, model, save_path=str(save_path))
-        IoU_scores.append(IoU)
-        # except Exception as e:
-        #     print(f"可视化 {dxf_file} 时出错: {e}")
-        #     continue
+        try:
+            iou = visualize_single_case(dxf_path, model, save_path=str(save_path))
+            iou_scores.append(iou)
+        except Exception as e:
+            print(f"❌ 可视化 {dxf_file} 时出错: {e}")
+            continue
 
-    print(f"\n所有可视化结果已保存到: {save_dir}")
-    if IoU_scores:
-        avg_IoU = sum(IoU_scores) / len(IoU_scores)
-        print(f"平均 IoU 分数: {avg_IoU:.4f}")
+    # 统计结果
+    print("=" * 60)
+    print(f"可视化完成！结果保存在: {save_dir}")
+    if iou_scores:
+        avg_iou = sum(iou_scores) / len(iou_scores)
+        max_iou = max(iou_scores)
+        min_iou = min(iou_scores)
+        print(f"\nIoU 统计:")
+        print(f"  - 平均值: {avg_iou:.4f}")
+        print(f"  - 最大值: {max_iou:.4f}")
+        print(f"  - 最小值: {min_iou:.4f}")
+    else:
+        print("⚠️  警告：没有成功生成任何可视化结果")
 
 
 if __name__ == "__main__":

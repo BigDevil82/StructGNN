@@ -1,3 +1,13 @@
+"""
+房间剪力墙分析模块
+
+功能：
+1. 分析房间边缘的剪力墙分布
+2. 计算可布置区域掩码（排除门窗等）
+3. 生成16维特征向量（4边×2半边×2端点）
+4. 提供墙体重建和IoU计算工具
+"""
+
 from typing import List, Tuple
 
 import matplotlib.pyplot as plt
@@ -7,19 +17,39 @@ from shapely.ops import unary_union
 
 
 def get_room_edges(room_poly: Polygon) -> List[LineString]:
-    """获取房间的四条边 [上、右、下、左]"""
+    """
+    获取房间的四条边（按顺序：上、右、下、左）
+
+    Args:
+        room_poly: 房间多边形（假设为矩形）
+
+    Returns:
+        edges: 4条边的LineString列表
+            - 上边：从左上到右上
+            - 右边：从右上到右下
+            - 下边：从左下到右下
+            - 左边：从左上到左下
+    """
     minx, miny, maxx, maxy = room_poly.bounds
     tl, tr, bl, br = Point(minx, maxy), Point(maxx, maxy), Point(minx, miny), Point(maxx, miny)
+
     return [
         LineString([tl, tr]),  # Top: 从左往右
         LineString([tr, br]),  # Right: 从上往下
-        LineString([bl, br]),  # Bottom: 从左往右
+        LineString([bl, br]),  # Bottom: 从左往右（注意顺序）
         LineString([tl, bl]),  # Left: 从上往下
     ]
 
 
 class RoomAnalyzer:
-    """分析房间的剪力墙分布和可布置区域"""
+    """
+    房间剪力墙分析器
+
+    职责：
+    1. 分析房间每条边上的剪力墙分布
+    2. 计算可布置区域（剪力墙+填充墙的并集）
+    3. 生成16维特征向量作为Ground Truth
+    """
 
     def __init__(self, sw_polys: List[Polygon], infill_polys: List[Polygon]):
         """
@@ -27,13 +57,27 @@ class RoomAnalyzer:
             sw_polys: 剪力墙多边形列表
             infill_polys: 填充墙多边形列表
         """
+        # 合并所有剪力墙为一个union对象（用于快速相交计算）
         self.sw_union = unary_union(sw_polys).buffer(0)
+
+        # 合并所有可布置墙体（剪力墙 + 填充墙）
         self.buildable_union = unary_union(sw_polys + infill_polys).buffer(0)
 
     def _compute_intervals(
         self, edge: LineString, poly_union: Polygon, threshold: float = 0.1
     ) -> List[Tuple[float, float]]:
-        """计算边与多边形集合的交集区间（归一化到 [0, 1]）"""
+        """
+        计算边与多边形集合的交集区间（归一化到[0,1]）
+
+        Args:
+            edge: 房间边线段
+            poly_union: 墙体多边形的并集
+            threshold: 区间长度阈值（小于此值的区间将被忽略）
+
+        Returns:
+            intervals: 归一化区间列表 [(start, end), ...]
+                      区间已合并且按起始位置排序
+        """
         intersection = edge.intersection(poly_union)
         if intersection.is_empty or edge.length == 0:
             return []
@@ -55,9 +99,12 @@ class RoomAnalyzer:
         # 投影到边上并归一化
         intervals = []
         for geom in geoms:
+            # 计算几何对象端点在edge上的投影位置
             d1 = edge.project(Point(geom.coords[0]), normalized=True)
             d2 = edge.project(Point(geom.coords[-1]), normalized=True)
             start, end = sorted([d1, d2])
+
+            # 过滤太短的区间
             if end - start > threshold:
                 intervals.append((start, end))
 
@@ -66,22 +113,36 @@ class RoomAnalyzer:
         merged = []
         for start, end in intervals:
             if merged and start <= merged[-1][1]:
+                # 当前区间与上一个区间重叠，合并
                 merged[-1] = (merged[-1][0], max(merged[-1][1], end))
             else:
                 merged.append((start, end))
+
         return merged
 
     def _compute_anchor_ratios(self, intervals: List[Tuple[float, float]]) -> Tuple[float, float]:
-        """计算边两端的剪力墙比例"""
+        """
+        计算边两端的剪力墙比例
+
+        逻辑：
+        - 如果第一个区间从0开始，则起始端有墙，比例为该区间长度
+        - 如果最后一个区间延伸到1，则结束端有墙，比例为从末尾算起的长度
+
+        Args:
+            intervals: 归一化区间列表
+
+        Returns:
+            (start_ratio, end_ratio): 起始端和结束端的墙体比例
+        """
         if not intervals:
             return 0.0, 0.0
-        # if len(intervals) == 1:
-        #     if intervals[0][0] < 1e-3:
-        #         return intervals[0][1], 0.0
-        #     else:
-        #         return 0.0, 1.0 - intervals[0][0]
+
+        # 判断起始端（0位置）是否有墙
         start_ratio = intervals[0][1] if intervals[0][0] < 1e-3 else 0.0
+
+        # 判断结束端（1位置）是否有墙
         end_ratio = 1.0 - intervals[-1][0] if intervals[-1][1] > 1.0 - 1e-3 else 0.0
+
         return start_ratio, end_ratio
 
     def process_room(self, room_poly: Polygon) -> Tuple[np.ndarray, List[List[Tuple[float, float]]]]:
