@@ -23,7 +23,7 @@ import networkx as nx
 import numpy as np
 from shapely.geometry import Point, Polygon
 
-from dxf_extractor import DXFExtractor
+from preprocess.dxf_extractor import DXFExtractor
 from preprocess.room_analyzer import RoomAnalyzer, plot_room_analysis
 from preprocess.room_calibrator import calibrate_rooms
 

@@ -68,7 +68,7 @@ def extract_dxf_geometry(dxf_path: str) -> Tuple[List[Polygon], List[Polygon], L
     Returns:
         (raw_rooms, sw_polys, infill_polys): 房间、剪力墙、填充墙的多边形列表
     """
-    from dxf_extractor import DXFExtractor
+    from preprocess.dxf_extractor import DXFExtractor
 
     extractor = DXFExtractor()
     extractor.extract_from_file(dxf_path)

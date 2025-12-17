@@ -12,7 +12,7 @@ import numpy as np
 from shapely.geometry import Point, Polygon
 from sklearn.cluster import DBSCAN
 
-from dxf_extractor import DXFExtractor
+from preprocess.dxf_extractor import DXFExtractor
 
 
 class RoomCalibrator:
