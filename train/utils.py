@@ -12,26 +12,16 @@ from train.config import data_config
 
 
 def compute_anchor_ratios(intervals: List[Tuple[float, float]]) -> Tuple[float, float]:
-    """
-    从区间列表计算边两端的剪力墙比例
-
-    Args:
-        intervals: 归一化区间列表 [(start, end), ...]，区间值在 [0, 1] 范围内
-
-    Returns:
-        (start_ratio, end_ratio): 边起始端和结束端的墙体比例
-        - start_ratio: 如果第一个区间从0开始，则为该区间长度；否则为0
-        - end_ratio: 如果最后一个区间延伸到1，则为该区间从末尾算起的长度；否则为0
-    """
+    """计算边两端的剪力墙比例"""
     if not intervals:
         return 0.0, 0.0
-
-    # 判断起始端是否有墙
+    if len(intervals) == 1:
+        if intervals[0][0] < 1e-3:
+            return intervals[0][1], 0.0
+        else:
+            return 0.0, 1.0 - intervals[0][0]
     start_ratio = intervals[0][1] if intervals[0][0] < 1e-3 else 0.0
-
-    # 判断结束端是否有墙
-    end_ratio = 1.0 - intervals[-1][0] if intervals[-1][1] > 1.0 - 1e-3 else 0.0
-
+    end_ratio = 1.0 - intervals[-1][0]
     return start_ratio, end_ratio
 
 
