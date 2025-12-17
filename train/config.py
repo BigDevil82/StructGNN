@@ -91,7 +91,7 @@ class VisualizationConfig:
     # 输出
     DPI: int = 300
     FIG_SIZE_SINGLE: tuple = (8, 6)
-    FIG_SIZE_DOUBLE: tuple = (8, 12)
+    FIG_SIZE_DOUBLE: tuple = (8, 6)
 
 
 # 全局配置实例
