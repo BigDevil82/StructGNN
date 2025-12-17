@@ -16,6 +16,7 @@ import torch
 from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
 
+from train.augmentor import GeometryAugmentor
 from train.config import model_config
 from train.utils import build_graph_from_dxf, mask_to_constraint_vector
 
@@ -34,6 +35,19 @@ class ShearWallDataset(InMemoryDataset):
         self.dxf_dir = dxf_dir
         super(ShearWallDataset, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
+
+        # 加载元数据（文件索引映射）
+        metadata_path = self.processed_paths[0].replace(".pt", "_metadata.pt")
+        if os.path.exists(metadata_path):
+            metadata = torch.load(metadata_path)
+            self.file_indices = metadata["file_indices"]
+            self.aug_modes = metadata["aug_modes"]
+            self.dxf_files = metadata["dxf_files"]
+        else:
+            # 兼容旧版本缓存
+            self.file_indices = None
+            self.aug_modes = None
+            self.dxf_files = None
 
     @property
     def raw_file_names(self) -> List[str]:
@@ -57,76 +71,89 @@ class ShearWallDataset(InMemoryDataset):
         5. 保存到缓存
         """
         data_list = []
+        file_indices_list = []  # 记录每个样本对应的原始文件索引
+        aug_modes_list = []  # 记录每个样本的增广模式
         dxf_files = self.raw_file_names
+        aug_modes = ["none", "flip_x", "flip_y", "rotate_90", "rotate_180", "rotate_270"]
 
-        for dxf_file in tqdm(dxf_files, desc="Processing DXF files"):
+        for file_idx, dxf_file in enumerate(tqdm(dxf_files, desc="Processing DXF files")):
             dxf_path = os.path.join(self.dxf_dir, dxf_file)
 
-            try:
-                # 使用工具函数构建图（封装了提取、校准、分析、构图全流程）
-                graph_builder, calibrated_rooms, analysis_results = build_graph_from_dxf(dxf_path)
-                G = graph_builder.graph
+            for mode in aug_modes:
 
-                # 提取节点特征和标签
-                x_list = []  # 节点特征：[几何(9) + 约束(16)]
-                y_list = []  # 标签：剪力墙向量(16)
-                mask_list = []  # 约束掩码(16)
+                try:
+                    # 使用工具函数构建图（封装了提取、校准、分析、构图全流程）
+                    graph_builder, _, _ = build_graph_from_dxf(dxf_path, mode=mode)
+                    G = graph_builder.graph
 
-                node_mapping = {node: i for i, node in enumerate(G.nodes())}
+                    # 提取节点特征和标签
+                    x_list = []  # 节点特征：[几何(9) + 约束(16)]
+                    y_list = []  # 标签：剪力墙向量(16)
+                    mask_list = []  # 约束掩码(16)
 
-                for node in G.nodes():
-                    node_data = G.nodes[node]
+                    node_mapping = {node: i for i, node in enumerate(G.nodes())}
 
-                    # 1. 几何特征 (9维)
-                    geo_feature = node_data["geo_feature"]
+                    for node in G.nodes():
+                        node_data = G.nodes[node]
 
-                    # 2. 标签 (16维)
-                    sw_vector = node_data.get("sw_vector")
-                    if sw_vector is None:
-                        # 如果没有标签，填充零向量（异常情况）
-                        sw_vector = np.zeros(model_config.CONSTRAINT_DIM, dtype=np.float32)
+                        # 1. 几何特征 (9维)
+                        geo_feature = node_data["geo_feature"]
 
-                    # 3. 约束特征 (16维) - 从masks转换
-                    masks = node_data.get("masks", [])
-                    constraint_vector = mask_to_constraint_vector(masks)
+                        # 2. 标签 (16维)
+                        sw_vector = node_data.get("sw_vector")
+                        if sw_vector is None:
+                            # 如果没有标签，填充零向量（异常情况）
+                            sw_vector = np.zeros(model_config.CONSTRAINT_DIM, dtype=np.float32)
 
-                    # 拼接输入特征: [Geo(9) + Constraint(16)] = 25维
-                    x_feat = np.concatenate([geo_feature, constraint_vector])
+                        # 3. 约束特征 (16维) - 从masks转换
+                        masks = node_data.get("masks", [])
+                        constraint_vector = mask_to_constraint_vector(masks)
 
-                    x_list.append(x_feat)
-                    y_list.append(sw_vector)
-                    mask_list.append(constraint_vector)
+                        # 拼接输入特征: [Geo(9) + Constraint(16)] = 25维
+                        x_feat = np.concatenate([geo_feature, constraint_vector])
 
-                # 构建边索引和边特征
-                edge_index = []
-                edge_attr = []
+                        x_list.append(x_feat)
+                        y_list.append(sw_vector)
+                        mask_list.append(constraint_vector)
 
-                for u, v, edge_data in G.edges(data=True):
-                    edge_index.append([node_mapping[u], node_mapping[v]])
-                    edge_attr.append(edge_data["feature"])
+                    # 构建边索引和边特征
+                    edge_index = []
+                    edge_attr = []
 
-                # 转换为Tensor
-                x = torch.tensor(np.array(x_list), dtype=torch.float)
-                y = torch.tensor(np.array(y_list), dtype=torch.float)
-                constraint_mask = torch.tensor(np.array(mask_list), dtype=torch.float)
-                edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-                edge_attr = torch.tensor(np.array(edge_attr), dtype=torch.float)
+                    for u, v, edge_data in G.edges(data=True):
+                        edge_index.append([node_mapping[u], node_mapping[v]])
+                        edge_attr.append(edge_data["feature"])
 
-                # 创建PyG Data对象
-                data = Data(
-                    x=x,
-                    edge_index=edge_index,
-                    edge_attr=edge_attr,
-                    y=y,
-                    constraint_mask=constraint_mask,  # 保存约束掩码用于Loss计算
-                )
+                    # 转换为Tensor
+                    x = torch.tensor(np.array(x_list), dtype=torch.float)
+                    y = torch.tensor(np.array(y_list), dtype=torch.float)
+                    constraint_mask = torch.tensor(np.array(mask_list), dtype=torch.float)
+                    edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+                    edge_attr = torch.tensor(np.array(edge_attr), dtype=torch.float)
 
-                data_list.append(data)
+                    # 创建PyG Data对象
+                    data = Data(
+                        x=x,
+                        edge_index=edge_index,
+                        edge_attr=edge_attr,
+                        y=y,
+                        constraint_mask=constraint_mask,  # 保存约束掩码用于Loss计算
+                    )
 
-            except Exception as e:
-                print(f"Error processing {dxf_file}: {e}")
-                continue
+                    data_list.append(data)
+                    file_indices_list.append(file_idx)  # 记录原始文件索引
+                    aug_modes_list.append(mode)  # 记录增广模式
+
+                except Exception as e:
+                    print(f"Error processing {dxf_file} with mode {mode}: {e}")
+                    continue
 
         # 保存处理后的数据
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
+
+        # 保存元数据
+        metadata = {"file_indices": file_indices_list, "aug_modes": aug_modes_list, "dxf_files": dxf_files}
+        metadata_path = self.processed_paths[0].replace(".pt", "_metadata.pt")
+        torch.save(metadata, metadata_path)
+        print(f"元数据已保存: {len(file_indices_list)} 个样本来自 {len(dxf_files)} 个文件")

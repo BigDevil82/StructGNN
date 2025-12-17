@@ -57,7 +57,7 @@ class DataConfig:
     """数据处理配置"""
 
     # 路径
-    DXF_DIR: str = r"dxf/to_process/room_finished"
+    DXF_DIR: str = r"dxf/to_process/room_finished/L27"
     CACHE_DIR: str = "data_cache"
     SAVE_DIR: str = "result/ckpt_1217"
 
@@ -90,7 +90,6 @@ class VisualizationConfig:
 
     # 输出
     DPI: int = 300
-    FIG_SIZE_SINGLE: tuple = (8, 6)
     FIG_SIZE_DOUBLE: tuple = (8, 6)
 
 

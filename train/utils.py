@@ -8,6 +8,7 @@ from typing import List, Tuple
 import numpy as np
 from shapely.geometry import Polygon
 
+from train.augmentor import GeometryAugmentor
 from train.config import data_config
 
 
@@ -81,14 +82,15 @@ def extract_dxf_geometry(dxf_path: str) -> Tuple[List[Polygon], List[Polygon], L
     return raw_rooms, sw_polys, infill_polys
 
 
-def build_graph_from_dxf(dxf_path: str):
+def build_graph_from_dxf(dxf_path: str, mode: str = "none"):
     """
     从DXF文件构建完整的图数据结构
 
-    流程：提取 → 校准 → 分析 → 构图
+    流程：提取 → 增广 → 校准 → 分析 → 构图
 
     Args:
         dxf_path: DXF文件路径
+        mode: 数据增广模式，可选值: "none", "flip_x", "flip_y", "rot_90", "rot_180", "rot_270"
 
     Returns:
         (graph_builder, calibrated_rooms, analysis_results):
@@ -105,6 +107,10 @@ def build_graph_from_dxf(dxf_path: str):
 
     if not raw_rooms:
         raise ValueError(f"DXF文件中没有有效房间: {dxf_path}")
+
+    raw_rooms, sw_polys, infill_polys = GeometryAugmentor.apply_augmentation(
+        raw_rooms, sw_polys, infill_polys, mode
+    )
 
     # 2. 校准房间坐标
     calibrated_rooms = calibrate_rooms(raw_rooms, alignment_threshold=data_config.ALIGNMENT_THRESHOLD)

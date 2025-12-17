@@ -25,7 +25,7 @@ from train.utils import build_graph_from_dxf, mask_to_constraint_vector
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def prepare_graph_data_for_inference(dxf_path: str):
+def prepare_graph_data_for_inference(dxf_path: str, mode: str = "none"):
     """
     从DXF文件准备用于推理的图数据
 
@@ -42,7 +42,7 @@ def prepare_graph_data_for_inference(dxf_path: str):
     from torch_geometric.data import Batch, Data
 
     # 构建图
-    graph_builder, calibrated_rooms, analysis_results = build_graph_from_dxf(dxf_path)
+    graph_builder, calibrated_rooms, analysis_results = build_graph_from_dxf(dxf_path, mode)
     G = graph_builder.graph
 
     # 准备特征
@@ -104,7 +104,9 @@ def predict_shear_walls(model: ShearWallGNN, data_batch) -> np.ndarray:
     return predictions
 
 
-def visualize_single_case(dxf_path: str, model: ShearWallGNN, save_path: Optional[str] = None) -> float:
+def visualize_single_case(
+    dxf_path: str, model: ShearWallGNN, save_path: Optional[str] = None, mode: str = "none"
+) -> float:
     """
     可视化单个案例的预测结果
 
@@ -125,7 +127,9 @@ def visualize_single_case(dxf_path: str, model: ShearWallGNN, save_path: Optiona
     print(f"正在处理: {os.path.basename(dxf_path)}")
 
     # 1. 准备数据
-    data_batch, calibrated_rooms, analysis_results, node_ids = prepare_graph_data_for_inference(dxf_path)
+    data_batch, calibrated_rooms, analysis_results, node_ids = prepare_graph_data_for_inference(
+        dxf_path, mode=mode
+    )
 
     # 2. 模型预测
     predictions = predict_shear_walls(model, data_batch)
