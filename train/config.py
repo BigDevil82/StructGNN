@@ -58,9 +58,9 @@ class DataConfig:
     """数据处理配置"""
 
     # 路径
-    DXF_DIR: str = r"dxf/to_process/room_finished"
+    DXF_DIR: str = r"dxf/dataset_split_8_2"
     CACHE_DIR: str = "data_cache"
-    SAVE_DIR: str = "result/aug_1218"
+    SAVE_DIR: str = "result/cross_validate"
 
     # 数据增广
     AUGMENTATIONS: List[str] = ("none", "flip_x", "flip_y")  # 支持的增广模式

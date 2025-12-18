@@ -22,7 +22,7 @@ from train.utils import build_graph_from_dxf
 class ShearWallDataset(InMemoryDataset):
     """剪力墙分布预测数据集"""
 
-    def __init__(self, root: str, dxf_dir: str, transform=None, pre_transform=None):
+    def __init__(self, root: str, dxf_dir: str, transform=None, pre_transform=None, is_test: bool = False):
         """
         Args:
             root: 缓存目录路径
@@ -31,6 +31,7 @@ class ShearWallDataset(InMemoryDataset):
             pre_transform: PyG数据预转换函数
         """
         self.dxf_dir = dxf_dir
+        self.is_test = is_test
         super(ShearWallDataset, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
@@ -76,7 +77,7 @@ class ShearWallDataset(InMemoryDataset):
         for file_idx, dxf_file in enumerate(tqdm(dxf_files, desc="Processing DXF files")):
             dxf_path = os.path.join(self.dxf_dir, dxf_file)
 
-            for mode in data_config.AUGMENTATIONS:
+            for mode in data_config.AUGMENTATIONS if not self.is_test else ["none"]:
                 try:
                     # 1. 获取 Builder
                     builder = build_graph_from_dxf(dxf_path, mode=mode)
