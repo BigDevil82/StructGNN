@@ -28,7 +28,7 @@ from torch_geometric.data import Data
 from preprocess.dxf_extractor import DXFExtractor
 from preprocess.room_analyzer import RoomAnalyzer, plot_room_analysis
 from preprocess.room_calibrator import calibrate_rooms
-from train.utils import mask_to_constraint_vector
+from train.utils import get_file_category, mask_to_constraint_vector
 
 
 class LayoutGraphBuilder:
@@ -38,12 +38,13 @@ class LayoutGraphBuilder:
     将房间布局转换为图结构，用于GNN模型输入
     """
 
-    def __init__(self, rooms: List[Polygon], room_indices: List[int] = None):
+    def __init__(self, dxf_path: str, rooms: List[Polygon], room_indices: List[int] = None):
         """
         Args:
             rooms: 校准后的房间多边形列表
             room_indices: 房间的原始索引列表（用于追踪），默认自动生成 0..N-1
         """
+        self.dxf_path = dxf_path
         self.rooms = rooms
         self.num_rooms = len(rooms)
         self.room_indices = room_indices if room_indices else list(range(self.num_rooms))
@@ -270,8 +271,14 @@ class LayoutGraphBuilder:
 
             constraint_vec = mask_to_constraint_vector(masks)
 
-            # 拼接输入特征: [Geo(9) + Constraint(16)]
-            x_feat = np.concatenate([geo, constraint_vec])
+            # 类别特征
+            category = get_file_category(os.path.basename(self.dxf_path))
+            category_vec = np.zeros(3, dtype=np.float32)
+            if category >= 0:
+                category_vec[category] = 1.0
+
+            # 拼接输入特征: [Geo(9) + Constraint(16) + Category(3)]
+            x_feat = np.concatenate([geo, constraint_vec, category_vec])
 
             x_list.append(x_feat)
             y_list.append(sw_vector)
@@ -385,7 +392,7 @@ def convert_to_graph(dxf_path: str, save_path: str = None):
 
     # 4. 构建图
     # print("构建图结构...")
-    graph_builder = LayoutGraphBuilder(calibrated_rooms)
+    graph_builder = LayoutGraphBuilder(dxf_path, calibrated_rooms)
     graph_builder.add_analysis_results(analysis_results)
 
     # 5. 可视化

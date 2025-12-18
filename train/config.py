@@ -13,13 +13,13 @@ class ModelConfig:
     """模型架构配置"""
 
     # 输入特征维度
-    NODE_FEATURE_DIM: int = 25  # 几何特征(9) + 约束特征(16)
+    NODE_FEATURE_DIM: int = 28  # 几何特征(9) + 约束特征(16) + 类别特征(3)
     GEO_FEATURE_DIM: int = 9  # 几何特征维度
     CONSTRAINT_DIM: int = 16  # 约束/标签维度 (4边 × 2半边 × 2端点)
     EDGE_FEATURE_DIM: int = 8  # 边特征维度
 
     # 模型超参数
-    HIDDEN_DIM: int = 128
+    HIDDEN_DIM: int = 256
     OUTPUT_DIM: int = 32  # 分类(16) + 回归(16)
     GAT_HEADS: int = 4
     NUM_CONV_LAYERS: int = 3
@@ -60,7 +60,7 @@ class DataConfig:
     # 路径
     DXF_DIR: str = r"dxf/to_process/room_finished"
     CACHE_DIR: str = "data_cache"
-    SAVE_DIR: str = "result/ckpt_1218"
+    SAVE_DIR: str = "result/aug_1218"
 
     # 数据增广
     AUGMENTATIONS: List[str] = ("none", "flip_x", "flip_y")  # 支持的增广模式

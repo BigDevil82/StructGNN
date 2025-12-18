@@ -127,7 +127,31 @@ def build_graph_from_dxf(dxf_path: str, mode: str = "none"):
         analysis_results.append({"room_index": i, "sw_vector": sw_vector, "masks": masks})
 
     # 4. 构建图结构
-    graph_builder = LayoutGraphBuilder(calibrated_rooms)
+    graph_builder = LayoutGraphBuilder(dxf_path, calibrated_rooms)
     graph_builder.add_analysis_results(analysis_results)
 
     return graph_builder
+
+
+def get_file_category(filename):
+    """
+    根据文件名获取图纸所述类别
+
+    L17: 0
+    L27: 1
+    L1L28:2
+
+    Args:
+        filename: 文件名字符串
+
+    Returns:
+        category: int, 类别编号
+    """
+    if "L17" in filename:
+        return 0
+    elif "L27" in filename:
+        return 1
+    elif "L1L28" in filename:
+        return 2
+    else:
+        return -1  # 未知类别

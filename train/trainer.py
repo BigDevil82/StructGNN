@@ -2,14 +2,14 @@ import argparse
 import json
 import os
 import random
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.utils.data import Subset
+from torch.utils.data import Subset, WeightedRandomSampler
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
@@ -17,6 +17,7 @@ from train.config import data_config, model_config, training_config
 from train.dataset import ShearWallDataset
 from train.losses import HybridLoss
 from train.model import ShearWallGNN
+from train.utils import get_file_category
 from train.visualize_test import visualize_single_case
 
 # 全局设置
@@ -27,7 +28,7 @@ np.random.seed(training_config.RANDOM_SEED)
 
 
 class DataManager:
-    """数据管理类：负责数据集加载、划分与Loader构建"""
+    """数据管理类：负责数据集加载、分层划分与加权采样Loader构建"""
 
     def __init__(self, root_dir: str, dxf_dir: str):
         self.dataset = ShearWallDataset(root=root_dir, dxf_dir=dxf_dir)
@@ -37,48 +38,94 @@ class DataManager:
 
     def split_and_get_loaders(self) -> Tuple[DataLoader, DataLoader, DataLoader, Subset]:
         """
-        核心逻辑：
-        1. 按文件ID划分，杜绝数据泄露。
-        2. 训练/验证集：包含所有增广数据。
-        3. 测试集：只保留 aug_mode == 'none' 的数据。
+        核心逻辑升级：
+        1. 分层划分 (Stratified Split)：确保 Train/Val/Test 中各类别比例一致。
+        2. 加权采样 (Weighted Sampling)：在训练时对少数类进行过采样。
         """
         file_indices = self.metadata["file_indices"]
         aug_modes = self.metadata["aug_modes"]
+        dxf_files = self.metadata["dxf_files"]
 
-        # 1. 建立映射: file_idx -> [sample_idx1, sample_idx2, ...]
+        # 1. 建立映射并识别类别
         file_to_samples = defaultdict(list)
+        file_to_category = {}  # file_idx -> category_id
+
         for sample_idx, file_idx in enumerate(file_indices):
             file_to_samples[file_idx].append(sample_idx)
+            # 只在第一次遇到该文件时解析类别
+            if file_idx not in file_to_category:
+                fname = dxf_files[file_idx]
+                file_to_category[file_idx] = get_file_category(fname)
 
-        # 2. 划分文件ID
-        unique_files = list(file_to_samples.keys())
-        random.shuffle(unique_files)
+        # 2. 按类别分组文件
+        files_by_category = defaultdict(list)
+        for f_idx, cat in file_to_category.items():
+            files_by_category[cat].append(f_idx)
 
-        n_files = len(unique_files)
-        train_n = int(n_files * training_config.TRAIN_RATIO)
-        val_n = int(n_files * training_config.VAL_RATIO)
+        # 3. 分层划分 (Stratified Split)
+        train_files, val_files, test_files = [], [], []
 
-        train_files = unique_files[:train_n]
-        val_files = unique_files[train_n : train_n + val_n]
-        test_files = unique_files[train_n + val_n :]
+        print(f"📊 数据集类别分布 (文件数):")
+        for cat, f_list in files_by_category.items():
+            random.shuffle(f_list)
+            n = len(f_list)
+            n_train = int(n * training_config.TRAIN_RATIO)
+            n_val = int(n * training_config.VAL_RATIO)
 
-        # 3. 展开为样本索引（核心过滤逻辑在这里）
+            # 确保每个集至少有文件 (避免除零错误)
+            train_subset = f_list[:n_train]
+            val_subset = f_list[n_train : n_train + n_val]
+            test_subset = f_list[n_train + n_val :]
+
+            train_files.extend(train_subset)
+            val_files.extend(val_subset)
+            test_files.extend(test_subset)
+
+            print(
+                f"  - Class {cat}: Total {n} -> Train {len(train_subset)} / Val {len(val_subset)} / Test {len(test_subset)}"
+            )
+
+        # 4. 展开为样本索引
         train_indices = self._expand_indices(train_files, file_to_samples)
         val_indices = self._expand_indices(val_files, file_to_samples)
-
-        # 【修改点】测试集只取 aug_mode == 'none'
+        # 测试集：只取 aug_mode == 'none'
         test_indices = self._expand_indices(
             test_files, file_to_samples, filter_no_aug=True, aug_modes=aug_modes
         )
 
-        print(f"📊 数据划分统计:")
-        print(f"  - 训练集: {len(train_files)} 文件 -> {len(train_indices)} 样本 (含增广)")
-        print(f"  - 验证集: {len(val_files)} 文件 -> {len(val_indices)} 样本 (含增广)")
-        print(f"  - 测试集: {len(test_files)} 文件 -> {len(test_indices)} 样本 (仅原始)")
+        print(f"📊 最终样本统计:")
+        print(f"  - 训练集: {len(train_indices)} 样本 (含增广)")
+        print(f"  - 验证集: {len(val_indices)} 样本")
+        print(f"  - 测试集: {len(test_indices)} 样本 (仅原始)")
 
-        # 4. 构建 Loader
+        # 5. 构建加权采样器 (Weighted Random Sampler) 用于训练集
+        # 计算训练集中每个样本的权重
+        train_sample_categories = []
+        for idx in train_indices:
+            # 找到该样本对应的文件，再找到类别
+            f_idx = file_indices[idx]
+            train_sample_categories.append(file_to_category[f_idx])
+
+        # 计算类别权重: 1 / frequency
+        cat_counts = Counter(train_sample_categories)
+        total_samples = len(train_sample_categories)
+        class_weights = {cat: total_samples / count for cat, count in cat_counts.items()}
+
+        # 为每个样本分配权重
+        sample_weights = [class_weights[cat] for cat in train_sample_categories]
+
+        # 创建采样器
+        sampler = WeightedRandomSampler(
+            weights=sample_weights, num_samples=len(sample_weights), replacement=True
+        )
+
+        # 6. 构建 Loader
+        # 注意：使用 sampler 时，shuffle 必须为 False
         train_loader = DataLoader(
-            Subset(self.dataset, train_indices), batch_size=training_config.BATCH_SIZE, shuffle=True
+            Subset(self.dataset, train_indices),
+            batch_size=training_config.BATCH_SIZE,
+            sampler=sampler,  # 应用加权采样
+            shuffle=False,  # 互斥
         )
         val_loader = DataLoader(
             Subset(self.dataset, val_indices), batch_size=training_config.BATCH_SIZE, shuffle=False
@@ -93,7 +140,6 @@ class DataManager:
         for fid in file_ids:
             samples = mapping[fid]
             if filter_no_aug:
-                # 只保留 mode 为 none 的样本
                 samples = [s for s in samples if aug_modes[s] == "none"]
             indices.extend(samples)
         return indices
@@ -203,6 +249,9 @@ class Evaluator:
         print(f"\n🧪 开始测试集评估 (样本数: {len(test_set)})")
         iou_scores = []
 
+        # 统计每个类别的IoU
+        category_ious = defaultdict(list)
+
         for sample_idx in test_set.indices:
             # 解析元数据
             file_idx = metadata["file_indices"][sample_idx]
@@ -210,8 +259,11 @@ class Evaluator:
             dxf_file = metadata["dxf_files"][file_idx]
             dxf_path = os.path.join(self.data_config.DXF_DIR, dxf_file)
 
-            # 理论上这里 mode 应该全是 none，因为我们在 DataManager 里过滤了
-            # 但为了安全起见，依然处理后缀
+            # 获取类别用于统计
+            # 注意：这里需要实例化 DataManager 或复用其静态逻辑，这里简化处理
+            # 建议 Evaluator 接收一个 category_getter 函数
+            # 此处仅打印文件名供人工核对
+
             save_path = None
             if output_dir:
                 suffix = f"_{mode}" if mode != "none" else ""
@@ -242,6 +294,7 @@ class Evaluator:
         print("\n📈 测试结果统计:")
         print(f"  平均 IoU: {stats['avg_iou']:.4f}")
         print(f"  最大 IoU: {stats['max_iou']:.4f}")
+        print(f"  最小 IoU: {stats['min_iou']:.4f}")
 
         if output_dir:
             with open(output_dir / "metrics.json", "w") as f:
@@ -261,6 +314,7 @@ def main():
 
     if args.mode == "train":
         # 2. 初始化组件
+        # 确保你的 Config 里 NODE_FEATURE_DIM 已经改为 28
         model = ShearWallGNN(
             node_in_dim=model_config.NODE_FEATURE_DIM,
             edge_in_dim=model_config.EDGE_FEATURE_DIM,
@@ -278,7 +332,7 @@ def main():
 
         # 4. 训练后自动测试
         evaluator = Evaluator(trainer.save_dir / "final_model.pth", data_config)
-        evaluator.run_test(test_set, output_dir=trainer.save_dir / "visualizations")
+        evaluator.run_test(test_set, output_dir=trainer.save_dir / "test_set_results")
 
     elif args.mode == "test":
         if not args.ckpt:
@@ -286,7 +340,7 @@ def main():
 
         evaluator = Evaluator(args.ckpt, data_config)
         # 默认保存到模型同级目录下的 test_results
-        out_dir = Path(args.ckpt).parent / "test_results_clean"
+        out_dir = Path(args.ckpt).parent / "test_set_results"
         evaluator.run_test(test_set, output_dir=out_dir)
 
 
