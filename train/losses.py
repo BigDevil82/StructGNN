@@ -54,6 +54,68 @@ class PhysicsInformedLoss(nn.Module):
         return basic_loss + self.penalty_weight * penalty_loss
 
 
+# 在 losses.py 中
+class ConsistencyLoss(nn.Module):
+    def __init__(self, weight=1.0):
+        super().__init__()
+        self.weight = weight
+        self.mse = nn.MSELoss()
+
+    def forward(self, pred_ratio, edge_index, edge_attr):
+        """
+        pred_ratio: (N, 16) - 16维的回归输出
+        edge_index: (2, E)
+        edge_attr: (E, D) - 包含相对方位信息 [..., is_top, is_bottom, is_left, is_right, ...]
+        """
+        # 1. 获取每条边的源节点(src)和目标节点(dst)
+        src_idx, dst_idx = edge_index
+
+        # 2. 获取源节点和目标节点的预测值
+        pred_src = pred_ratio[src_idx]  # (E, 16)
+        pred_dst = pred_ratio[dst_idx]  # (E, 16)
+
+        # 3. 确定对应关系 (Mapping)
+        # 假设 16维向量顺序是:
+        # [Top(4), Right(4), Bottom(4), Left(4)] (每个方向包含2段*2端点=4值)
+        # 这里的索引需要根据你实际的 sw_vector 定义来写
+
+        # 示例：如果 edge 是 "Right" (dst 在 src 的右边)
+        # 那么 src 的 "Right Wall" 应该等于 dst 的 "Left Wall"
+
+        # 假设 edge_attr 中第 3,4,5,6 位是 Top, Bottom, Left, Right one-hot
+        is_top = edge_attr[:, 3] == 1
+        is_bottom = edge_attr[:, 4] == 1
+        is_left = edge_attr[:, 5] == 1
+        is_right = edge_attr[:, 6] == 1
+        loss = 0
+
+        # === Case 1: Src 的右边是 Dst (即检查 Src_Right vs Dst_Left) ===
+        # 假设 Right Wall 的索引是 4:8, Left Wall 的索引是 12:16
+        if is_right.any():
+            # 取出所有这种关系的边
+            p_src = pred_src[is_right, 4:8]
+            p_dst = pred_dst[is_right, 12:16]
+            loss += self.mse(p_src, p_dst)
+
+        # === Case 2: Src 的左边是 Dst (即检查 Src_Left vs Dst_Right) ===
+        if is_left.any():
+            p_src = pred_src[is_left, 12:16]
+            p_dst = pred_dst[is_left, 4:8]
+            loss += self.mse(p_src, p_dst)
+
+        if is_top.any():
+            p_src = pred_src[is_top, 0:4]
+            p_dst = pred_dst[is_top, 8:12]
+            loss += self.mse(p_src, p_dst)
+
+        if is_bottom.any():
+            p_src = pred_src[is_bottom, 8:12]
+            p_dst = pred_dst[is_bottom, 0:4]
+            loss += self.mse(p_src, p_dst)
+
+        return self.weight * loss
+
+
 class HybridLoss(nn.Module):
     """
     混合损失函数（分类 + 回归）

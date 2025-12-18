@@ -15,7 +15,7 @@ from torch_geometric.loader import DataLoader
 
 from train.config import data_config, model_config, training_config
 from train.dataset import ShearWallDataset
-from train.losses import HybridLoss
+from train.losses import ConsistencyLoss, HybridLoss
 from train.model import ShearWallGNN
 from train.utils import get_file_category
 from train.visualize_test import visualize_single_case
@@ -95,7 +95,7 @@ class DataManager:
 
         print(f"📊 最终样本统计:")
         print(f"  - 训练集: {len(train_indices)} 样本 (含增广)")
-        print(f"  - 验证集: {len(val_indices)} 样本")
+        print(f"  - 验证集: {len(val_indices)} 样本 (含增广)")
         print(f"  - 测试集: {len(test_indices)} 样本 (仅原始)")
 
         # 5. 构建加权采样器 (Weighted Random Sampler) 用于训练集
@@ -148,10 +148,13 @@ class DataManager:
 class Trainer:
     """训练管理类：负责模型训练、验证与保存"""
 
-    def __init__(self, model: ShearWallGNN, optimizer: torch.optim.Optimizer, criterion, save_dir):
+    def __init__(
+        self, model: ShearWallGNN, optimizer: torch.optim.Optimizer, hybrid_loss, consist_loss, save_dir
+    ):
         self.model = model.to(DEVICE)
         self.optimizer = optimizer
-        self.criterion = criterion
+        self.hybrid_loss = hybrid_loss
+        self.consist_loss = consist_loss
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -180,14 +183,16 @@ class Trainer:
         self._plot_curves()
         print(f"✅ 训练完成，最佳验证 Loss: {self.best_val_loss:.4f}")
 
-    def _train_epoch(self, loader):
+    def _train_epoch(self, loader: DataLoader):
         self.model.train()
         total_loss = 0
         for batch in loader:
             batch = batch.to(DEVICE)
             self.optimizer.zero_grad()
             pred_prob, pred_ratio = self.model(batch)
-            loss = self.criterion(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
+            loss = self.hybrid_loss(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
+            loss_consist = self.consist_loss(pred_ratio, batch.edge_index, batch.edge_attr)
+            loss += loss_consist
             loss.backward()
             self.optimizer.step()
             total_loss += loss.item()
@@ -200,7 +205,7 @@ class Trainer:
             for batch in loader:
                 batch = batch.to(DEVICE)
                 pred_prob, pred_ratio = self.model(batch)
-                loss = self.criterion(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
+                loss = self.hybrid_loss(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
                 total_loss += loss.item()
         return total_loss / len(loader)
 
@@ -220,9 +225,9 @@ class Trainer:
 class Evaluator:
     """评估管理类：负责测试集评估与可视化"""
 
-    def __init__(self, model_path: str, data_config_obj):
+    def __init__(self, model_path: str, dxf_dir: str):
         self.model = self._load_model(model_path)
-        self.data_config = data_config_obj
+        self.dxf_dir = dxf_dir
 
     def _load_model(self, path):
         print(f"📥 加载模型: {path}")
@@ -241,7 +246,7 @@ class Evaluator:
             output_dir = Path(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
 
-        dataset = test_set.dataset
+        dataset: ShearWallDataset = test_set.dataset if isinstance(test_set, Subset) else test_set
         # 加载必要元数据来找到原始DXF路径
         meta_path = dataset.processed_paths[0].replace(".pt", "_metadata.pt")
         metadata = torch.load(meta_path)
@@ -257,7 +262,7 @@ class Evaluator:
             file_idx = metadata["file_indices"][sample_idx]
             mode = metadata["aug_modes"][sample_idx]
             dxf_file = metadata["dxf_files"][file_idx]
-            dxf_path = os.path.join(self.data_config.DXF_DIR, dxf_file)
+            dxf_path = os.path.join(self.dxf_dir, dxf_file)
 
             # 获取类别用于统计
             # 注意：这里需要实例化 DataManager 或复用其静态逻辑，这里简化处理
@@ -304,7 +309,9 @@ class Evaluator:
 # ================= 主入口 =================
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", type=str, default="train", choices=["train", "test"])
+    parser.add_argument(
+        "--mode", type=str, default="train", choices=["train", "test", "cv_test"], help="运行模式"
+    )
     parser.add_argument("--ckpt", type=str, help="测试模式下的模型路径")
     args = parser.parse_args()
 
@@ -324,21 +331,22 @@ def main():
         optimizer = torch.optim.AdamW(
             model.parameters(), lr=training_config.LEARNING_RATE, weight_decay=training_config.WEIGHT_DECAY
         )
-        criterion = HybridLoss(cls_weight=training_config.CLS_WEIGHT, reg_weight=training_config.REG_WEIGHT)
+        hybrid_loss = HybridLoss(cls_weight=training_config.CLS_WEIGHT, reg_weight=training_config.REG_WEIGHT)
+        consist_loss = ConsistencyLoss(weight=0.3)
 
         # 3. 开始训练
-        trainer = Trainer(model, optimizer, criterion, data_config.SAVE_DIR)
+        trainer = Trainer(model, optimizer, hybrid_loss, consist_loss, data_config.SAVE_DIR)
         trainer.run(train_loader, val_loader, training_config.EPOCHS)
 
         # 4. 训练后自动测试
-        evaluator = Evaluator(trainer.save_dir / "final_model.pth", data_config)
+        evaluator = Evaluator(trainer.save_dir / "final_model.pth", data_config.DXF_DIR)
         evaluator.run_test(test_set, output_dir=trainer.save_dir / "test_set_results")
 
     elif args.mode == "test":
         if not args.ckpt:
             raise ValueError("测试模式必须提供 --ckpt 参数")
 
-        evaluator = Evaluator(args.ckpt, data_config)
+        evaluator = Evaluator(args.ckpt, data_config.DXF_DIR)
         # 默认保存到模型同级目录下的 test_results
         out_dir = Path(args.ckpt).parent / "test_set_results"
         evaluator.run_test(test_set, output_dir=out_dir)
