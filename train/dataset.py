@@ -15,6 +15,7 @@ import torch
 from torch_geometric.data import InMemoryDataset
 from tqdm import tqdm
 
+from train.config import data_config
 from train.utils import build_graph_from_dxf
 
 
@@ -71,12 +72,11 @@ class ShearWallDataset(InMemoryDataset):
         file_indices_list = []  # 记录每个样本对应的原始文件索引
         aug_modes_list = []  # 记录每个样本的增广模式
         dxf_files = self.raw_file_names
-        aug_modes = ["none", "flip_x", "flip_y"]
 
         for file_idx, dxf_file in enumerate(tqdm(dxf_files, desc="Processing DXF files")):
             dxf_path = os.path.join(self.dxf_dir, dxf_file)
 
-            for mode in aug_modes:
+            for mode in data_config.AUGMENTATIONS:
                 try:
                     # 1. 获取 Builder
                     builder = build_graph_from_dxf(dxf_path, mode=mode)

@@ -5,6 +5,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List
 
 
 @dataclass
@@ -60,6 +61,9 @@ class DataConfig:
     DXF_DIR: str = r"dxf/to_process/room_finished"
     CACHE_DIR: str = "data_cache"
     SAVE_DIR: str = "result/ckpt_1218"
+
+    # 数据增广
+    AUGMENTATIONS: List[str] = ("none", "flip_x", "flip_y")  # 支持的增广模式
 
     # 预处理参数
     ALIGNMENT_THRESHOLD: float = 200.0  # 房间校准的坐标对齐阈值
