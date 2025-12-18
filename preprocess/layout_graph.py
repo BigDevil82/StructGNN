@@ -21,11 +21,14 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+import torch
 from shapely.geometry import Point, Polygon
+from torch_geometric.data import Data
 
 from preprocess.dxf_extractor import DXFExtractor
 from preprocess.room_analyzer import RoomAnalyzer, plot_room_analysis
 from preprocess.room_calibrator import calibrate_rooms
+from train.utils import mask_to_constraint_vector
 
 
 class LayoutGraphBuilder:
@@ -239,21 +242,58 @@ class LayoutGraphBuilder:
                 self.graph.nodes[node_id]["sw_vector"] = np.array(res["sw_vector"], dtype=np.float32)
                 self.graph.nodes[node_id]["masks"] = res["masks"]
 
-    def get_pyg_data(self):
+    def to_pyg_data(self) -> Data:
         """
-        (预留接口) 将图转换为 PyTorch Geometric Data 对象
-        Returns:
-            data object compatible with PyG
+        将内部图结构转换为 PyG Data 对象
         """
-        # 这里仅作伪代码展示，避免引入 torch 依赖导致当前环境报错
-        # import torch
-        # from torch_geometric.data import Data
-        # x = torch.tensor([self.graph.nodes[i]['geo_feature'] for i in ...])
-        # edge_index = ...
-        # edge_attr = ...
-        # y = torch.tensor([self.graph.nodes[i]['sw_vector'] for i in ...])
-        # return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
-        pass
+        x_list = []  # 节点特征
+        y_list = []  # 标签
+        mask_list = []  # 约束掩码
+
+        # 建立节点映射 (networkx node id -> pyg index)
+        # 保证顺序一致性
+        nodes_list = list(self.graph.nodes(data=True))
+        node_mapping = {node_id: i for i, (node_id, _) in enumerate(nodes_list)}
+
+        for node_id, data in nodes_list:
+            # 1. 几何特征
+            geo = data["geo_feature"]
+
+            # 2. 约束特征 & 标签
+            # 注意：处理推理时可能没有 label 的情况
+            masks = data.get("masks", [])
+            sw_vector = data.get("sw_vector")
+
+            # 如果没有标签（推理模式且未运行分析），给默认零向量
+            if sw_vector is None:
+                sw_vector = np.zeros(16, dtype=np.float32)
+
+            constraint_vec = mask_to_constraint_vector(masks)
+
+            # 拼接输入特征: [Geo(9) + Constraint(16)]
+            x_feat = np.concatenate([geo, constraint_vec])
+
+            x_list.append(x_feat)
+            y_list.append(sw_vector)
+            mask_list.append(constraint_vec)
+
+        # 构建边特征
+        edge_index = []
+        edge_attr = []
+        for u, v, data in self.graph.edges(data=True):
+            edge_index.append([node_mapping[u], node_mapping[v]])
+            edge_attr.append(data["feature"])
+
+        # 转换为 Tensor
+        data = Data(
+            x=torch.tensor(np.array(x_list), dtype=torch.float),
+            edge_index=torch.tensor(edge_index, dtype=torch.long).t().contiguous(),
+            edge_attr=torch.tensor(np.array(edge_attr), dtype=torch.float),
+            y=torch.tensor(np.array(y_list), dtype=torch.float),
+            constraint_mask=torch.tensor(np.array(mask_list), dtype=torch.float),
+        )
+
+        return data
 
     def visualize(self, ax: plt.Axes, show_labels: bool = True):
         """

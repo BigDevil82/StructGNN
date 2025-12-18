@@ -11,14 +11,11 @@
 import os
 from typing import List
 
-import numpy as np
 import torch
-from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.data import InMemoryDataset
 from tqdm import tqdm
 
-from train.augmentor import GeometryAugmentor
-from train.config import model_config
-from train.utils import build_graph_from_dxf, mask_to_constraint_vector
+from train.utils import build_graph_from_dxf
 
 
 class ShearWallDataset(InMemoryDataset):
@@ -74,78 +71,26 @@ class ShearWallDataset(InMemoryDataset):
         file_indices_list = []  # 记录每个样本对应的原始文件索引
         aug_modes_list = []  # 记录每个样本的增广模式
         dxf_files = self.raw_file_names
-        aug_modes = ["none", "flip_x", "flip_y", "rotate_90", "rotate_180", "rotate_270"]
+        aug_modes = ["none", "flip_x", "flip_y"]
 
         for file_idx, dxf_file in enumerate(tqdm(dxf_files, desc="Processing DXF files")):
             dxf_path = os.path.join(self.dxf_dir, dxf_file)
 
             for mode in aug_modes:
-
                 try:
-                    # 使用工具函数构建图（封装了提取、校准、分析、构图全流程）
-                    graph_builder, _, _ = build_graph_from_dxf(dxf_path, mode=mode)
-                    G = graph_builder.graph
+                    # 1. 获取 Builder
+                    builder = build_graph_from_dxf(dxf_path, mode=mode)
 
-                    # 提取节点特征和标签
-                    x_list = []  # 节点特征：[几何(9) + 约束(16)]
-                    y_list = []  # 标签：剪力墙向量(16)
-                    mask_list = []  # 约束掩码(16)
+                    # 2. 一键获取 PyG Data (逻辑已经在 Builder 内部闭环)
+                    data = builder.to_pyg_data()
 
-                    node_mapping = {node: i for i, node in enumerate(G.nodes())}
-
-                    for node in G.nodes():
-                        node_data = G.nodes[node]
-
-                        # 1. 几何特征 (9维)
-                        geo_feature = node_data["geo_feature"]
-
-                        # 2. 标签 (16维)
-                        sw_vector = node_data.get("sw_vector")
-                        if sw_vector is None:
-                            # 如果没有标签，填充零向量（异常情况）
-                            sw_vector = np.zeros(model_config.CONSTRAINT_DIM, dtype=np.float32)
-
-                        # 3. 约束特征 (16维) - 从masks转换
-                        masks = node_data.get("masks", [])
-                        constraint_vector = mask_to_constraint_vector(masks)
-
-                        # 拼接输入特征: [Geo(9) + Constraint(16)] = 25维
-                        x_feat = np.concatenate([geo_feature, constraint_vector])
-
-                        x_list.append(x_feat)
-                        y_list.append(sw_vector)
-                        mask_list.append(constraint_vector)
-
-                    # 构建边索引和边特征
-                    edge_index = []
-                    edge_attr = []
-
-                    for u, v, edge_data in G.edges(data=True):
-                        edge_index.append([node_mapping[u], node_mapping[v]])
-                        edge_attr.append(edge_data["feature"])
-
-                    # 转换为Tensor
-                    x = torch.tensor(np.array(x_list), dtype=torch.float)
-                    y = torch.tensor(np.array(y_list), dtype=torch.float)
-                    constraint_mask = torch.tensor(np.array(mask_list), dtype=torch.float)
-                    edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-                    edge_attr = torch.tensor(np.array(edge_attr), dtype=torch.float)
-
-                    # 创建PyG Data对象
-                    data = Data(
-                        x=x,
-                        edge_index=edge_index,
-                        edge_attr=edge_attr,
-                        y=y,
-                        constraint_mask=constraint_mask,  # 保存约束掩码用于Loss计算
-                    )
-
+                    # 记录元数据
                     data_list.append(data)
-                    file_indices_list.append(file_idx)  # 记录原始文件索引
-                    aug_modes_list.append(mode)  # 记录增广模式
+                    file_indices_list.append(file_idx)
+                    aug_modes_list.append(mode)
 
                 except Exception as e:
-                    print(f"Error processing {dxf_file} with mode {mode}: {e}")
+                    print(f"Error: {e}")
                     continue
 
         # 保存处理后的数据

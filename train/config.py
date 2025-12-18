@@ -57,9 +57,9 @@ class DataConfig:
     """数据处理配置"""
 
     # 路径
-    DXF_DIR: str = r"dxf/to_process/room_finished/L27"
+    DXF_DIR: str = r"dxf/to_process/room_finished"
     CACHE_DIR: str = "data_cache"
-    SAVE_DIR: str = "result/ckpt_1217"
+    SAVE_DIR: str = "result/ckpt_1218"
 
     # 预处理参数
     ALIGNMENT_THRESHOLD: float = 200.0  # 房间校准的坐标对齐阈值

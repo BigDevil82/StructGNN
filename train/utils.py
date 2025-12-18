@@ -130,4 +130,4 @@ def build_graph_from_dxf(dxf_path: str, mode: str = "none"):
     graph_builder = LayoutGraphBuilder(calibrated_rooms)
     graph_builder.add_analysis_results(analysis_results)
 
-    return graph_builder, calibrated_rooms, analysis_results
+    return graph_builder

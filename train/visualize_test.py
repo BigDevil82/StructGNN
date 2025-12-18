@@ -27,56 +27,19 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def prepare_graph_data_for_inference(dxf_path: str, mode: str = "none"):
     """
-    从DXF文件准备用于推理的图数据
-
-    Args:
-        dxf_path: DXF文件路径
-
-    Returns:
-        (data_batch, calibrated_rooms, analysis_results, node_ids):
-            - data_batch: PyG Batch对象（单个图）
-            - calibrated_rooms: 校准后的房间列表
-            - analysis_results: Ground Truth分析结果
-            - node_ids: 节点ID列表（用于映射回房间）
+    现在的逻辑非常简单：获取 builder -> 转 batch
     """
-    from torch_geometric.data import Batch, Data
+    from torch_geometric.data import Batch
 
-    # 构建图
-    graph_builder, calibrated_rooms, analysis_results = build_graph_from_dxf(dxf_path, mode)
-    G = graph_builder.graph
+    # 获取 Builder
+    builder = build_graph_from_dxf(dxf_path, mode)
 
-    # 准备特征
-    x_list = []
-    node_mapping = {node: i for i, node in enumerate(G.nodes())}
-    node_ids = list(G.nodes())
-
-    for node in node_ids:
-        node_data = G.nodes[node]
-        geo_feature = node_data["geo_feature"]
-        masks = node_data.get("masks", [])
-        constraint_vector = mask_to_constraint_vector(masks)
-
-        # 拼接输入特征
-        x_feat = np.concatenate([geo_feature, constraint_vector])
-        x_list.append(x_feat)
-
-    # 构建边
-    edge_index = []
-    edge_attr = []
-    for u, v, edge_data in G.edges(data=True):
-        edge_index.append([node_mapping[u], node_mapping[v]])
-        edge_attr.append(edge_data["feature"])
-
-    # 转换为Tensor
-    x = torch.tensor(np.array(x_list), dtype=torch.float)
-    edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-    edge_attr = torch.tensor(np.array(edge_attr), dtype=torch.float)
-
-    # 创建PyG Data并转为Batch
-    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+    # 转 PyG 数据
+    data = builder.to_pyg_data()
     data_batch = Batch.from_data_list([data]).to(DEVICE)
 
-    return data_batch, calibrated_rooms, analysis_results, node_ids
+    # 直接返回 builder，因为它包含了 rooms 和 graph 结构，用于后续画图
+    return data_batch, builder
 
 
 def predict_shear_walls(model: ShearWallGNN, data_batch) -> np.ndarray:
@@ -127,9 +90,7 @@ def visualize_single_case(
     print(f"正在处理: {os.path.basename(dxf_path)}")
 
     # 1. 准备数据
-    data_batch, calibrated_rooms, analysis_results, node_ids = prepare_graph_data_for_inference(
-        dxf_path, mode=mode
-    )
+    data_batch, builder = prepare_graph_data_for_inference(dxf_path, mode=mode)
 
     # 2. 模型预测
     predictions = predict_shear_walls(model, data_batch)
@@ -137,41 +98,31 @@ def visualize_single_case(
     # 3. 可视化绘图
     fig, (ax_gt, ax_pred) = plt.subplots(2, 1, figsize=viz_config.FIG_SIZE_DOUBLE)
 
-    # 左图：Ground Truth
+    # 上图：Ground Truth
     ax_gt.set_title("Ground Truth (真实分布)", fontsize=14, fontweight="bold")
-    for res in analysis_results:
-        idx = res["room_index"]
-        if idx < len(calibrated_rooms):
-            room_poly = calibrated_rooms[idx]
-            gt_vec = np.array(res["sw_vector"])
-            masks = res["masks"]
+    for node_id in builder.graph.nodes:
+        # 从节点属性中直接获取数据
+        node_data = builder.graph.nodes[node_id]
 
+        room_poly = node_data["poly"]  # 之前叫 calibrated_rooms[i]
+        gt_vec = node_data.get("sw_vector")  # 之前要在 list 里查
+        masks = node_data.get("masks", [])
+
+        if gt_vec is not None:
             plot_room_analysis(room_poly, gt_vec, masks, ax_gt, wall_color=viz_config.GT_WALL_COLOR)
 
-            # 标注房间号
-            c = room_poly.centroid
-            ax_gt.text(c.x, c.y, str(idx), color="blue", fontsize=10)
-
-    # 右图：Prediction
+    # 下图：Prediction
     ax_pred.set_title("Model Prediction (模型预测)", fontsize=14, fontweight="bold")
     iou_scores = []
 
-    # 遍历每个节点，绘制预测结果
+    node_ids = list(builder.graph.nodes())
+
     for i, node_id in enumerate(node_ids):
-        if node_id >= len(calibrated_rooms):
-            continue
-
-        room_poly = calibrated_rooms[node_id]
-        pred_vec = predictions[i]
-
-        # 获取对应的Ground Truth和Masks
-        gt_vec = np.zeros(16)
-        masks = []
-        for res in analysis_results:
-            if res["room_index"] == node_id:
-                gt_vec = np.array(res["sw_vector"])
-                masks = res["masks"]
-                break
+        node_data = builder.graph.nodes[node_id]
+        room_poly = node_data["poly"]
+        masks = node_data.get("masks", [])
+        gt_vec = node_data.get("sw_vector")
+        pred_vec = predictions[i]  # 对应第 i 个节点
 
         # 重建墙体
         pred_walls = reconstruct_walls(room_poly, pred_vec, masks)
@@ -188,7 +139,7 @@ def visualize_single_case(
 
         # 在房间中心显示IoU
         c = room_poly.centroid
-        ax_pred.text(c.x, c.y, f"{iou:.2f}", color="black", fontsize=9, fontweight="bold")
+        ax_pred.text(c.x, c.y, f"{iou:.2f}", color="black", fontsize=6, fontweight="bold")
 
     # 设置样式
     avg_iou = np.mean(iou_scores) if iou_scores else 0

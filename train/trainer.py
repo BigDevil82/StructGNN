@@ -102,7 +102,7 @@ class DataManager:
 class Trainer:
     """训练管理类：负责模型训练、验证与保存"""
 
-    def __init__(self, model, optimizer, criterion, save_dir):
+    def __init__(self, model: ShearWallGNN, optimizer: torch.optim.Optimizer, criterion, save_dir):
         self.model = model.to(DEVICE)
         self.optimizer = optimizer
         self.criterion = criterion
