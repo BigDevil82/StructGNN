@@ -13,7 +13,7 @@ from torch.utils.data import Subset, WeightedRandomSampler
 from torch_geometric.loader import DataLoader
 
 # 复用你现有项目中的组件
-from train.config import data_config, model_config, training_config
+from train.config import ModelConfig, data_config, model_config, training_config
 from train.dataset import ShearWallDataset
 from train.losses import ConsistencyLoss, HybridLoss
 from train.model import ShearWallGNN
@@ -129,6 +129,65 @@ class KFoldDataManager:
         return train_loader, val_loader
 
 
+class EnsembleShearWallGNN(torch.nn.Module):
+    """
+    集成模型包装器：内部管理多个模型，前向传播时输出平均值
+    """
+
+    def __init__(self, model_paths: List[str], model_config: ModelConfig):
+        super().__init__()
+        self.models = torch.nn.ModuleList()
+
+        print(f"🔄 正在初始化集成模型，共 {len(model_paths)} 个子模型...")
+
+        for path in model_paths:
+            # 1. 初始化子模型结构
+            model = ShearWallGNN(
+                node_in_dim=model_config.NODE_FEATURE_DIM,
+                edge_in_dim=model_config.EDGE_FEATURE_DIM,
+                hidden_dim=model_config.HIDDEN_DIM,
+                out_dim=model_config.OUTPUT_DIM,
+            )
+
+            # 2. 加载权重
+            # map_location 确保在 CPU/GPU 间正确加载
+            state_dict = torch.load(path, map_location=DEVICE)
+            model.load_state_dict(state_dict)
+
+            # 3. 设置为评估模式 (非常重要，关闭 Dropout 等)
+            model.eval()
+            model.to(DEVICE)
+
+            self.models.append(model)
+
+        print("✅ 集成模型初始化完成")
+
+    def forward(self, data):
+        """
+        前向传播：运行所有子模型并取平均
+        """
+        # data 需要移动到设备上 (虽然 DataLoader 通常做了，但为了保险)
+        # 注意：这里假设输入的 data 已经在正确的 device 上，或者子模型能处理
+
+        prob_sum = 0
+        ratio_sum = 0
+        n_models = len(self.models)
+
+        with torch.no_grad():  # 确保不计算梯度
+            for model in self.models:
+                # 获取子模型输出 (假设输出已经是 Sigmoid 后的 [0,1])
+                prob, ratio = model(data)
+
+                prob_sum += prob
+                ratio_sum += ratio
+
+        # 取平均值
+        avg_prob = prob_sum / n_models
+        avg_ratio = ratio_sum / n_models
+
+        return avg_prob, avg_ratio
+
+
 def cross_validate_train(n_folds=5, epochs=100):
     """主执行函数"""
 
@@ -175,8 +234,8 @@ def cross_validate_train(n_folds=5, epochs=100):
         trainer = Trainer(
             model=model,
             optimizer=optimizer,
-            hybrid_loss=criterion,
-            consist_loss=consist_loss,
+            criterion=criterion,
+            consistency_criterion=consist_loss,
             save_dir=fold_save_dir,
         )
 
@@ -187,22 +246,9 @@ def cross_validate_train(n_folds=5, epochs=100):
         fold_results.append(
             {
                 "fold": fold,
-                "best_val_loss": trainer.best_val_loss,
-                "model_path": str(fold_save_dir / "best_model.pth"),
+                "model_path": str(fold_save_dir / "final_model.pth"),
             }
         )
-
-    # ================= 汇总报告 =================
-    print("\n\n📊 交叉验证最终报告")
-    print("========================================")
-    losses = [r["best_val_loss"] for r in fold_results]
-
-    for res in fold_results:
-        print(f"Fold {res['fold']+1}: Best Loss = {res['best_val_loss']:.4f}")
-
-    print("----------------------------------------")
-    print(f"Average Val Loss: {np.mean(losses):.4f} ± {np.std(losses):.4f}")
-    print("========================================")
 
     # 保存结果到 JSON
     with open(base_save_dir / "cv_summary.json", "w") as f:
@@ -216,13 +262,29 @@ def cross_validate_test():
     # 包装为Subset兼容
     test_set = Subset(test_set, list(range(len(test_set))))
 
-    for fold_idx in range(5):
-        print(f"\n===== 交叉验证 Fold {fold_idx + 1}/5 测试 =====")
-        fold_dir = Path(data_config.SAVE_DIR) / f"fold_{fold_idx}"
-        model_path = fold_dir / "final_model.pth"
+    # 1. 寻找所有 Fold 的模型路径
+    cv_path = Path(data_config.SAVE_DIR)
+    model_paths = sorted(list(cv_path.glob("fold_*/best_model.pth")))
 
-        evaluator = Evaluator(str(model_path), f"{data_config.DXF_DIR}/test")
-        evaluator.run_test(test_set, output_dir=fold_dir / "test_set_results")
+    if not model_paths:
+        raise FileNotFoundError(f"在 {cv_path} 下未找到任何 fold_*/final_model.pth")
+    print(f"📂 找到 {len(model_paths)} 个模型检查点:")
+    for p in model_paths:
+        print(f"  - {p}")
+
+    # 2. 构建集成模型
+    ensemble_model = EnsembleShearWallGNN(model_paths, model_config)
+    ensemble_model.to(DEVICE)
+
+    # 复用 Evaluator 的 save 逻辑，但覆盖其 model
+    evaluator = Evaluator(str(model_paths[0]), data_config)  # 这里的路径只是为了初始化，马上会被覆盖
+    evaluator.model = ensemble_model  # 【关键】替换为集成模型
+
+    # 设置输出目录
+    output_dir = cv_path / "ensemble_test_results"
+
+    print(f"\n🚀 开始集成模型评估...")
+    evaluator.visulize_testset(test_set, output_dir=str(output_dir))
 
 
 if __name__ == "__main__":
