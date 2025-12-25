@@ -54,6 +54,41 @@ class PhysicsInformedLoss(nn.Module):
         return basic_loss + self.penalty_weight * penalty_loss
 
 
+import torch
+import torch.nn as nn
+
+
+class VectorIoULoss(nn.Module):
+    def __init__(self, smooth: float = 1e-6):
+        super().__init__()
+        self.smooth = smooth
+
+    def forward(self, pred, target):
+        """
+        pred: (Batch, 16) - 模型的回归输出 (经过 Sigmoid)
+        target: (Batch, 16) - 真实标签
+        """
+        # 1. 确保 pred 在 [0,1] (通常已经在外面做过 sigmoid，这里为了保险)
+        # 注意：不要在 Loss 里再次做 sigmoid，除非外部没做
+
+        # 2. 计算交集和并集
+        # PyTorch 的 min/max 可以通过反向传播梯度
+        intersection = torch.min(pred, target)
+        union = torch.max(pred, target)
+
+        # 3. 按样本求和
+        i_sum = torch.sum(intersection, dim=1)
+        u_sum = torch.sum(union, dim=1)
+
+        # 4. 计算 IoU
+        iou = (i_sum + self.smooth) / (u_sum + self.smooth)
+
+        # 5. Loss = 1 - IoU
+        loss = 1.0 - iou
+
+        return loss.mean()
+
+
 # 在 losses.py 中
 class ConsistencyLoss(nn.Module):
     def __init__(self, weight=1.0):
@@ -134,6 +169,7 @@ class HybridLoss(nn.Module):
         super().__init__()
         self.bce = nn.BCELoss()  # 二分类交叉熵
         self.mse = nn.MSELoss(reduction="none")  # 回归损失（不约减）
+        self.iou_loss = VectorIoULoss()
         self.cls_weight = cls_weight
         self.reg_weight = reg_weight
 
@@ -175,5 +211,7 @@ class HybridLoss(nn.Module):
         num_pos = valid_mask.sum() + 1e-6  # 避免除以0
         reg_loss = (reg_loss_all * valid_mask).sum() / num_pos
 
+        loss_iou = self.iou_loss(pred_ratio, target_ratio)
+
         # 4. 加权组合
-        return self.cls_weight * cls_loss + self.reg_weight * reg_loss
+        return self.cls_weight * cls_loss + self.reg_weight * reg_loss + 2 * loss_iou
