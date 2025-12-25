@@ -18,14 +18,12 @@ import torch
 from shapely.geometry import Polygon
 
 from preprocess.room_analyzer import calculate_wall_iou, plot_room_analysis, reconstruct_walls
-from train.config import viz_config
+from train.config import training_config, viz_config
 from train.model import ShearWallGNN
 from train.utils import build_graph_from_dxf, mask_to_constraint_vector
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-def prepare_graph_data_for_inference(dxf_path: str, mode: str = "none"):
+def prepare_graph_data_for_inference(dxf_path: str, mode: str = "none", category: Optional[int] = None):
     """
     现在的逻辑非常简单：获取 builder -> 转 batch
     """
@@ -36,7 +34,12 @@ def prepare_graph_data_for_inference(dxf_path: str, mode: str = "none"):
 
     # 转 PyG 数据
     data = builder.to_pyg_data()
-    data_batch = Batch.from_data_list([data]).to(DEVICE)
+    # 强制修改 category（如果提供的话）
+    if category is not None:
+        cate_one_hot = torch.zeros((data.num_nodes, 3), dtype=torch.float)
+        cate_one_hot[:, category] = 1.0
+        data.x[:, -3:] = cate_one_hot
+    data_batch = Batch.from_data_list([data]).to(training_config.DEVICE)
 
     # 直接返回 builder，因为它包含了 rooms 和 graph 结构，用于后续画图
     return data_batch, builder
@@ -68,7 +71,11 @@ def predict_shear_walls(model: ShearWallGNN, data_batch) -> np.ndarray:
 
 
 def visualize_single_case(
-    dxf_path: str, model: ShearWallGNN, save_path: Optional[str] = None, mode: str = "none"
+    dxf_path: str,
+    model: ShearWallGNN,
+    save_path: Optional[str] = None,
+    mode: str = "none",
+    category: Optional[int] = None,
 ) -> float:
     """
     可视化单个案例的预测结果
@@ -90,7 +97,7 @@ def visualize_single_case(
     print(f"正在处理: {os.path.basename(dxf_path)}")
 
     # 1. 准备数据
-    data_batch, builder = prepare_graph_data_for_inference(dxf_path, mode=mode)
+    data_batch, builder = prepare_graph_data_for_inference(dxf_path, mode=mode, category=category)
 
     # 2. 模型预测
     predictions = predict_shear_walls(model, data_batch)
@@ -157,3 +164,26 @@ def visualize_single_case(
 
     plt.close()
     return avg_iou
+
+
+def test_conditional_predict(
+    dxf_path: str,
+    model: ShearWallGNN,
+    save_path: Optional[str] = None,
+):
+    """
+    测试同一输入下3种类别条件的预测效果
+    """
+
+    ious = []
+    for i in range(3):
+        # 构建保存路径
+        if save_path:
+            base_path = Path(save_path)
+            save_path_i = base_path.parent / f"{base_path.stem}_cate{i}{base_path.suffix}"
+        else:
+            save_path_i = None
+
+        iou = visualize_single_case(dxf_path, model, save_path=save_path_i, category=i)
+        ious.append(iou)
+    return ious

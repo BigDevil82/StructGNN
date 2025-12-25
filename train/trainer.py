@@ -20,7 +20,6 @@ from train.utils import calculate_vector_iou, get_file_category
 from train.visualize_test import predict_shear_walls, prepare_graph_data_for_inference, visualize_single_case
 
 # 全局设置
-DEVICE = torch.device(training_config.DEVICE if torch.cuda.is_available() else "cpu")
 torch.manual_seed(training_config.RANDOM_SEED)
 random.seed(training_config.RANDOM_SEED)
 np.random.seed(training_config.RANDOM_SEED)
@@ -113,7 +112,7 @@ class Trainer:
         consistency_criterion: ConsistencyLoss,
         save_dir,
     ):
-        self.model = model.to(DEVICE)
+        self.model = model.to(training_config.DEVICE)
         self.optimizer = optimizer
         self.hybrid_loss = criterion
         self.consist_loss = consistency_criterion
@@ -150,7 +149,7 @@ class Trainer:
         self.model.train()
         total_loss = 0
         for batch in loader:
-            batch = batch.to(DEVICE)
+            batch = batch.to(training_config.DEVICE)
             self.optimizer.zero_grad()
             pred_prob, pred_ratio = self.model(batch)
             loss = self.hybrid_loss(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
@@ -167,7 +166,7 @@ class Trainer:
 
         with torch.no_grad():
             for batch in loader:
-                batch = batch.to(DEVICE)
+                batch = batch.to(training_config.DEVICE)
                 pred_prob, pred_ratio = self.model(batch)
 
                 # 使用之前实现的 VectorIoULoss 原理计算 IoU，或者直接算 metric
@@ -210,8 +209,8 @@ class Evaluator:
             edge_in_dim=model_config.EDGE_FEATURE_DIM,
             hidden_dim=model_config.HIDDEN_DIM,
             out_dim=model_config.OUTPUT_DIM,
-        ).to(DEVICE)
-        model.load_state_dict(torch.load(path, map_location=DEVICE))
+        ).to(training_config.DEVICE)
+        model.load_state_dict(torch.load(path, map_location=training_config.DEVICE))
         model.eval()
         return model
 

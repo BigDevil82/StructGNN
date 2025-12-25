@@ -20,9 +20,6 @@ from train.model import ShearWallGNN
 from train.trainer import DataManager, Evaluator, Trainer
 from train.utils import get_file_category  # 假设你已经把 Trainer 类封装好了
 
-# 全局设置
-DEVICE = torch.device(training_config.DEVICE if torch.cuda.is_available() else "cpu")
-
 
 class KFoldDataManager:
     """K-Fold 数据管理：负责生成交叉验证的 Loaders"""
@@ -151,12 +148,12 @@ class EnsembleShearWallGNN(torch.nn.Module):
 
             # 2. 加载权重
             # map_location 确保在 CPU/GPU 间正确加载
-            state_dict = torch.load(path, map_location=DEVICE)
+            state_dict = torch.load(path, map_location=training_config.DEVICE)
             model.load_state_dict(state_dict)
 
             # 3. 设置为评估模式 (非常重要，关闭 Dropout 等)
             model.eval()
-            model.to(DEVICE)
+            model.to(training_config.DEVICE)
 
             self.models.append(model)
 
@@ -274,7 +271,7 @@ def cross_validate_test():
 
     # 2. 构建集成模型
     ensemble_model = EnsembleShearWallGNN(model_paths, model_config)
-    ensemble_model.to(DEVICE)
+    ensemble_model.to(training_config.DEVICE)
 
     # 复用 Evaluator 的 save 逻辑，但覆盖其 model
     evaluator = Evaluator(str(model_paths[0]), data_config)  # 这里的路径只是为了初始化，马上会被覆盖
