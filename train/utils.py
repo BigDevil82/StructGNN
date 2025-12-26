@@ -155,3 +155,38 @@ def get_file_category(filename):
         return 2
     else:
         return -1  # 未知类别
+
+
+def calculate_vector_iou(pred_vector: np.ndarray, gt_vector: np.ndarray, eps: float = 1e-6) -> float:
+    """
+    基于向量直接计算 IoU (适用于评估)
+
+    Args:
+        pred_vector: 预测向量 (N,) 或 (Batch, N)
+        gt_vector: 真实向量 (N,) 或 (Batch, N)
+        eps: 防止除零的平滑项
+
+    Returns:
+        float: IoU 分数
+    """
+    # 确保输入在 [0, 1] 范围内 (尤其是预测值可能溢出)
+    pred_vector = np.clip(pred_vector, 0.0, 1.0)
+    gt_vector = np.clip(gt_vector, 0.0, 1.0)
+
+    # 1. 计算交集 (Intersection) = min(p, t)
+    # 对于锚定在端点的线段，交集长度即为两者较小值
+    intersection = np.minimum(pred_vector, gt_vector)
+
+    # 2. 计算并集 (Union) = max(p, t)
+    union = np.maximum(pred_vector, gt_vector)
+
+    # 3. 求和 (Sum over all dimensions)
+    # 如果是 Batch 输入，按 axis=1 求和
+    intersection_sum = np.sum(intersection, axis=-1)
+    union_sum = np.sum(union, axis=-1)
+
+    # 4. 计算 IoU
+    iou = (intersection_sum + eps) / (union_sum + eps)
+
+    # 如果是 Batch，返回平均值；如果是单个，返回标量
+    return float(np.mean(iou)) if iou.ndim > 0 else float(iou)

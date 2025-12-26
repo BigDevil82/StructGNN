@@ -222,7 +222,6 @@ def cross_validate_train(n_folds=5, epochs=100):
 
         # 使用你现有的混合 Loss
         criterion = HybridLoss(cls_weight=training_config.CLS_WEIGHT, reg_weight=training_config.REG_WEIGHT)
-        consist_loss = ConsistencyLoss(weight=0.5)
 
         # 3. 运行训练
         # 为每一折创建一个单独的保存目录
@@ -232,7 +231,6 @@ def cross_validate_train(n_folds=5, epochs=100):
             model=model,
             optimizer=optimizer,
             criterion=criterion,
-            consistency_criterion=consist_loss,
             save_dir=fold_save_dir,
         )
 

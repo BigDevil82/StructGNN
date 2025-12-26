@@ -36,9 +36,9 @@ def prepare_graph_data_for_inference(dxf_path: str, mode: str = "none", category
     data = builder.to_pyg_data()
     # 强制修改 category（如果提供的话）
     if category is not None:
-        cate_one_hot = torch.zeros((data.num_nodes, 3), dtype=torch.float)
+        cate_one_hot = np.zeros((1, 3))
         cate_one_hot[:, category] = 1.0
-        data.x[:, -3:] = cate_one_hot
+        data.condition = torch.tensor(cate_one_hot, dtype=torch.float)
     data_batch = Batch.from_data_list([data]).to(training_config.DEVICE)
 
     # 直接返回 builder，因为它包含了 rooms 和 graph 结构，用于后续画图

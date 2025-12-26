@@ -271,14 +271,8 @@ class LayoutGraphBuilder:
 
             constraint_vec = mask_to_constraint_vector(masks)
 
-            # 类别特征
-            category = get_file_category(os.path.basename(self.dxf_path))
-            category_vec = np.zeros(3, dtype=np.float32)
-            if category >= 0:
-                category_vec[category] = 1.0
-
-            # 拼接输入特征: [Geo(9) + Constraint(16) + Category(3)]
-            x_feat = np.concatenate([geo, constraint_vec, category_vec])
+            # 拼接输入特征: [Geo(9) + Constraint(16)]
+            x_feat = np.concatenate([geo, constraint_vec])
 
             x_list.append(x_feat)
             y_list.append(sw_vector)
@@ -291,6 +285,12 @@ class LayoutGraphBuilder:
             edge_index.append([node_mapping[u], node_mapping[v]])
             edge_attr.append(data["feature"])
 
+        # 类别特征
+        category = get_file_category(os.path.basename(self.dxf_path))
+        category_vec = np.zeros((1, 3), dtype=np.float32)
+        if category >= 0:
+            category_vec[0, category] = 1.0
+
         # 转换为 Tensor
         data = Data(
             x=torch.tensor(np.array(x_list), dtype=torch.float),
@@ -298,6 +298,7 @@ class LayoutGraphBuilder:
             edge_attr=torch.tensor(np.array(edge_attr), dtype=torch.float),
             y=torch.tensor(np.array(y_list), dtype=torch.float),
             constraint_mask=torch.tensor(np.array(mask_list), dtype=torch.float),
+            condition=torch.tensor(category_vec, dtype=torch.float),
         )
 
         return data

@@ -143,3 +143,17 @@ extractor.extract_batch("dxf_files/", "output_json/")
   ]
 }
 ```
+
+## SOTA metric on test dataset
+
+📈 测试结果统计:
+  平均 IoU: 0.6455
+  最大 IoU: 0.8754
+  最小 IoU: 0.3400
+
+Configuration:
+ - loss: HybridLoss + DensityLoss
+ - k-fold Cross Validation: k=5
+ - data augmentation: ("none", "flip_x", "flip_y", "rot_90", "rot_180", "rot_270")
+
+

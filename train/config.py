@@ -7,13 +7,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+import torch
+
 
 @dataclass
 class ModelConfig:
     """模型架构配置"""
 
     # 输入特征维度
-    NODE_FEATURE_DIM: int = 28  # 几何特征(9) + 约束特征(16) + 类别特征(3)
+    NODE_FEATURE_DIM: int = 25  # 几何特征(9) + 约束特征(16)
     GEO_FEATURE_DIM: int = 9  # 几何特征维度
     CONSTRAINT_DIM: int = 16  # 约束/标签维度 (4边 × 2半边 × 2端点)
     EDGE_FEATURE_DIM: int = 8  # 边特征维度
@@ -44,10 +46,11 @@ class TrainingConfig:
     # Loss权重
     CLS_WEIGHT: float = 1.0  # 分类损失权重
     REG_WEIGHT: float = 2.0  # 回归损失权重
+    CONSISTENCY_WEIGHT: float = 0.5  # 一致性损失权重
     MASK_PENALTY_WEIGHT: float = 5.0  # 物理约束惩罚权重
 
     # 设备
-    DEVICE: str = "cuda"  # 或 "cpu"
+    DEVICE: str = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # 随机种子
     RANDOM_SEED: int = 42
@@ -60,10 +63,17 @@ class DataConfig:
     # 路径
     DXF_DIR: str = r"dxf/dataset_split_8_2"
     CACHE_DIR: str = "data_cache"
-    SAVE_DIR: str = "result/cross_validate"
+    SAVE_DIR: str = "result/1226_cond_kfold"
 
     # 数据增广
-    AUGMENTATIONS: List[str] = ("none", "flip_x", "flip_y")  # 支持的增广模式
+    AUGMENTATIONS: List[str] = (
+        "none",
+        "flip_x",
+        "flip_y",
+        "rot_90",
+        "rot_180",
+        "rot_270",
+    )  # 支持的增广模式
 
     # 预处理参数
     ALIGNMENT_THRESHOLD: float = 200.0  # 房间校准的坐标对齐阈值

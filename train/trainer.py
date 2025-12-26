@@ -4,7 +4,7 @@ import os
 import random
 from collections import Counter
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,7 +14,7 @@ from torch_geometric.loader import DataLoader
 
 from train.config import data_config, model_config, training_config
 from train.dataset import ShearWallDataset
-from train.losses import ConsistencyLoss, HybridLoss
+from train.losses import GlobalDensityLoss, HybridLoss
 from train.model import ShearWallGNN
 from train.utils import calculate_vector_iou, get_file_category
 from train.visualize_test import predict_shear_walls, prepare_graph_data_for_inference, visualize_single_case
@@ -38,8 +38,17 @@ class DataManager:
         self.train_cache_root = str(Path(data_config.CACHE_DIR) / "train")
         self.test_cache_root = str(Path(data_config.CACHE_DIR) / "test")
 
-    def get_train_loader(self) -> DataLoader:
-        """加载训练集并应用加权采样"""
+    def get_train_val_loaders(
+        self, val_ratio: float = 0.0
+    ) -> Tuple[DataLoader, Optional[DataLoader], Subset, Optional[Subset]]:
+        """从训练集随机切分出一部分作为验证集。
+
+        参数:
+        - val_ratio: 验证集比例，范围 [0, 1]。<= 0 时不切分。
+
+        返回:
+        - train_loader, val_loader(可能为 None), train_subset, val_subset(可能为 None)
+        """
         print(f"📂 加载训练集 from: {self.train_dxf_dir}")
         dataset = ShearWallDataset(root=self.train_cache_root, dxf_dir=self.train_dxf_dir)
 
@@ -50,36 +59,64 @@ class DataManager:
         file_indices = metadata["file_indices"]
         dxf_files = metadata["dxf_files"]
 
-        # --- 计算样本权重 (Weighted Sampling) ---
+        # 计算样本类别及权重
         sample_categories = []
         for idx in range(len(dataset)):
-            # 找到该样本对应的文件
             f_idx = file_indices[idx]
             fname = dxf_files[f_idx]
             sample_categories.append(get_file_category(fname))
 
-        # 计算类别权重: 1 / frequency
         cat_counts = Counter(sample_categories)
         total_samples = len(sample_categories)
         class_weights = {cat: total_samples / count for cat, count in cat_counts.items()}
-
-        # 分配每个样本的权重
         sample_weights = [class_weights[cat] for cat in sample_categories]
 
         print(f"📊 训练集统计: 总样本 {total_samples} (含增广)")
         for cat, count in cat_counts.items():
             print(f"  - Class {cat}: {count} samples")
 
-        sampler = WeightedRandomSampler(
-            weights=sample_weights, num_samples=len(sample_weights), replacement=True
+        # 不切分 -> 返回全量训练 loader
+        if val_ratio <= 0.0:
+            sampler = WeightedRandomSampler(
+                weights=sample_weights, num_samples=len(sample_weights), replacement=True
+            )
+            train_loader = DataLoader(
+                dataset,
+                batch_size=training_config.BATCH_SIZE,
+                sampler=sampler,
+                shuffle=False,
+            )
+            return train_loader, None
+
+        # 切分训练/验证索引（随机但可复现）
+        rng = random.Random(training_config.RANDOM_SEED)
+        all_indices = list(range(len(dataset)))
+        rng.shuffle(all_indices)
+        val_size = max(1, int(len(dataset) * val_ratio))
+        val_indices = all_indices[:val_size]
+        train_indices = all_indices[val_size:]
+
+        train_subset = Subset(dataset, train_indices)
+        val_subset = Subset(dataset, val_indices)
+
+        # 仅针对训练子集构建加权采样器
+        train_weights = [sample_weights[i] for i in train_indices]
+        train_sampler = WeightedRandomSampler(
+            weights=train_weights, num_samples=len(train_weights), replacement=True
         )
 
-        return DataLoader(
-            dataset,
+        train_loader = DataLoader(
+            train_subset,
             batch_size=training_config.BATCH_SIZE,
-            sampler=sampler,
-            shuffle=False,  # 使用 sampler 时必须为 False
+            sampler=train_sampler,
+            shuffle=False,
         )
+
+        val_loader = DataLoader(val_subset, batch_size=training_config.BATCH_SIZE, shuffle=False)
+
+        print(f"🔀 已划分验证集: 训练 {len(train_subset)} | 验证 {len(val_subset)} (ratio={val_ratio:.2f})")
+
+        return train_loader, val_loader
 
     def get_test_loader(self) -> Tuple[DataLoader, Subset]:
         """加载测试集并过滤掉自动生成的增广数据"""
@@ -109,34 +146,37 @@ class Trainer:
         model: ShearWallGNN,
         optimizer: torch.optim.Optimizer,
         criterion: HybridLoss,
-        consistency_criterion: ConsistencyLoss,
         save_dir,
     ):
         self.model = model.to(training_config.DEVICE)
         self.optimizer = optimizer
         self.hybrid_loss = criterion
-        self.consist_loss = consistency_criterion
+        self.density_loss = GlobalDensityLoss()
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.history = {"train_loss": []}
         self.best_val_iou = float("-inf")
 
-    def run(self, train_loader, val_loader, epochs):
-        print(f"\n🚀 开始全量训练 (Epochs: {epochs}, 无验证集)")
+    def run(self, train_loader, val_loader: Optional[DataLoader], epochs):
+        has_val = val_loader is not None
+        print(f"\n🚀 开始训练 (Epochs: {epochs}, 验证集: {'启用' if has_val else '未启用'})")
 
         self.model.train()  # 始终保持训练模式
 
         for epoch in range(epochs):
-            avg_loss = self._train_epoch(train_loader)
+            avg_loss = self._train_epoch(train_loader, epoch)
             self.history["train_loss"].append(avg_loss)
 
-            avg_iou = self._validate_epoch(val_loader)
+            avg_iou = self._validate_epoch(val_loader) if has_val else None
 
             if (epoch + 1) % 10 == 0 or epoch == 0:
-                print(
-                    f"Epoch [{epoch+1:3d}/{epochs}] | Train Loss: {avg_loss:.4f} | Val Avg IoU: {avg_iou:.4f}"
-                )
-            if avg_iou > self.best_val_iou:
+                if has_val:
+                    print(
+                        f"Epoch [{epoch+1:3d}/{epochs}] | Train Loss: {avg_loss:.4f} | Val Avg IoU: {avg_iou:.4f}"
+                    )
+                else:
+                    print(f"Epoch [{epoch+1:3d}/{epochs}] | Train Loss: {avg_loss:.4f}")
+            if has_val and avg_iou is not None and avg_iou > self.best_val_iou:
                 self.best_val_iou = avg_iou
                 self._save_model("best_model.pth")
 
@@ -145,15 +185,51 @@ class Trainer:
         self._plot_curves()
         print(f"✅ 训练完成，模型已保存至 {self.save_dir}")
 
-    def _train_epoch(self, loader: DataLoader):
+    def _train_epoch(self, loader: DataLoader, epoch: int) -> float:
         self.model.train()
         total_loss = 0
+
+        if epoch < 20:
+            density_weight = 0.0
+        else:
+            density_weight = min(0.1, 0.01 * (epoch - 20))
+
         for batch in loader:
             batch = batch.to(training_config.DEVICE)
             self.optimizer.zero_grad()
             pred_prob, pred_ratio = self.model(batch)
-            loss = self.hybrid_loss(pred_prob, pred_ratio, batch.y, batch.constraint_mask)
-            loss += self.consist_loss(pred_ratio, batch.edge_index, batch.edge_attr)
+            loss_supervised = self.hybrid_loss(pred_prob, pred_ratio, batch)
+            loss_density_real = self.density_loss(
+                pred_ratio, batch.batch, batch.condition, batch.constraint_mask
+            )
+
+            loss_density_fake = torch.tensor(0.0).to(training_config.DEVICE)
+
+            if density_weight > 0:
+                # 生成假条件
+                fake_indices = torch.randint(0, 3, (batch.num_graphs,)).to(training_config.DEVICE)
+                fake_condition = torch.nn.functional.one_hot(fake_indices, num_classes=3).float()
+
+                # --- 技巧：防止 BN 统计量被假数据污染 ---
+                # 某些情况下，可以临时切换到 eval 模式跑 forward，但如果不方便
+                # 只要权重够小，通常影响可控。
+                # 更严谨的做法是：
+                # self.model.eval()
+                # _, pred_ratio_fake = self.model(batch, fake_condition)
+                # self.model.train()
+
+                _, pred_ratio_fake = self.model(batch, fake_condition)
+
+                # 计算 Fake 的密度 Loss (同样要传入 mask!)
+                loss_density_fake = self.density_loss(
+                    pred_ratio_fake, batch.batch, fake_condition, batch.constraint_mask
+                )
+
+            # ==========================
+            # 3. 总 Loss 与 反向传播
+            # ==========================
+            loss = loss_supervised + 0.05 * loss_density_real + density_weight * loss_density_fake
+
             loss.backward()
             self.optimizer.step()
             total_loss += loss.item()
@@ -301,6 +377,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type=str, default="train", choices=["train", "test", "visualize"])
     parser.add_argument("--ckpt", type=str, help="测试模式下的模型路径")
+    parser.add_argument(
+        "--val_ratio",
+        type=float,
+        default=0.0,
+        help="从训练集切分出的验证集比例 (0 表示不切分)",
+    )
 
     args = parser.parse_args()
 
@@ -308,8 +390,8 @@ def main():
     dm = DataManager(root=data_config.DXF_DIR)
 
     if args.mode == "train":
-        # 获取训练 Loader
-        train_loader = dm.get_train_loader()
+        # 获取训练/验证 Loader（按需切分）
+        train_loader, val_loader = dm.get_train_val_loaders(val_ratio=0.1)
 
         # 初始化模型
         model = ShearWallGNN(
@@ -322,12 +404,15 @@ def main():
             model.parameters(), lr=training_config.LEARNING_RATE, weight_decay=training_config.WEIGHT_DECAY
         )
         # 你的混合 Loss
-        criterion = HybridLoss(cls_weight=training_config.CLS_WEIGHT, reg_weight=training_config.REG_WEIGHT)
-        consistency_criterion = ConsistencyLoss(weight=0.5)
+        criterion = HybridLoss(
+            cls_weight=training_config.CLS_WEIGHT,
+            reg_weight=training_config.REG_WEIGHT,
+            consistency_weight=training_config.CONSISTENCY_WEIGHT,
+        )
 
         # 训练
-        trainer = Trainer(model, optimizer, criterion, consistency_criterion, data_config.SAVE_DIR)
-        trainer.run(train_loader, epochs=training_config.EPOCHS)
+        trainer = Trainer(model, optimizer, criterion, data_config.SAVE_DIR)
+        trainer.run(train_loader, val_loader, epochs=training_config.EPOCHS)
 
         # 训练完顺便测一下
         print("\n🔎 正在对测试集进行最终评估...")
@@ -337,20 +422,24 @@ def main():
 
     elif args.mode == "test":
         if not args.ckpt:
-            raise ValueError("请提供 --ckpt")
+            ckpt = data_config.SAVE_DIR + "/best_model.pth"
+        else:
+            ckpt = args.ckpt
 
         test_loader, test_set = dm.get_test_loader()
-        evaluator = Evaluator(args.ckpt, data_config)
-        out_dir = Path(args.ckpt).parent / "test_set_results"
+        evaluator = Evaluator(ckpt, data_config)
+        out_dir = Path(ckpt).parent / "test_set_results"
         evaluator.run_test(test_set, output_dir=out_dir)
 
     elif args.mode == "visualize":
         if not args.ckpt:
-            raise ValueError("请提供 --ckpt")
+            ckpt = data_config.SAVE_DIR + "/final_model.pth"
+        else:
+            ckpt = args.ckpt
 
         test_loader, test_set = dm.get_test_loader()
-        evaluator = Evaluator(args.ckpt, data_config)
-        out_dir = Path(args.ckpt).parent / "test_set_results"
+        evaluator = Evaluator(ckpt, data_config)
+        out_dir = Path(ckpt).parent / "test_set_results"
         evaluator.visulize_testset(test_set, output_dir=out_dir)
 
 

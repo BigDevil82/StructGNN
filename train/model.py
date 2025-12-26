@@ -11,6 +11,7 @@
 - 回归：剪力墙的长度比例 (0-1之间的连续值)
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,6 +19,23 @@ from torch_geometric.data import Data
 from torch_geometric.nn import BatchNorm, GATv2Conv
 
 from train.config import model_config
+
+
+class FiLMLayer(nn.Module):
+    def __init__(self, in_dim, cond_emb_dim):
+        super().__init__()
+        # 生成缩放因子 gamma 和 偏置 beta
+        self.scale = nn.Linear(cond_emb_dim, in_dim)
+        self.shift = nn.Linear(cond_emb_dim, in_dim)
+
+    def forward(self, x, cond_emb):
+        # cond_emb: [Batch, Cond_Dim] -> 扩展到 [Num_Nodes, Cond_Dim] 以匹配 x
+        # 注意：这里假设 cond_emb 已经是每个图一个向量，需要广播到节点
+        # 实际实现时通常 cond_emb 是 (Batch_Size, Dim)，需要根据 batch 索引映射到 (Num_Nodes, Dim)
+
+        gamma = self.scale(cond_emb)
+        beta = self.shift(cond_emb)
+        return x * (1 + gamma) + beta
 
 
 class ShearWallGNN(nn.Module):
@@ -28,6 +46,8 @@ class ShearWallGNN(nn.Module):
         node_in_dim: int = model_config.NODE_FEATURE_DIM,
         edge_in_dim: int = model_config.EDGE_FEATURE_DIM,
         hidden_dim: int = model_config.HIDDEN_DIM,
+        cond_dim=3,
+        cond_emb_dim=32,
         out_dim: int = model_config.OUTPUT_DIM,
         num_heads: int = model_config.GAT_HEADS,
         dropout: float = model_config.DROPOUT,
@@ -42,10 +62,20 @@ class ShearWallGNN(nn.Module):
             dropout: Dropout比例
         """
         super(ShearWallGNN, self).__init__()
+        self.cond_dim = cond_dim
 
         # 1. 输入编码层
         self.node_encoder = nn.Linear(node_in_dim, hidden_dim)
         self.edge_encoder = nn.Linear(edge_in_dim, hidden_dim)
+
+        self.cond_projector = nn.Sequential(
+            nn.Linear(cond_dim, cond_emb_dim), nn.ReLU(), nn.Linear(cond_emb_dim, cond_emb_dim)
+        )
+
+        # 定义 FiLM 层，插入到每个 GAT 之后
+        self.film1 = FiLMLayer(hidden_dim, cond_emb_dim)
+        self.film2 = FiLMLayer(hidden_dim, cond_emb_dim)
+        self.film3 = FiLMLayer(hidden_dim, cond_emb_dim)
 
         # 2. 图卷积层（使用GATv2捕获房间间的复杂关系）
         self.conv1 = GATv2Conv(hidden_dim, hidden_dim, heads=num_heads, concat=False, edge_dim=hidden_dim)
@@ -62,10 +92,12 @@ class ShearWallGNN(nn.Module):
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim, out_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim // 2, out_dim),
         )
 
-    def forward(self, data: Data) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, data: Data, condition: torch.Tensor = None) -> tuple[torch.Tensor, torch.Tensor]:
         """
         前向传播
 
@@ -78,6 +110,10 @@ class ShearWallGNN(nn.Module):
                 - regression_ratio: 回归比例 (N, 16)，表示墙的长度比例
         """
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        batch = data.batch  # 节点到图的映射，用于条件嵌入广播
+        raw_condition = condition if condition is not None else data.condition  # (Batch, cond_dim)
+        cond_emb = self.cond_projector(raw_condition)  # (N, cond_emb)
+        node_cond_emb = cond_emb[batch]
 
         # Step 1: 特征编码
         x = F.relu(self.node_encoder(x))
@@ -88,18 +124,21 @@ class ShearWallGNN(nn.Module):
         x_residual = x
         x = self.conv1(x, edge_index, edge_attr=edge_attr)
         x = self.bn1(x)
+        x = self.film1(x, node_cond_emb)
         x = F.relu(x) + x_residual  # Residual connection
 
         # Layer 2
         x_residual = x
         x = self.conv2(x, edge_index, edge_attr=edge_attr)
         x = self.bn2(x)
+        x = self.film2(x, node_cond_emb)
         x = F.relu(x) + x_residual
 
         # Layer 3
         x_residual = x
         x = self.conv3(x, edge_index, edge_attr=edge_attr)
         x = self.bn3(x)
+        x = self.film3(x, node_cond_emb)
         x = F.relu(x) + x_residual
 
         # Step 3: 解码输出

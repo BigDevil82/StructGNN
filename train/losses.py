@@ -1,61 +1,13 @@
 """
 损失函数模块
-
-提供两种损失函数：
-1. PhysicsInformedLoss: 物理约束损失（基于掩码的惩罚项）
-2. HybridLoss: 混合损失（分类 + 回归）
 """
 
 import torch
 import torch.nn as nn
+from torch_geometric.data import Data
+from torch_geometric.nn import global_mean_pool
 
-
-class PhysicsInformedLoss(nn.Module):
-    """
-    物理约束损失函数
-
-    在基础MSE损失基础上，增加物理约束惩罚项：
-    - 如果在不可布置区域（mask=0）预测了墙体，则施加惩罚
-    """
-
-    def __init__(self, mask_penalty_weight: float = 2.0):
-        """
-        Args:
-            mask_penalty_weight: 物理约束惩罚权重
-        """
-        super().__init__()
-        self.mse = nn.MSELoss()
-        self.penalty_weight = mask_penalty_weight
-
-    def forward(
-        self, pred: torch.Tensor, target: torch.Tensor, constraint_mask: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Args:
-            pred: 模型预测 (N, 16)
-            target: 真实标签 (N, 16)
-            constraint_mask: 可布置区域掩码 (N, 16)
-                           1=可布置区域, 0=不可布置区域（门窗等）
-
-        Returns:
-            total_loss: 总损失 = MSE损失 + 物理约束惩罚
-        """
-        # 1. 基础回归损失
-        basic_loss = self.mse(pred, target)
-
-        # 2. 物理约束惩罚
-        # 在不可布置区域（mask=0）的预测值应该为0
-        # 惩罚项 = pred * (1 - mask)
-        # - 如果mask=1（可布置），则(1-mask)=0，无惩罚
-        # - 如果mask=0（不可布置），则(1-mask)=1，惩罚预测值
-        violation = pred * (1 - constraint_mask)
-        penalty_loss = torch.mean(violation**2)
-
-        return basic_loss + self.penalty_weight * penalty_loss
-
-
-import torch
-import torch.nn as nn
+from train.config import training_config
 
 
 class VectorIoULoss(nn.Module):
@@ -89,11 +41,9 @@ class VectorIoULoss(nn.Module):
         return loss.mean()
 
 
-# 在 losses.py 中
 class ConsistencyLoss(nn.Module):
-    def __init__(self, weight=1.0):
+    def __init__(self):
         super().__init__()
-        self.weight = weight
         self.mse = nn.MSELoss()
 
     def forward(self, pred_ratio, edge_index, edge_attr):
@@ -148,7 +98,57 @@ class ConsistencyLoss(nn.Module):
             p_dst = pred_dst[is_bottom, 0:4]
             loss += self.mse(p_src, p_dst)
 
-        return self.weight * loss
+        return loss
+
+
+class GlobalDensityLoss(nn.Module):
+    def __init__(self):
+        """
+        全局密度约束损失
+        Args:
+            target_densities: 列表 [d0, d1, d2]，对应3种设计条件的预期密度目标。
+                              数值代表：平均每个节点（房间）所有墙预测值的总和。
+                              例如: [1.5, 3.0, 5.0] 表示低/中/高密度
+                              [3.569831529585253, 4.812471681428187, 6.708384769004688]
+        """
+        super().__init__()
+        target_densities = [1.569831529585253, 3.812471681428187, 8.708384769004688]
+        self.register_buffer(
+            "target_densities", torch.tensor(target_densities, device=training_config.DEVICE)
+        )
+
+        self.mse = nn.MSELoss()
+
+    def forward(
+        self,
+        pred_ratio: torch.Tensor,
+        batch_idx: torch.Tensor,
+        condition: torch.Tensor,
+        constraint_mask: torch.Tensor,
+    ):
+        """
+        Args:
+            pred_ratio: (N, 16) 节点的回归预测输出
+            batch_idx: (N,) 节点属于哪个图的索引 (data.batch)
+            condition: (Batch_Size, 3) 图级的设计条件 One-hot 或软标签
+        """
+        # 1. 计算每个节点的“墙体总量” (N, )
+        # 将16个方位的预测值相加，代表这个房间一共布置了多少墙
+        effective_pred = pred_ratio * constraint_mask
+        node_density = effective_pred.sum(dim=1, keepdim=True)  # (N, 1)
+
+        # 2. 聚合到图级别 (Batch_Size, )
+        # 计算整张图所有房间的平均墙体总量
+        graph_density_pred = global_mean_pool(node_density, batch_idx)
+
+        # 3. 计算目标密度 (Batch_Size, )
+        # condition (B, 3) * targets (3,) -> (B,)
+        # 这一步根据每张图的条件，取出对应的目标密度值
+        graph_density_target = torch.matmul(condition, self.target_densities)
+
+        # 4. 计算损失
+        # 强迫预测的平均密度 接近 目标密度
+        return self.mse(graph_density_pred.squeeze(-1), graph_density_target)
 
 
 class HybridLoss(nn.Module):
@@ -160,7 +160,7 @@ class HybridLoss(nn.Module):
     2. 回归：剪力墙的长度比例 (MSE Loss，仅在有墙的位置计算)
     """
 
-    def __init__(self, cls_weight: float = 1.0, reg_weight: float = 2.0):
+    def __init__(self, cls_weight: float = 1.0, reg_weight: float = 2.0, consistency_weight: float = 0.5):
         """
         Args:
             cls_weight: 分类损失权重
@@ -170,15 +170,17 @@ class HybridLoss(nn.Module):
         self.bce = nn.BCELoss()  # 二分类交叉熵
         self.mse = nn.MSELoss(reduction="none")  # 回归损失（不约减）
         self.iou_loss = VectorIoULoss()
+        self.consistency_loss = ConsistencyLoss()
+
         self.cls_weight = cls_weight
         self.reg_weight = reg_weight
+        self.consis_weight = consistency_weight
 
     def forward(
         self,
         pred_prob: torch.Tensor,
         pred_ratio: torch.Tensor,
-        target_ratio: torch.Tensor,
-        constraint_mask: torch.Tensor,
+        batch: Data,
     ) -> torch.Tensor:
         """
         Args:
@@ -190,6 +192,13 @@ class HybridLoss(nn.Module):
         Returns:
             total_loss: 加权总损失
         """
+        target_ratio, constraint_mask, edge_index, edge_attr = (
+            batch.y,
+            batch.constraint_mask,
+            batch.edge_index,
+            batch.edge_attr,
+        )
+
         # 1. 生成分类标签
         # 如果真实长度 > 0.01，则认为该位置有墙
         target_cls = (target_ratio > 0.01).float()
@@ -213,5 +222,12 @@ class HybridLoss(nn.Module):
 
         loss_iou = self.iou_loss(pred_ratio, target_ratio)
 
+        loss_consistency = self.consistency_loss(pred_ratio, edge_index, edge_attr)
+
         # 4. 加权组合
-        return self.cls_weight * cls_loss + self.reg_weight * reg_loss + 2 * loss_iou
+        return (
+            self.cls_weight * cls_loss
+            + self.reg_weight * reg_loss
+            + 2 * loss_iou
+            + self.consis_weight * loss_consistency
+        )
