@@ -309,6 +309,7 @@ class DXFExtractor:
         color = {
             "shear_walls": "red",
             "beams": "orange",
+            "rooms": "pink",
             # "doors": "blue",
             # "windows": "green",
             # "infill_walls": "gray",
@@ -334,6 +335,18 @@ class DXFExtractor:
                         color=c,
                         linewidth=5,
                         label=name if i == 0 else "",
+                    )
+            elif name == "rooms":
+                for room in items:
+                    polygon = room["Polygon"]
+                    x_coords = [point["X"] for point in polygon] + [polygon[0]["X"]]
+                    y_coords = [point["Y"] for point in polygon] + [polygon[0]["Y"]]
+                    ax.plot(
+                        x_coords,
+                        y_coords,
+                        color=c,
+                        linewidth=3,
+                        alpha=0.8,
                     )
             else:
                 # 其它（shear_walls/doors/windows/infill_walls）为多边形列表
@@ -467,7 +480,7 @@ def main():
 
     dxf_files = []
     for root, dirs, files in os.walk(
-        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finished_extracted"
+        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finish_modified_with_rooms"
     ):
         dxf_files.extend([os.path.join(root, f) for f in files if f.lower().endswith(".dxf")])
 
