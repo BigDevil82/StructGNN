@@ -272,16 +272,16 @@ class StructuralGraphBuilder:
         self.calibrated_rooms_poly: List[Polygon] = []
 
     def process(self):
-        print("1. 校准房间坐标...")
+        # print("1. 校准房间坐标...")
         self._calibrate_rooms()
 
-        print("2. 映射构件到房间边...")
+        # print("2. 映射构件到房间边...")
         self._map_components_to_rooms()
 
-        print("3. 处理梁并吸附到节点...")
+        # print("3. 处理梁并吸附到节点...")
         self._process_beams()
 
-        print("4. 全局节点校准与对齐...")
+        # print("4. 全局节点校准与对齐...")
         self._calibrate_nodes()
 
         print(
