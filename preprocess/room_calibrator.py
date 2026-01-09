@@ -18,149 +18,96 @@ from preprocess.dxf_extractor import DXFExtractor
 class RoomCalibrator:
     """房间坐标校准器"""
 
-    def __init__(self, alignment_threshold: float = 1.0):
+    def __init__(self, alignment_threshold: float = 200.0):
         """
         Args:
-            alignment_threshold: 坐标对齐的阈值（同一簇内的坐标差异小于此值）
+            alignment_threshold: 坐标对齐的阈值（小于此值的坐标将被合并）
         """
         self.alignment_threshold = alignment_threshold
+        self.x_grid: List[float] = []
+        self.y_grid: List[float] = []
 
-    def _extract_all_coordinates(self, room_polys: List[Polygon]) -> Tuple[np.ndarray, np.ndarray]:
+    def _cluster_1d(self, values: List[float]) -> List[float]:
         """
-        提取所有房间的 x 和 y 坐标
-
-        Args:
-            room_polys: 房间多边形列表
-
-        Returns:
-            x_coords: 所有 x 坐标的数组
-            y_coords: 所有 y 坐标的数组
+        对一维坐标进行快速聚类
+        逻辑：排序 -> 线性扫描 -> 平均值
+        复杂度: O(N log N)
         """
-        x_coords = []
-        y_coords = []
+        if not values:
+            return []
 
-        for room_poly in room_polys:
-            minx, miny, maxx, maxy = room_poly.bounds
-            x_coords.extend([minx, maxx])
-            y_coords.extend([miny, maxy])
+        # 1. 排序
+        v = sorted(values)
 
-        return np.array(x_coords), np.array(y_coords)
+        # 2. 线性扫描聚类
+        clusters = [[v[0]]]
+        for x in v[1:]:
+            if x - clusters[-1][-1] <= self.alignment_threshold:
+                clusters[-1].append(x)
+            else:
+                clusters.append([x])
 
-    def _cluster_coordinates(self, coords: np.ndarray) -> dict:
+        # 3. 计算中心 (均值)
+        centers = [sum(c) / len(c) for c in clusters]
+        return centers
+
+    def _snap_to_grid(self, val: float, grid: List[float]) -> float:
         """
-        对坐标进行聚类，返回每个原始坐标到校准坐标的映射
-
-        Args:
-            coords: 一维坐标数组
-
-        Returns:
-            mapping: {原始坐标: 校准坐标} 的字典
+        将数值吸附到最近的网格线
         """
-        if len(coords) == 0:
-            return {}
+        if not grid:
+            return val
 
-        # 去重并排序
-        unique_coords = np.unique(coords)
+        # 简单的线性查找 (因为 Grid 数量很少，通常 < 100，二分查找都可以省了)
+        # 如果追求极致性能，这里可以用 bisect，但 Python 循环在这个量级下极快
+        nearest = min(grid, key=lambda g: abs(g - val))
 
-        # 使用 DBSCAN 进行聚类
-        # eps: 同一簇内点的最大距离
-        # min_samples: 簇的最小样本数（设为1表示单个点也可以成簇）
-        coords_2d = unique_coords.reshape(-1, 1)
-        clustering = DBSCAN(eps=self.alignment_threshold, min_samples=1).fit(coords_2d)
-
-        # 计算每个簇的平均值
-        mapping = {}
-        for label in np.unique(clustering.labels_):
-            cluster_mask = clustering.labels_ == label
-            cluster_coords = unique_coords[cluster_mask]
-            aligned_coord = np.mean(cluster_coords)
-
-            # 将簇内所有坐标映射到平均值
-            for coord in cluster_coords:
-                mapping[coord] = aligned_coord
-
-        return mapping
-
-    def _align_coordinate(self, coord: float, mapping: dict) -> float:
-        """
-        根据映射表对齐单个坐标
-
-        Args:
-            coord: 原始坐标
-            mapping: 坐标映射表
-
-        Returns:
-            校准后的坐标
-        """
-        # 找到最接近的映射键
-        if coord in mapping:
-            return mapping[coord]
-
-        # 如果不在映射表中，找最近的键
-        keys = np.array(list(mapping.keys()))
-        closest_key = keys[np.argmin(np.abs(keys - coord))]
-        return mapping[closest_key]
+        if abs(nearest - val) <= self.alignment_threshold:
+            return nearest
+        return val
 
     def calibrate_rooms(self, room_polys: List[Polygon]) -> List[Polygon]:
         """
         校准房间列表
-
-        步骤：
-        1. 将每个房间转换为其 bounding box（标准矩形）
-        2. 对所有 x、y 坐标分别聚类
-        3. 用聚类中心替换原坐标，实现共享边对齐
-
-        Args:
-            room_polys: 原始房间多边形列表
-
-        Returns:
-            校准后的房间多边形列表
         """
         if not room_polys:
             return []
 
-        # 步骤1: 转换为 bounding box
-        bbox_rooms = []
-        for room_poly in room_polys:
-            minx, miny, maxx, maxy = room_poly.bounds
-            bbox = Polygon([(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)])
-            bbox_rooms.append(bbox)
+        # 1. 提取所有边界坐标
+        xs = []
+        ys = []
+        bounds_list = []  # 缓存 bounds 避免重复计算
 
-        # 步骤2: 提取所有坐标
-        x_coords, y_coords = self._extract_all_coordinates(bbox_rooms)
+        for room in room_polys:
+            minx, miny, maxx, maxy = room.bounds
+            bounds_list.append((minx, miny, maxx, maxy))
+            xs.extend([minx, maxx])
+            ys.extend([miny, maxy])
 
-        # 步骤3: 对 x 和 y 坐标分别聚类
-        x_mapping = self._cluster_coordinates(x_coords)
-        y_mapping = self._cluster_coordinates(y_coords)
+        # 2. 生成 X 和 Y 轴的对齐网格
+        self.x_grid = self._cluster_1d(xs)
+        self.y_grid = self._cluster_1d(ys)
 
-        # 步骤4: 应用映射，生成校准后的房间
+        # 3. 将每个房间吸附到网格
         calibrated_rooms = []
-        for bbox in bbox_rooms:
-            minx, miny, maxx, maxy = bbox.bounds
+        for minx, miny, maxx, maxy in bounds_list:
 
-            # 校准坐标
-            minx_aligned = self._align_coordinate(minx, x_mapping)
-            maxx_aligned = self._align_coordinate(maxx, x_mapping)
-            miny_aligned = self._align_coordinate(miny, y_mapping)
-            maxy_aligned = self._align_coordinate(maxy, y_mapping)
+            # 吸附
+            nx1 = self._snap_to_grid(minx, self.x_grid)
+            nx2 = self._snap_to_grid(maxx, self.x_grid)
+            ny1 = self._snap_to_grid(miny, self.y_grid)
+            ny2 = self._snap_to_grid(maxy, self.y_grid)
 
-            # 确保 min < max（防止聚类后反转）
-            if minx_aligned > maxx_aligned:
-                minx_aligned, maxx_aligned = maxx_aligned, minx_aligned
-            if miny_aligned > maxy_aligned:
-                miny_aligned, maxy_aligned = maxy_aligned, miny_aligned
+            # 防御性编程：防止吸附后房间反转或塌陷
+            if nx2 <= nx1:
+                nx2 = nx1 + 1.0
+            if ny2 <= ny1:
+                ny2 = ny1 + 1.0
 
-            # 创建校准后的矩形
-            calibrated_bbox = Polygon(
-                [
-                    (minx_aligned, miny_aligned),
-                    (maxx_aligned, miny_aligned),
-                    (maxx_aligned, maxy_aligned),
-                    (minx_aligned, maxy_aligned),
-                ]
-            )
-
-            calibrated_rooms.append(calibrated_bbox)
+            # 构造新的矩形多边形
+            # 顺序: 左下 -> 右下 -> 右上 -> 左上 -> 左下 (Shapely 不需要闭合点，这里给4个角即可)
+            new_poly = Polygon([(nx1, ny1), (nx2, ny1), (nx2, ny2), (nx1, ny2)])
+            calibrated_rooms.append(new_poly)
 
         return calibrated_rooms
 
