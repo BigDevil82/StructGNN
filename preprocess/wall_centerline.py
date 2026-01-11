@@ -89,7 +89,7 @@ def extract_wall_centerline(
     # 确保返回 MultiLineString 类型
     if result.geom_type == "LineString":
         return MultiLineString([result])
-    return result
+    return result.simplify(0)
 
 
 def estimate_wall_thickness(wall_geom, num_samples: int = 50, max_wall_thickness: float = None) -> float:
@@ -266,11 +266,6 @@ def visualize_wall_extraction(
 # =============================================================================
 
 
-# =============================================================================
-# 改进后的核心逻辑：增加实体空间验证
-# =============================================================================
-
-
 def _extract_segments_from_poly(poly: Polygon, thickness: float, tolerance: float) -> List[LineString]:
     """
     从单个 Polygon 中提取中心线，并增加实体验证防止误判。
@@ -398,7 +393,8 @@ def _heal_corner_connections(lines: List[LineString], thickness: float, toleranc
 
     # 转换为可变列表
     # 结构: [coords_list, ...]
-    lines_coords = [list(line.coords) for line in lines]
+    multi_lines = linemerge(lines).simplify(0)
+    lines_coords = [list(line.coords) for line in multi_lines.geoms]
 
     # 记录每个端点的信息: (line_index, is_start_point, point_coord)
     endpoints = []
@@ -429,23 +425,23 @@ def _heal_corner_connections(lines: List[LineString], thickness: float, toleranc
                 is_horz1 = abs(coords1[0][1] - coords1[-1][1]) < abs(coords1[0][0] - coords1[-1][0])
                 is_horz2 = abs(coords2[0][1] - coords2[-1][1]) < abs(coords2[0][0] - coords2[-1][0])
 
-                if is_horz1 != is_horz2:
-                    # 计算理想的交点 (Orthogonal intersection)
-                    if is_horz1:
-                        target_pt = (coords2[0][0], coords1[0][1])  # (x from vert, y from horz)
-                    else:
-                        target_pt = (coords1[0][0], coords2[0][1])
+                # if is_horz1 != is_horz2:
+                # 计算理想的交点 (Orthogonal intersection)
+                if is_horz1:
+                    target_pt = (coords2[0][0], coords1[0][1])  # (x from vert, y from horz)
+                else:
+                    target_pt = (coords1[0][0], coords2[0][1])
 
-                    # 更新线段坐标
-                    if is_start1:
-                        lines_coords[idx1][0] = target_pt
-                    else:
-                        lines_coords[idx1][-1] = target_pt
+                # 更新线段坐标
+                if is_start1:
+                    lines_coords[idx1][0] = target_pt
+                else:
+                    lines_coords[idx1][-1] = target_pt
 
-                    if is_start2:
-                        lines_coords[idx2][0] = target_pt
-                    else:
-                        lines_coords[idx2][-1] = target_pt
+                if is_start2:
+                    lines_coords[idx2][0] = target_pt
+                else:
+                    lines_coords[idx2][-1] = target_pt
 
     # 重建 LineString 对象并过滤掉退化的线段
     result = []
@@ -456,8 +452,6 @@ def _heal_corner_connections(lines: List[LineString], thickness: float, toleranc
 
     return result
 
-
-from collections import Counter
 
 # =============================================================================
 # 4. 辅助：墙厚计算细节
@@ -875,7 +869,6 @@ def test_on_all_cases(infer_thickness: bool = True):
             ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("centerline_auto_thickness.png", dpi=150)
     plt.show()
 
     print("\n测试完成！")
