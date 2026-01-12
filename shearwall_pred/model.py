@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.nn import BatchNorm, GATv2Conv
 
-from train.config import model_config
+from shearwall_pred.config import model_config
 
 
 class FiLMLayer(nn.Module):

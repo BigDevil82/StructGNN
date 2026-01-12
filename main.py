@@ -5,10 +5,10 @@ import random
 import torch
 from torch.utils.data import Subset, random_split
 
-from train.dataset import ShearWallDataset
-from train.model import ShearWallGNN
-from train.trainer import visualize_test_set
-from train.visualize_test import visualize_single_case
+from shearwall_pred.dataset import ShearWallDataset
+from shearwall_pred.model import ShearWallGNN
+from shearwall_pred.trainer import visualize_test_set
+from shearwall_pred.visualize_test import visualize_single_case
 
 torch.manual_seed(42)
 random.seed(42)

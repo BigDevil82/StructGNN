@@ -8,8 +8,8 @@ from typing import List, Tuple
 import numpy as np
 from shapely.geometry import Polygon
 
-from train.augmentor import GeometryAugmentor
-from train.config import data_config
+from shearwall_pred.augmentor import GeometryAugmentor
+from shearwall_pred.config import data_config
 
 
 def compute_anchor_ratios(intervals: List[Tuple[float, float]]) -> Tuple[float, float]:

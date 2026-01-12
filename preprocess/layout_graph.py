@@ -28,7 +28,7 @@ from torch_geometric.data import Data
 from preprocess.dxf_extractor import DXFExtractor
 from preprocess.room_analyzer import RoomAnalyzer, plot_room_analysis
 from preprocess.room_calibrator import calibrate_rooms
-from train.utils import get_file_category, mask_to_constraint_vector
+from shearwall_pred.utils import get_file_category, mask_to_constraint_vector
 
 
 class LayoutGraphBuilder:

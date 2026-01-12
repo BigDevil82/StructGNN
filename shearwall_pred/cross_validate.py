@@ -13,12 +13,12 @@ from torch.utils.data import Subset, WeightedRandomSampler
 from torch_geometric.loader import DataLoader
 
 # 复用你现有项目中的组件
-from train.config import ModelConfig, data_config, model_config, training_config
-from train.dataset import ShearWallDataset
-from train.losses import ConsistencyLoss, HybridLoss
-from train.model import ShearWallGNN
-from train.trainer import DataManager, Evaluator, Trainer
-from train.utils import get_file_category  # 假设你已经把 Trainer 类封装好了
+from shearwall_pred.config import ModelConfig, data_config, model_config, training_config
+from shearwall_pred.dataset import ShearWallDataset
+from shearwall_pred.losses import ConsistencyLoss, HybridLoss
+from shearwall_pred.model import ShearWallGNN
+from shearwall_pred.trainer import DataManager, Evaluator, Trainer
+from shearwall_pred.utils import get_file_category  # 假设你已经把 Trainer 类封装好了
 
 
 class KFoldDataManager:

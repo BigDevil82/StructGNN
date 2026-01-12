@@ -15,8 +15,8 @@ import torch
 from torch_geometric.data import InMemoryDataset
 from tqdm import tqdm
 
-from train.config import data_config
-from train.utils import build_graph_from_dxf
+from shearwall_pred.config import data_config
+from shearwall_pred.utils import build_graph_from_dxf
 
 
 class ShearWallDataset(InMemoryDataset):

@@ -12,12 +12,16 @@ import torch
 from torch.utils.data import Subset, WeightedRandomSampler
 from torch_geometric.loader import DataLoader
 
-from train.config import data_config, model_config, training_config
-from train.dataset import ShearWallDataset
-from train.losses import GlobalDensityLoss, HybridLoss
-from train.model import ShearWallGNN
-from train.utils import calculate_vector_iou, get_file_category
-from train.visualize_test import predict_shear_walls, prepare_graph_data_for_inference, visualize_single_case
+from shearwall_pred.config import data_config, model_config, training_config
+from shearwall_pred.dataset import ShearWallDataset
+from shearwall_pred.losses import GlobalDensityLoss, HybridLoss
+from shearwall_pred.model import ShearWallGNN
+from shearwall_pred.utils import calculate_vector_iou, get_file_category
+from shearwall_pred.visualize_test import (
+    predict_shear_walls,
+    prepare_graph_data_for_inference,
+    visualize_single_case,
+)
 
 # 全局设置
 torch.manual_seed(training_config.RANDOM_SEED)

@@ -18,9 +18,9 @@ import torch
 from shapely.geometry import Polygon
 
 from preprocess.room_analyzer import calculate_wall_iou, plot_room_analysis, reconstruct_walls
-from train.config import training_config, viz_config
-from train.model import ShearWallGNN
-from train.utils import build_graph_from_dxf, mask_to_constraint_vector
+from shearwall_pred.config import training_config, viz_config
+from shearwall_pred.model import ShearWallGNN
+from shearwall_pred.utils import build_graph_from_dxf, mask_to_constraint_vector
 
 
 def prepare_graph_data_for_inference(dxf_path: str, mode: str = "none", category: Optional[int] = None):
