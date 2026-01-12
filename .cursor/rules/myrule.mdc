@@ -1,8 +1,0 @@
----
-alwaysApply: true
----
-若在终端执行python代码时报错“Python was not found;”, 先激活conda环境："conda activate dl"
-
-按要求完成某项功能后，无需编写过度详尽的测试代码及可视化、分析、对比代码，除非有明确要求。
-
-无需运行代码，我会自行验证检查。

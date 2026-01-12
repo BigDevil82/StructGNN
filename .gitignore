@@ -10,3 +10,5 @@ data_cache
 *.pth
 result
 test.py
+.venv
+.cursor
