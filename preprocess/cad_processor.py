@@ -1,14 +1,22 @@
 import json
 from typing import List
 
+import matplotlib.cm as cm
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
 from shapely.geometry.polygon import orient
-from shapely.ops import polygonize, unary_union
+from shapely.ops import linemerge, polygonize, unary_union
 from shapely.strtree import STRtree
 
-from preprocess.wall_centerline import extract_wall_centerline
+from preprocess.line_network_calibrator import LineNetworkCalibrator, NetworkSegment, SegmentType
+from preprocess.rect_decomposer import RectangularDecomposer
+from preprocess.wall_centerline import visualize_wall_extraction
+from preprocess.wall_centerline_pro import extract_mixed_thickness_walls
+
+# from preprocess.wall_centerline import extract_wall_centerline
 
 
 def _remove_collinear_vertices(coords):
@@ -139,7 +147,7 @@ class CADLayoutProcessor:
 
         # 几何数据容器
         self.wall_polygon = MultiPolygon()  # 重构后的墙体多边形
-        self.wall_centerlines = MultiLineString()  # 计算出的墙体中轴线
+        self.wall_centerlines = []  # 计算出的墙体中轴线，改为列表存储 (LineString, thickness)
         self.components = {}  # 其他构件 (门窗梁) 的 LineStrings
 
     def _load_json(self):
@@ -287,8 +295,8 @@ class CADLayoutProcessor:
 
         print("正在提取墙体中轴线...")
         # 调用核心算法 (自动估算厚度 + 提取 + 验证)
-        self.wall_centerlines = extract_wall_centerline(self.wall_polygon)
-        print(f"  - 提取完成: 包含 {len(self.wall_centerlines.geoms)} 条中轴线段")
+        self.wall_centerlines = extract_mixed_thickness_walls(self.wall_polygon, max_iterations=3)
+        print(f"  - 提取完成: 包含 {len(self.wall_centerlines)} 条中轴线段")
 
     def visualize(self, save_path=None):
         """步骤 3: 综合可视化"""
@@ -318,14 +326,14 @@ class CADLayoutProcessor:
                 legend_handles[label] = handle
 
         # --- B. 绘制计算出的墙体中轴线 ---
-        if not self.wall_centerlines.is_empty:
-            for line in self.wall_centerlines.geoms:
+        if self.wall_centerlines:
+            for line, thickness in self.wall_centerlines:
                 x, y = line.xy
                 (l,) = ax.plot(x, y, color="red", linewidth=2.0, linestyle="-", zorder=10)
                 add_legend(l, "Extracted Centerline")
                 # endpoints
-                s = ax.scatter(x, y, color="black", s=4, zorder=11)
-                add_legend(s, "Centerline Endpoints")
+                # s = ax.scatter(x, y, color="black", s=4, zorder=11)
+                # add_legend(s, "Centerline Endpoints")
 
         # --- C. 绘制其他 CAD 构件 (门/窗/梁) ---
         # 定义样式配置
@@ -360,14 +368,203 @@ class CADLayoutProcessor:
         ax.set_title("Architectural Layout Analysis & Centerline Extraction", fontsize=15, fontweight="bold")
         ax.grid(True, alpha=0.2, linestyle="--")
 
-        # 生成图例
-        ax.legend(
-            legend_handles.values(), legend_handles.keys(), loc="upper right", frameon=True, shadow=True
-        )
+        # # 生成图例
+        # ax.legend(
+        #     legend_handles.values(), legend_handles.keys(), loc="upper right", frameon=True, shadow=True
+        # )
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
             print(f"图表已保存至: {save_path}")
+
+        plt.show()
+
+    def generate_rooms(self):
+        """步骤 4: 整合墙、门、窗，生成封闭房间区域"""
+        print("正在生成房间区域...")
+
+        # 1. 准备数据容器
+        self.all_segments: List[NetworkSegment] = []
+
+        for line, thickness in self.wall_centerlines:
+            seg = NetworkSegment(
+                geometry=line,
+                thickness=thickness,
+                seg_type=SegmentType.WALL,
+                is_structural=(
+                    True if thickness >= 180.0 else False
+                ),  # 暂时全设为True以建立强网格，或根据长度判断
+            )
+            self.all_segments.append(seg)
+
+        # B. 添加门 (Doors)
+        if "doors" in self.components:
+            for line in self.components["doors"].geoms:
+                seg = NetworkSegment(
+                    geometry=line,
+                    thickness=100.0,  # 门通常依附于墙，厚度不重要，重要的是位置
+                    seg_type=SegmentType.DOOR,
+                    is_structural=False,
+                )
+                self.all_segments.append(seg)
+
+        # C. 添加窗 (Windows)
+        if "windows" in self.components:
+            for line in self.components["windows"].geoms:
+                seg = NetworkSegment(
+                    geometry=line, thickness=100.0, seg_type=SegmentType.WINDOW, is_structural=False
+                )
+                self.all_segments.append(seg)
+
+        # 2. 初始化校准器
+        calibrator = LineNetworkCalibrator(structural_thickness_threshold=180.0)
+
+        # 3. 执行校准与缝合
+        # 这一步会返回一个完全连通的 MultiLineString (包含墙门窗)
+        self.unified_network = calibrator.calibrate(self.all_segments)
+
+        # 4. 生成房间多边形 (Polygonize)
+        # polygonize 会寻找所有最小闭合环
+        polys = list(polygonize(self.unified_network))
+        # visualize_wall_extraction(MultiPolygon(polys), None, title="Initial Polygons from Unified Network") # for debug
+
+        # 5. 过滤无效区域 (如面积过小的碎块)
+        valid_rooms = []
+        decomposer = RectangularDecomposer()
+        self.room_groups = []  # 结构: List[List[Polygon]]
+        for p in polys:
+            sub_rects = decomposer.decompose(p)
+            valid_rooms.extend(sub_rects)
+            self.room_groups.append(sub_rects)
+
+        self.rooms = valid_rooms
+        print(f"  - 房间生成完成: 识别到 {len(self.rooms)} 个房间")
+
+    def visualize_rooms(self):
+        """可视化生成的房间"""
+        fig, ax = plt.subplots(figsize=(12, 12))
+
+        # 绘制房间填充
+        import matplotlib.cm as cm
+
+        colors = cm.rainbow(np.linspace(0, 1, len(self.rooms)))
+
+        for i, room in enumerate(self.rooms):
+            x, y = room.exterior.xy
+            # 随机颜色填充房间
+            ax.fill(x, y, color=colors[i], alpha=0.5, label=f"Room {i+1}")
+            # 房间边框
+            ax.plot(x, y, color="black", linewidth=1.5)
+
+            # 在中心标记ID
+            cx, cy = room.centroid.x, room.centroid.y
+            ax.text(cx, cy, str(i + 1), fontsize=12, ha="center", fontweight="bold", color="black")
+
+        # 绘制原始网络作为参考 (灰色虚线)
+        if hasattr(self, "unified_network"):
+            for line in self.unified_network.geoms:
+                x, y = line.xy
+                ax.plot(x, y, color="gray", linewidth=1, linestyle="--", alpha=0.5)
+
+        ax.set_title("Generated Room Layout", fontsize=15)
+        ax.set_aspect("equal")
+        plt.show()
+
+    def visualize_final_layout(self, save_path=None):
+        """
+        最终可视化：
+        1. 房间：同源同色，虚线边界。
+        2. 构件：不同类型不同颜色，粗实线覆盖。
+        """
+        if not hasattr(self, "room_groups"):
+            print("请先执行 generate_rooms()")
+            return
+
+        fig, ax = plt.subplots(figsize=(16, 12), dpi=100)
+        ax.set_facecolor("#f8f9fa")  # 极淡的背景色
+
+        # ==========================================
+        # Layer 1: 房间填充 (同源同色)
+        # ==========================================
+        # 使用柔和的调色板 (Pastel1, Set3 等)
+        # cmap = cm.get_cmap("Pastel1")
+        # 或者自定义一组柔和颜色
+        soft_colors = ["#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#E2F0CB", "#FFDAC1"]
+
+        for i, group in enumerate(self.room_groups):
+            # 为这一组分配一个颜色
+            color = soft_colors[i % len(soft_colors)]
+
+            for rect in group:
+                x, y = rect.exterior.xy
+                # 填充
+                ax.fill(x, y, color=color, alpha=0.6, zorder=1)
+                # 虚线边界 (细)
+                ax.plot(x, y, color="green", linestyle="--", linewidth=0.8, zorder=2)
+
+        # ==========================================
+        # Layer 2: 建筑构件 (粗实线)
+        # ==========================================
+        # 定义样式字典
+        style_map = {
+            "STRUCTURAL_WALL": {
+                "color": "red",
+                "lw": 2,
+                "label": "Structural Wall",
+                "z": 10,
+            },  # 深蓝灰，最粗
+            "INFILL_WALL": {"color": "#7F8C8D", "lw": 2.0, "label": "Infill Wall", "z": 9},  # 灰色
+            "DOOR": {"color": "blue", "lw": 2, "label": "Door", "z": 11},  # 亮蓝
+            "WINDOW": {"color": "green", "lw": 2, "label": "Window", "z": 11},  # 亮绿
+        }
+
+        # 辅助集合用于生成图例
+        legend_patches = {}
+
+        for seg in self.all_segments:
+            # 确定类型 key
+            if seg.seg_type == SegmentType.WALL:
+                key = "STRUCTURAL_WALL" if seg.is_structural else "INFILL_WALL"
+            elif seg.seg_type == SegmentType.DOOR:
+                key = "DOOR"
+            elif seg.seg_type == SegmentType.WINDOW:
+                key = "WINDOW"
+            else:
+                continue
+
+            s = style_map[key]
+            x, y = seg.geometry.xy
+
+            # 绘制
+            ax.plot(x, y, color=s["color"], linewidth=s["lw"], solid_capstyle="butt", zorder=s["z"])
+
+            # 记录图例
+            if key not in legend_patches:
+                legend_patches[key] = mpatches.Patch(color=s["color"], label=s["label"])
+
+        # ==========================================
+        # 图表修饰
+        # ==========================================
+        ax.set_aspect("equal")
+        ax.set_title("Semantic Layout Reconstruction", fontsize=16, fontweight="bold", pad=20)
+
+        # 去除坐标轴刻度，只保留网格
+        ax.set_xticks([])
+        ax.set_yticks([])
+        # ax.grid(True, linestyle=':', alpha=0.3, color='gray') # 网格可选
+
+        # 生成自定义图例
+        handles = list(legend_patches.values())
+        # 添加一个代表"Room Area"的图例
+        handles.append(
+            mpatches.Patch(facecolor="#FFB3BA", edgecolor="black", linestyle="--", label="Room Zone (Split)")
+        )
+
+        ax.legend(handles=handles, loc="upper right", framealpha=0.9, shadow=True, fontsize=10)
+
+        if save_path:
+            plt.savefig(save_path, bbox_inches="tight", dpi=300)
+            print(f"Visualization saved to {save_path}")
 
         plt.show()
 
@@ -378,7 +575,7 @@ class CADLayoutProcessor:
 
 if __name__ == "__main__":
     # 替换为你的 JSON 文件路径
-    json_file = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\result\data\archi_comp.json"
+    json_file = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\cad_json_data\archi_comp.json"
 
     # 实例化处理流程
     processor = CADLayoutProcessor(json_file)
@@ -390,4 +587,7 @@ if __name__ == "__main__":
     processor.extract_centerlines()
 
     # 3. 可视化结果
-    processor.visualize()
+    # processor.visualize()
+    processor.generate_rooms()
+    processor.visualize_final_layout()
+    # processor.visualize_rooms()
