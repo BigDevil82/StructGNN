@@ -1,13 +1,9 @@
-import bisect
 import glob
 import os
-import traceback
-from collections import defaultdict
 from dataclasses import dataclass, field
 from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
@@ -362,7 +358,7 @@ class StructuralGraphBuilder:
 
             if u_id is None or v_id is None:
                 beam_type = "isolated_beam"
-                continue  # NOTE: 暂时跳过无法吸附的梁, 后面再想办法处理
+                # continue  # NOTE: 暂时跳过无法吸附的梁, 后面再想办法处理
             else:
                 beam_type = "beam"
 
@@ -532,7 +528,7 @@ if __name__ == "__main__":
     # 输入目录
     input_dir = r"dxf/to_process/beam_finish_modified_with_rooms"
     # 输出目录
-    output_dir = r"dxf/plots/beam_pred"
+    output_dir = r"dxf/plots/all_beam_pred"
     os.makedirs(output_dir, exist_ok=True)
 
     # 获取所有dxf文件
