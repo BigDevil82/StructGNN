@@ -73,7 +73,7 @@ def visualize_prediction(batch, preds, builder: StructuralGraphBuilder, save_pat
     COLOR_GT_BEAM = "#0000FF"  # 纯蓝 (真实梁)
     COLOR_PRED_BEAM = "#00AA00"  # 深绿 (预测梁)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))  # 画布调大一点
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))  # 画布调大一点
 
     # --- 辅助：绘制背景墙 (原始坐标) ---
     def plot_background(ax):
@@ -102,33 +102,42 @@ def visualize_prediction(batch, preds, builder: StructuralGraphBuilder, save_pat
 
     # --- 左图：真实情况 (Ground Truth) ---
     plot_background(ax1)
-    ax1.set_title("Ground Truth (Original CAD Coords)", fontsize=14)
+    ax1.set_title("Ground Truth VS Prediction", fontsize=14)
 
     for i in range(target_idx.shape[1]):
         if gt_labels[i] == 1:
             u, v = target_idx[:, i]
             x1, y1 = get_pos(u)
             x2, y2 = get_pos(v)
-            ax1.plot(
-                [x1, x2], [y1, y2], c=COLOR_GT_BEAM, lw=4, label="True Beam" if i == 0 else "", zorder=10
-            )
+            ax1.plot([x1, x2], [y1, y2], c=COLOR_GT_BEAM, lw=4, zorder=10)
 
     # --- 右图：AI 预测 (Prediction) ---
     plot_background(ax2)
-    ax2.set_title("AI Prediction (Original CAD Coords)", fontsize=14)
+    # ax2.set_title("AI Prediction (Original CAD Coords)", fontsize=14)
 
     for i in range(target_idx.shape[1]):
         if pred_labels[i] == 1:
             u, v = target_idx[:, i]
             x1, y1 = get_pos(u)
             x2, y2 = get_pos(v)
-            ax2.plot(
-                [x1, x2], [y1, y2], c=COLOR_PRED_BEAM, lw=4, label="Pred Beam" if i == 0 else "", zorder=10
-            )
+            ax2.plot([x1, x2], [y1, y2], c=COLOR_PRED_BEAM, lw=4, zorder=10)
 
-    # 添加图例
-    ax1.legend(loc="upper right")
-    ax2.legend(loc="upper right")
+    # 绘制图例 - 放置在两图中间
+    handles = [
+        plt.Line2D([0], [0], color=COLOR_SHEAR, lw=3, label="Shear Wall"),
+        plt.Line2D([0], [0], color=COLOR_GT_BEAM, lw=4, label="True Beam"),
+        plt.Line2D([0], [0], color=COLOR_PRED_BEAM, lw=4, label="Predicted Beam"),
+    ]
+
+    fig.legend(
+        handles=handles,
+        loc="center",
+        bbox_to_anchor=(0.5, 0.5),
+        ncol=3,
+        frameon=True,
+        fancybox=True,
+        fontsize=12,
+    )
 
     plt.tight_layout()
 
@@ -137,11 +146,11 @@ def visualize_prediction(batch, preds, builder: StructuralGraphBuilder, save_pat
         print(f"📊 原始坐标可视化已保存至: {save_path}")
     else:
         plt.show()
+    plt.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="梁布置预测推理工具")
-    parser.add_argument("--dxf", type=str, required=True, help="输入DXF文件路径")
     parser.add_argument(
         "--model", type=str, default="checkpoints/beam_predictor_model.pth", help="模型权重路径"
     )
@@ -149,10 +158,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # 检查文件
-    if not os.path.exists(args.dxf):
-        print(f"错误: 找不到 DXF 文件 {args.dxf}")
-        exit(1)
     if not os.path.exists(args.model):
         print(f"错误: 找不到模型文件 {args.model}. 请先运行 train.py")
         exit(1)
@@ -163,6 +168,7 @@ if __name__ == "__main__":
     model = load_model(args.model, device)
 
     # 2. 预测
+    os.makedirs(args.output, exist_ok=True)
     test_dxf_dir = r"dxf/beam_split_8_2/test"
     test_dxf_files = glob.glob(os.path.join(test_dxf_dir, "*.dxf"))
     for dxf_path in test_dxf_files:

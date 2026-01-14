@@ -10,7 +10,7 @@ from beam_pred.beam_dataset import BeamDataset
 from beam_pred.train import train_pipeline
 
 
-def plot_training_history(history):
+def plot_training_history(history, save_path=None):
     """绘制训练过程中的 Loss 和 Metrics 曲线"""
     epochs = range(1, len(history["train_loss"]) + 1)
 
@@ -35,10 +35,14 @@ def plot_training_history(history):
     ax2.legend()
 
     plt.tight_layout()
-    plt.show()
+    if save_path:
+        plt.savefig(save_path, dpi=300)
+        print(f"📊 训练曲线已保存至: {save_path}")
+    else:
+        plt.show()
 
 
-def visualize_comparison(model, loader, device, num_samples=5):
+def visualize_comparison(model, loader, device, save_dir, num_samples=5):
     """
     可视化预测结果对比
     上图：真实布置 (Ground Truth)
@@ -165,9 +169,10 @@ def visualize_comparison(model, loader, device, num_samples=5):
 
             plt.tight_layout()
             # plt.show()
-            plt.savefig(f"result/beam_pred/cmp_{count}.png", dpi=300)
+            plt.savefig(f"{save_dir}/cmp_{count}.png", dpi=300)
 
             count += 1
+            plt.close()
 
 
 def main():
@@ -190,7 +195,9 @@ def main():
     # 3. 可视化对比结果
     print("可视化预测结果 (Red=剪力墙, Blue=真实梁, Green=预测梁)...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    visualize_comparison(model, test_loader, device, num_samples=15)
+    visualize_comparison(
+        model, test_loader, device, save_dir="result/beam_pred/0114_ckpt/test_results", num_samples=15
+    )
 
 
 if __name__ == "__main__":

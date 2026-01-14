@@ -56,7 +56,7 @@ def train_pipeline(dxf_files):
         history["val_recall"].append(metrics["r"])
         history["val_f1"].append(metrics["f1"])
 
-    save_dir = "result/beam_pred/saved_models"
+    save_dir = "result/beam_pred/0114_ckpt"
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, "beam_predictor.pth")
     torch.save(model.state_dict(), save_path)

@@ -337,60 +337,107 @@ class StructuralGraphBuilder:
 
             self.rooms.append(room_struct)
 
+    # def _process_beams(self):
+    #     """将梁吸附到最近的节点（Node）上"""
+    #     # 建立 KD-Tree 或者简单的距离查找
+    #     # 这里为了演示，使用简单的最近点遍历（数据量不大）
+    #     # 更好的方式是利用 grid 索引
+
+    #     grid_tol = 250.0  # 梁吸附容差
+
+    #     existing_nodes = self.node_manager.nodes
+    #     seen_beams: Set[Tuple[int, int]] = set()
+
+    #     for beam in self.extractor.beams:
+    #         p1 = beam.start_point
+    #         p2 = beam.end_point
+
+    #         # 查找最近的节点
+    #         u_id = self._find_nearest_node(p1.x, p1.y, existing_nodes, grid_tol)
+    #         v_id = self._find_nearest_node(p2.x, p2.y, existing_nodes, grid_tol)
+
+    #         if u_id is None or v_id is None:
+    #             beam_type = "isolated_beam"
+    #             # continue  # NOTE: 暂时跳过无法吸附的梁, 后面再想办法处理
+    #         else:
+    #             beam_type = "beam"
+
+    #         # 如果找不到现有点，说明梁悬空或者连接到了非墙体交接处
+    #         # 这种情况下，可能需要创建新节点（Beam End），或者这本身是一个数据错误
+    #         # 这里策略：如果没有近点，创建新节点
+    #         if u_id is None:
+    #             u_id = self.node_manager.get_or_create(p1.x, p1.y)
+    #         if v_id is None:
+    #             v_id = self.node_manager.get_or_create(p2.x, p2.y)
+
+    #         if u_id == v_id:
+    #             continue  # 忽略长度为0的梁
+
+    #         beam_key = tuple(sorted((u_id, v_id)))
+    #         if beam_key in seen_beams:
+    #             continue  # 跳过重复梁
+    #         seen_beams.add(beam_key)
+
+    #         # 创建梁 Segment
+    #         n_u = self.node_manager.get_node(u_id)
+    #         n_v = self.node_manager.get_node(v_id)
+
+    #         self.beams.append(
+    #             Segment(
+    #                 u=u_id,
+    #                 v=v_id,
+    #                 type=beam_type,
+    #                 length=np.hypot(n_u.x - n_v.x, n_u.y - n_v.y),
+    #                 room_index=None,
+    #             )
+    #         )
+
     def _process_beams(self):
-        """将梁吸附到最近的节点（Node）上"""
-        # 建立 KD-Tree 或者简单的距离查找
-        # 这里为了演示，使用简单的最近点遍历（数据量不大）
-        # 更好的方式是利用 grid 索引
-
-        grid_tol = 250.0  # 梁吸附容差
-
-        existing_nodes = self.node_manager.nodes
+        """
+        [修改版] 生成梁的 Ground Truth
+        规则：房间边上，除了剪力墙以外的所有部分，都应该布置梁。
+        这意味着：填充墙、门、窗、以及空洞（Empty）的位置，都需要生成梁数据。
+        """
+        self.beams = []  # 清空可能存在的旧数据
         seen_beams: Set[Tuple[int, int]] = set()
 
-        for beam in self.extractor.beams:
-            p1 = beam.start_point
-            p2 = beam.end_point
+        # 遍历所有已处理好的房间
+        for room in self.rooms:
+            # 遍历房间的4条边 (Top, Right, Bottom, Left)
+            for edge_segments in room.edges:
+                # 遍历该边上的所有分段
+                for seg in edge_segments:
+                    # 核心规则：非剪力墙段 -> 必须布梁
+                    if seg.type != "shear_wall":
 
-            # 查找最近的节点
-            u_id = self._find_nearest_node(p1.x, p1.y, existing_nodes, grid_tol)
-            v_id = self._find_nearest_node(p2.x, p2.y, existing_nodes, grid_tol)
+                        # 1. 基础检查
+                        if seg.u == seg.v:
+                            continue  # 忽略长度为0的段
 
-            if u_id is None or v_id is None:
-                beam_type = "isolated_beam"
-                # continue  # NOTE: 暂时跳过无法吸附的梁, 后面再想办法处理
-            else:
-                beam_type = "beam"
+                        # 2. 去重逻辑 (无向边)
+                        # 确保 u < v，作为唯一键
+                        u, v = sorted((seg.u, seg.v))
+                        beam_key = (u, v)
 
-            # 如果找不到现有点，说明梁悬空或者连接到了非墙体交接处
-            # 这种情况下，可能需要创建新节点（Beam End），或者这本身是一个数据错误
-            # 这里策略：如果没有近点，创建新节点
-            if u_id is None:
-                u_id = self.node_manager.get_or_create(p1.x, p1.y)
-            if v_id is None:
-                v_id = self.node_manager.get_or_create(p2.x, p2.y)
+                        if beam_key in seen_beams:
+                            continue  # 该位置已经添加过梁了（通常是相邻房间共享的边）
 
-            if u_id == v_id:
-                continue  # 忽略长度为0的梁
+                        seen_beams.add(beam_key)
 
-            beam_key = tuple(sorted((u_id, v_id)))
-            if beam_key in seen_beams:
-                continue  # 跳过重复梁
-            seen_beams.add(beam_key)
+                        # 3. 添加到梁列表
+                        # 注意：这里我们创建一个新的 Segment 对象作为“梁”
+                        # 类型标记为 'beam'，用于后续训练作为正样本
+                        new_beam = Segment(
+                            u=u,
+                            v=v,
+                            type="beam",  # 标记为梁
+                            length=seg.length,
+                            room_index=None,  # 梁属于全局结构，不特定属于某个房间（虽然源自房间）
+                            edge_index=-1,
+                        )
+                        self.beams.append(new_beam)
 
-            # 创建梁 Segment
-            n_u = self.node_manager.get_node(u_id)
-            n_v = self.node_manager.get_node(v_id)
-
-            self.beams.append(
-                Segment(
-                    u=u_id,
-                    v=v_id,
-                    type=beam_type,
-                    length=np.hypot(n_u.x - n_v.x, n_u.y - n_v.y),
-                    room_index=None,
-                )
-            )
+        # print(f"已根据剪力墙互补规则生成 {len(self.beams)} 条 Ground Truth 梁")
 
     def _calibrate_nodes(self):
         """
@@ -462,6 +509,8 @@ class StructuralGraphBuilder:
         for r in self.rooms:
             for edge_segs in r.edges:
                 for seg in edge_segs:
+                    if seg.type != "shear_wall":
+                        continue
                     n_u = self.node_manager.get_node(seg.u)
                     n_v = self.node_manager.get_node(seg.v)
                     c = color_map.get(seg.type, "black")
@@ -475,6 +524,7 @@ class StructuralGraphBuilder:
                         linestyle=ls,
                         alpha=0.8,
                         label=seg.type,
+                        zorder=2,
                         # solid_capstyle="butt",
                     )
 
@@ -488,6 +538,7 @@ class StructuralGraphBuilder:
                 color=color_map.get(beam.type, "black"),
                 lw=4,
                 label=beam.type,
+                zorder=1,
                 # solid_capstyle="butt",
             )
 
@@ -497,9 +548,9 @@ class StructuralGraphBuilder:
         # ax.scatter(x_nodes, y_nodes, c="green", s=5, zorder=10)
 
         # 去重图例
-        handles, labels = plt.gca().get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), loc="upper right")
+        # handles, labels = plt.gca().get_legend_handles_labels()
+        # by_label = dict(zip(labels, handles))
+        # plt.legend(by_label.values(), by_label.keys(), loc="upper right")
 
         ax.set_aspect("equal")
         ax.set_title("结构化图纸数据提取 (GNN Pre-processing)")
