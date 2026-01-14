@@ -13,8 +13,7 @@ from shapely.strtree import STRtree
 
 from preprocess.line_network_calibrator import LineNetworkCalibrator, NetworkSegment, SegmentType
 from preprocess.rect_decomposer import RectangularDecomposer
-from preprocess.wall_centerline import visualize_wall_extraction
-from preprocess.wall_centerline_pro import extract_mixed_thickness_walls
+from preprocess.wall_centerline import extract_mixed_thickness_walls, visualize_wall_extraction
 
 # from preprocess.wall_centerline import extract_wall_centerline
 

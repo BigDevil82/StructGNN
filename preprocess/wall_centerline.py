@@ -23,9 +23,86 @@ from shapely.ops import linemerge, unary_union
 Geometry = Union[Polygon, MultiPolygon]
 Segment = Tuple[float, float, float, bool]  # (const_coord, min_coord, max_coord, is_exterior)
 
+
 # =============================================================================
 # 1. 公共 API
 # =============================================================================
+def extract_mixed_thickness_walls(
+    wall_geom_input,
+    min_thickness_threshold=50.0,  # 最小墙厚阈值，低于此不再提取
+    max_iterations=3,  # 最大剥离次数，防止死循环
+):
+    """
+    处理混合厚度墙体的中心线提取（剥离法）。
+    """
+    if wall_geom_input is None or wall_geom_input.is_empty:
+        return []
+
+    # 预处理
+    current_geom = wall_geom_input.buffer(0)
+    all_centerlines = []
+
+    # 记录已处理的厚度，避免重复死循环
+    processed_thicknesses = set()
+
+    print(f"开始混合厚度提取流程...")
+
+    for i in range(max_iterations):
+        if current_geom.is_empty or current_geom.area < 1e-3:
+            print(f"  [Pass {i+1}] 几何体已空，停止提取。")
+            break
+
+        # 1. 估算当前剩余几何体的主导厚度
+        current_thickness = estimate_wall_thickness(current_geom)
+        current_thickness = int(round(current_thickness / 50) * 50)  # 四舍五入到最近的50mm
+
+        # 终止条件：厚度太小或无法检测
+        if current_thickness < min_thickness_threshold:
+            print(f"  [Pass {i+1}] 检测厚度 {current_thickness:.2f} < 阈值，停止剥离。")
+            break
+
+        print(f"  [Pass {i+1}] 识别主导厚度: {current_thickness:.2f}")
+        processed_thicknesses.add(current_thickness)
+
+        # 清洗碎片：去掉面积极小的噪点
+        if isinstance(current_geom, MultiPolygon):
+            valid_polys = [p for p in current_geom.geoms if p.area > (current_thickness * current_thickness)]
+            current_geom = unary_union(valid_polys)
+        elif isinstance(current_geom, Polygon):
+            if current_geom.area < (current_thickness * current_thickness):
+                current_geom = Polygon()
+
+        # 2. 提取当前厚度的中心线
+        # 注意：这里我们只提取符合当前厚度的部分，tolerance设紧一点
+        lines = extract_wall_centerline(
+            current_geom,
+            thickness=current_thickness,
+            tolerance_ratio=0.2,  # 容差稍微给大一点点，适应施工误差
+            merge_lines=False,  # 先不合并，方便后续处理
+        )
+
+        if lines.is_empty:
+            print(f"  [Pass {i+1}] 未提取到有效线段，跳过。")
+            continue
+
+        # 收集线段
+        if isinstance(lines, LineString):
+            all_centerlines.append((lines, current_thickness))
+        elif isinstance(lines, MultiLineString):
+            for line in lines.geoms:
+                all_centerlines.append((line, current_thickness))
+
+        # 3. 构造遮罩并剥离 (Peeling)
+        # 用提取出的线段，按当前厚度生成Buffer，从原图中挖掉
+        # 技巧：buffer稍微大一点点(比如+0.1mm)，确保切断连接处，防止残留细丝
+        lines = linemerge(lines)
+        mask = lines.buffer(current_thickness / 2.0 + 0.1, cap_style=2, join_style=2)
+        current_geom = current_geom.difference(mask)
+        print(f"  [Pass {i+1}] 剥离后剩余面积: {current_geom.area:.2f}")
+        # visualize current geometry for debug
+        # visualize_wall_extraction(current_geom, lines, title=f"Current Geometry after {i+1} passes")
+
+    return all_centerlines
 
 
 def extract_wall_centerline(
@@ -453,119 +530,6 @@ def _heal_corner_connections(lines: List[LineString], thickness: float, toleranc
     return result
 
 
-# =============================================================================
-# 4. 辅助：墙厚计算细节
-# =============================================================================
-
-
-def estimate_thickness_scanline(wall_geom, num_samples: int = 50, max_wall_thickness: float = None) -> float:
-    """
-    通过扫描线切割法估算墙厚（鲁棒性最强的方法）。
-    适用于：田字形、回字形、复杂多孔结构。
-
-    原理：
-    生成水平和竖直的扫描线穿过几何体，测量扫描线在几何体内部的截断长度。
-    统计这些截断长度的众数。
-
-    Parameters
-    ----------
-    wall_geom : Geometry
-        墙体几何
-    num_samples : int
-        每个方向扫描线的数量，默认50条（数量越多越准，但越慢）
-    max_wall_thickness : float, optional
-        预期的最大墙厚（用于过滤掉纵向切过墙体的长线段）。
-        如果为None，取几何体边界框短边的 1/5。
-    """
-    if wall_geom is None or wall_geom.is_empty:
-        return 0.0
-
-    # 确保几何有效
-    if not wall_geom.is_valid:
-        wall_geom = wall_geom.buffer(0)
-
-    minx, miny, maxx, maxy = wall_geom.bounds
-    width = maxx - minx
-    height = maxy - miny
-
-    # 自动设定过滤阈值：如果截取长度太长，说明是顺着墙切的，不是切断面
-    if max_wall_thickness is None:
-        max_wall_thickness = min(width, height) * 0.2
-        # 兜底：如果几何体很小，至少允许一定厚度
-        max_wall_thickness = max(max_wall_thickness, 5.0)
-
-    intersect_lengths = []
-
-    # 定义扫描函数
-    def scan_direction(axis_min, axis_max, other_axis_min, other_axis_max, is_vertical):
-        # 在范围内生成均匀分布的扫描位置
-        positions = np.linspace(axis_min, axis_max, num=num_samples)
-
-        for pos in positions:
-            # 构造扫描线
-            if is_vertical:
-                line = LineString([(pos, other_axis_min - 1), (pos, other_axis_max + 1)])
-            else:
-                line = LineString([(other_axis_min - 1, pos), (other_axis_max + 1, pos)])
-
-            # 计算交集
-            intersection = wall_geom.intersection(line)
-
-            if intersection.is_empty:
-                continue
-
-            # 处理交集结果 (可能是 LineString 或 MultiLineString)
-            segments = []
-            if intersection.geom_type == "LineString":
-                segments = [intersection]
-            elif intersection.geom_type == "MultiLineString":
-                segments = list(intersection.geoms)
-            elif intersection.geom_type == "GeometryCollection":
-                # 有时会包含点，需过滤
-                segments = [g for g in intersection.geoms if g.geom_type in ["LineString"]]
-
-            # 收集长度
-            for seg in segments:
-                length = seg.length
-                # 过滤掉噪点（太短）和纵向切面（太长）
-                if 0.01 < length < max_wall_thickness:
-                    intersect_lengths.append(length)
-
-    # 1. 竖直扫描 (测量水平墙段的厚度)
-    scan_direction(minx, maxx, miny, maxy, is_vertical=True)
-
-    # 2. 水平扫描 (测量竖直墙段的厚度)
-    scan_direction(miny, maxy, minx, maxx, is_vertical=False)
-
-    if not intersect_lengths:
-        # 如果扫描失败（极罕见），回退到旧方法或最小宽度法
-        return 0.0
-
-    # 统计众数 (自适应分箱)
-    return _get_mode_value(intersect_lengths)
-
-
-def _get_mode_value(values) -> float:
-    """统计众数"""
-    if not values:
-        return 0.0
-    arr = np.array(values)
-
-    # 分箱精度：0.01 或 范围的 2%
-    bin_width = max(0.01, (np.max(arr) - np.min(arr)) * 0.02)
-
-    # 简单的四舍五入分箱
-    binned = np.round(arr / bin_width).astype(int)
-
-    # 找出现最多的箱
-    counts = Counter(binned)
-    most_common_bin = counts.most_common(1)[0][0]
-
-    # 取该箱内原始数据的平均值，提高精度
-    mask = binned == most_common_bin
-    return float(np.mean(arr[mask]))
-
-
 def _get_mode_value(values: List[float]) -> float:
     """自适应分箱求众数"""
     if not values:
@@ -580,6 +544,11 @@ def _get_mode_value(values: List[float]) -> float:
     # 取该bin内所有原始值的均值
     mask = binned == most_common_bin
     return float(np.mean(arr[mask]))
+
+
+# =============================================================================
+# 4. 测试用例
+# =============================================================================
 
 
 def test_on_all_cases(infer_thickness: bool = True):
