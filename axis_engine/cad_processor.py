@@ -11,9 +11,9 @@ from shapely.geometry.polygon import orient
 from shapely.ops import linemerge, polygonize, unary_union
 from shapely.strtree import STRtree
 
-from preprocess.line_network_calibrator import LineNetworkCalibrator, NetworkSegment, SegmentType
-from preprocess.rect_decomposer import RectangularDecomposer
-from preprocess.wall_centerline import extract_mixed_thickness_walls, visualize_wall_extraction
+from axis_engine.line_network_calibrator import LineNetworkCalibrator, NetworkSegment, SegmentType
+from axis_engine.rect_decomposer import RectangularDecomposer
+from axis_engine.wall_centerline import extract_mixed_thickness_walls, visualize_wall_extraction
 
 # from preprocess.wall_centerline import extract_wall_centerline
 

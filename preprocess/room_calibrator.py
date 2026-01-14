@@ -8,9 +8,7 @@
 
 from typing import List, Tuple
 
-import numpy as np
-from shapely.geometry import Point, Polygon
-from sklearn.cluster import DBSCAN
+from shapely.geometry import Polygon
 
 from preprocess.dxf_extractor import DXFExtractor
 

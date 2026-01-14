@@ -12,17 +12,7 @@ from pathlib import Path
 
 import ezdxf
 
-# Ensure we can import from the current package/project
-# If running as script from preprocess/ folder:
-if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# Try importing the extractor
-try:
-    from dxf_extractor import DXFExtractor
-except ImportError:
-    # If running from root as python -m preprocess.merge_rooms
-    from preprocess.dxf_extractor import DXFExtractor
+from preprocess.dxf_extractor import DXFExtractor
 
 
 def merge_rooms(room_dxf_dir, beam_dxf_dir, output_dir):
