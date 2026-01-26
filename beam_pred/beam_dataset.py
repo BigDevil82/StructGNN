@@ -174,25 +174,27 @@ def builder_to_pyg_data(builder: StructuralGraphBuilder) -> Optional[Data]:
         room_node_ids = set()
         for edge_list in room.edges:
             for seg in edge_list:
-                room_node_ids.add(seg.u)
-                room_node_ids.add(seg.v)
+                # room_node_ids.add(seg.u)
+                # room_node_ids.add(seg.v)
+                u, v = sorted((seg.u, seg.v))
+                candidate_pairs.add((u, v))
 
-        room_nodes = list(room_node_ids)
-        for i in range(len(room_nodes)):
-            for j in range(i + 1, len(room_nodes)):
-                u, v = room_nodes[i], room_nodes[j]
-                if u == v:
-                    continue
+        # room_nodes = list(room_node_ids)
+        # for i in range(len(room_nodes)):
+        #     for j in range(i + 1, len(room_nodes)):
+        #         u, v = room_nodes[i], room_nodes[j]
+        #         if u == v:
+        #             continue
 
-                n_u = builder.node_manager.get_node(u)
-                n_v = builder.node_manager.get_node(v)
+        #         n_u = builder.node_manager.get_node(u)
+        #         n_v = builder.node_manager.get_node(v)
 
-                dx = abs(n_u.x - n_v.x)
-                dy = abs(n_u.y - n_v.y)
-                ALIGN_TOL = 50.0  # mm
+        #         dx = abs(n_u.x - n_v.x)
+        #         dy = abs(n_u.y - n_v.y)
+        #         ALIGN_TOL = 50.0  # mm
 
-                if (dx < ALIGN_TOL) or (dy < ALIGN_TOL):
-                    candidate_pairs.add(tuple(sorted((u, v))))
+        #         if (dx < ALIGN_TOL) or (dy < ALIGN_TOL):
+        #             candidate_pairs.add(tuple(sorted((u, v))))
 
     # 构建 Label
     labels = []

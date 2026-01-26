@@ -10,7 +10,7 @@ from beam_pred.beam_dataset import BeamDataset
 from beam_pred.model import BeamPredictorGNN
 
 
-def train_pipeline(dxf_files):
+def train_pipeline(dxf_files, save_dir):
     # 1. 准备数据
     dataset = BeamDataset(root="data_cache/beam_dataset/train", dxf_files=dxf_files)
 
@@ -26,13 +26,13 @@ def train_pipeline(dxf_files):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = BeamPredictorGNN(node_in_dim=6, edge_in_dim=6).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([3.0]).to(device))
+    criterion = torch.nn.BCEWithLogitsLoss()
 
     # --- 记录训练历史 ---
     history = {"train_loss": [], "val_precision": [], "val_recall": [], "val_f1": []}
 
     # 3. 训练循环
-    for epoch in range(50):
+    for epoch in range(70):
         model.train()
         total_loss = 0
 
@@ -56,7 +56,6 @@ def train_pipeline(dxf_files):
         history["val_recall"].append(metrics["r"])
         history["val_f1"].append(metrics["f1"])
 
-    save_dir = "result/beam_pred/0114_ckpt"
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, "beam_predictor.pth")
     torch.save(model.state_dict(), save_path)
@@ -98,4 +97,4 @@ if __name__ == "__main__":
         print(f"Warning: No DXF files found in {input_dir}")
 
     # 不再需要预先构建 builders，直接把文件路径给 dataset 即可
-    train_pipeline(dxf_files)
+    train_pipeline(dxf_files, save_dir="result/beam_pred/0114_ckpt")

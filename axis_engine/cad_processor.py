@@ -588,5 +588,5 @@ if __name__ == "__main__":
     # 3. 可视化结果
     # processor.visualize()
     processor.generate_rooms()
-    processor.visualize_final_layout()
-    # processor.visualize_rooms()
+    # processor.visualize_final_layout()
+    processor.visualize_rooms()

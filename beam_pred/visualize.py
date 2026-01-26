@@ -181,7 +181,8 @@ def main():
     train_dxf_files = glob.glob(os.path.join(train_input_dir, "*.dxf"))
 
     print("开始训练...")
-    model, history = train_pipeline(train_dxf_files)
+    SAVE_DIR = "result/beam_pred/0114_ckpt_1"
+    model, history = train_pipeline(train_dxf_files, save_dir=SAVE_DIR)
 
     test_dxf_dir = r"dxf/beam_split_8_2/test"
     test_dxf_files = glob.glob(os.path.join(test_dxf_dir, "*.dxf"))
@@ -195,9 +196,9 @@ def main():
     # 3. 可视化对比结果
     print("可视化预测结果 (Red=剪力墙, Blue=真实梁, Green=预测梁)...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    visualize_comparison(
-        model, test_loader, device, save_dir="result/beam_pred/0114_ckpt/test_results", num_samples=15
-    )
+    test_res_dir = os.path.join(SAVE_DIR, "test_results")
+    os.makedirs(test_res_dir, exist_ok=True)
+    visualize_comparison(model, test_loader, device, save_dir=test_res_dir, num_samples=15)
 
 
 if __name__ == "__main__":
