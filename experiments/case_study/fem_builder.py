@@ -33,12 +33,14 @@ class FEMTopologyBuilder:
 
         self.raw_walls: List[LineString] = []
         self.room_edges: List[LineString] = []
+        self.room_polys: List[Polygon] = []
 
         self.nodes: List[Tuple[float, float]] = []
         self.elements: List[dict] = []
 
     def add_room(self, room_poly: Polygon, sw_vector: np.ndarray, masks: List = None):
         """收集房间几何信息"""
+        self.room_polys.append(room_poly)
         self.room_edges.extend(get_room_edges(room_poly))
         walls_geom = _walls_from_vector(room_poly, sw_vector, masks)
         if not walls_geom.is_empty:
@@ -346,15 +348,55 @@ class FEMTopologyBuilder:
                 }
             )
 
+    def _compute_slabs(self) -> List[List[Tuple]]:
+        """
+        计算楼板区域，覆盖所有房间及其间的空洞。
+
+        做法：
+        1. 合并所有 room_polys 得到整体轮廓（可能含 holes）
+        2. 对每个连通区域：将外轮廓作为一块楼板
+        3. 对该区域内部的每个 hole（空洞）：也作为一块楼板（填满过道/大厅等）
+
+        Returns:
+            楼板坐标列表，每个楼板为角点 (x, y) 列表（首尾不重复）
+        """
+        if not self.room_polys:
+            return []
+
+        merged = unary_union(self.room_polys)
+
+        # 统一处理为列表
+        if isinstance(merged, Polygon):
+            polys = [merged]
+        else:
+            polys = list(merged.geoms)
+
+        slabs = []
+        for poly in polys:
+            if poly.is_empty:
+                continue
+            # # 外轮廓（无洞）作为一整块楼板
+            # slabs.append(list(poly.exterior.coords)[:-1])
+            # 每个空洞单独作为一块楼板
+            for interior in poly.interiors:
+                slabs.append(list(interior.coords)[:-1])
+        for room in self.room_polys:
+            slabs.append(list(room.exterior.coords)[:-1])
+
+        return slabs
+
     def _format_result(self) -> dict:
+        slabs = self._compute_slabs()
         return {
             "nodes": self.nodes,
             "members": self.elements,
+            "slabs": slabs,
             "statistics": {
                 "num_nodes": len(self.nodes),
                 "num_members": len(self.elements),
                 "num_shearwalls": sum(1 for m in self.elements if m["type"] == "shearwall"),
                 "num_beams": sum(1 for m in self.elements if m["type"] == "beam"),
+                "num_slabs": len(slabs),
                 "total_sw_length": sum(m["length"] for m in self.elements if m["type"] == "shearwall"),
                 "total_beam_length": sum(m["length"] for m in self.elements if m["type"] == "beam"),
             },
