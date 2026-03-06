@@ -1,0 +1,8 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+A room-level graph formulation for conditional shear wall layout generation is presented, with rooms modeled as nodes and adjacencies as edges to better reflect architectural semantics and boundary-constrained placement. Conditioning via FiLM-style modulation enables density-regime control, and a dual-stream training procedure with counterfactual regularization is used to improve condition sensitivity when paired condition-specific supervision is limited.
+
+Across 143 residential floor plans, the room-based representation improves prediction quality over edge-based baselines, achieving 0.597 Image IoU and yielding higher precision (+17.5 pp), which is consistent with reduced false positive wall placement. Ablation results indicate that explicit conditioning is the primary driver of controllability (CGS -0.148 when removed) and that the proposed training strategy provides a smaller but measurable benefit to conditional compliance. Case-based structural validation using finite element analysis further suggests that generated layouts can satisfy feasibility checks under the evaluated settings.
+
+Future work should consider continuous condition formulations, representations that accommodate non-rectangular spaces without ad hoc preprocessing, and tighter integration of structural response metrics into training objectives for performance-aware generation. Extending the framework toward joint prediction of multiple boundary-defined structural elements is also a natural direction, but it requires systematic validation beyond the current scope.

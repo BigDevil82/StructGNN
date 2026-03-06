@@ -1,0 +1,239 @@
+% !TeX root = main.tex
+%% 
+%% Copyright 2007-2020 Elsevier Ltd
+%% 
+%% This file is part of the 'Elsarticle Bundle'.
+%% ---------------------------------------------
+%% 
+%% It may be distributed under the conditions of the LaTeX Project Public
+%% License, either version 1.2 of this license or (at your option) any
+%% later version.  The latest version of this license is in
+%%    http://www.latex-project.org/lppl.txt
+%% and version 1.2 or later is part of all distributions of LaTeX
+%% version 1999/12/01 or later.
+%% 
+%% The list of all files belonging to the 'Elsarticle Bundle' is
+%% given in the file `manifest.txt'.
+%% 
+
+%% Template article for Elsevier's document class `elsarticle'
+%% with numbered style bibliographic references
+%% SP 2008/03/01
+%%
+%% 
+%%
+%% $Id: elsarticle-template-num.tex 190 2020-11-23 11:12:32Z rishi $
+%%
+%%
+% \documentclass[preprint,12pt]{elsarticle}
+
+%% Use the option review to obtain double line spacing
+%% \documentclass[authoryear,preprint,review,12pt]{elsarticle}
+
+%% Use the options 1p,twocolumn; 3p; 3p,twocolumn; 5p; or 5p,twocolumn
+%% for a journal layout:
+%% \documentclass[final,1p,times]{elsarticle}
+%% \documentclass[final,1p,times,twocolumn]{elsarticle}
+%% \documentclass[final,3p,times]{elsarticle}
+% \documentclass[final,3p,times,twocolumn]{elsarticle}
+%% \documentclass[final,5p,times]{elsarticle}
+\documentclass[final,5p,times,twocolumn, fleqn]{elsarticle}
+
+%% For including figures, graphicx.sty has been loaded in
+%% elsarticle.cls. If you prefer to use the old commands
+%% please give \usepackage{epsfig}
+
+%% The amssymb package provides various useful mathematical symbols
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+ \usepackage{cuted}
+\usepackage{hyperref}
+\usepackage{lineno}
+\usepackage{float}
+\usepackage{caption}
+
+\hyphenpenalty=1000
+\hypersetup{
+     colorlinks   = true,
+     linkcolor    = blue,
+     citecolor    = blue
+}
+\setlength{\mathindent}{0pt}
+
+\captionsetup[table]{
+  labelfont=bf,             % "Table n" 加粗
+  singlelinecheck=false,    % 强制左对齐（禁止单行居中）
+  justification=raggedright % 文本左对齐
+  labelsep=newline          % 如果希望 Table 1 和标题文字分两行显示，请取消此行注释
+}
+
+\makeatletter
+\setlength{\@fptop}{0pt}
+\makeatother
+%% The amsthm package provides extended theorem environments
+%% \usepackage{amsthm}
+
+%% The lineno packages adds line numbers. Start line numbering with
+%% \begin{linenumbers}, end it with \end{linenumbers}. Or switch it on
+%% for the whole article with \linenumbers.
+%% \usepackage{lineno}
+
+\journal{Automation in Construction}
+
+\begin{document}
+\setlength{\abovedisplayskip}{5pt}
+\setlength{\belowdisplayskip}{5pt}
+
+\begin{frontmatter}
+
+%% Title, authors and addresses
+
+%% use the tnoteref command within \title for footnotes;
+%% use the tnotetext command for theassociated footnote;
+%% use the fnref command within \author or \address for footnotes;
+%% use the fntext command for theassociated footnote;
+%% use the corref command within \author for corresponding author footnotes;
+%% use the cortext command for theassociated footnote;
+%% use the ead command for the email address,
+%% and the form \ead[url] for the home page:
+%% \title{Title\tnoteref{label1}}
+%% \tnotetext[label1]{}
+%% \author{Name\corref{cor1}\fnref{label2}}
+%% \ead{email address}
+%% \ead[url]{home page}
+%% \fntext[label2]{}
+%% \cortext[cor1]{}
+%% \affiliation{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+%% \fntext[label3]{}
+
+\title{Room-Level Graph Neural Networks for Conditional Shear Wall Layout Generation in High-Rise Buildings}
+
+%% use optional labels to link authors explicitly to addresses:
+%% \author[label1,label2]{}
+%% \affiliation[label1]{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+%%
+%% \affiliation[label2]{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+
+\author{Hao Leng}
+\author{Ying Zhou}
+\author{Yuqing Gao\corref{cor}}
+
+\ead{yuqing27@tongji.edu.cn}
+\cortext[cor]{Corresponding author}
+\address{State Key Laboratory of Disaster Reduction in Civil Engineering, Tongji University, Shanghai 200092, China}
+
+% \affiliation{organization={State Key Laboratory of Disaster Reduction in Civil Engineering, Tongji University},
+%             city={Shanghai 200092},
+%             country={China}}
+
+% \affiliation[inst2]{organization={Department Two},%Department and Organization
+%             addressline={Address Two}, 
+%             city={City Two},
+%             postcode={22222}, 
+%             state={State Two},
+%             country={Country Two}}
+
+\begin{abstract}
+Designing shear-wall layouts for high-rise residential buildings is a labor-intensive early-stage task that must satisfy architectural constraints while meeting seismic performance demands. Existing learning-based approaches are commonly formulated either as image-to-image generation or as graph learning on geometric primitives, but these formulations can be inefficient and may not explicitly reflect room-level spatial semantics. This paper proposes a room-level graph formulation that represents rooms as nodes and their adjacencies as edges, enabling wall placement to be modeled directly along room boundaries and reducing the graph size relative to primitive-based representations. On top of this representation, we develop a conditional graph neural network with FiLM-based modulation to generate layouts that comply with prescribed shear-wall density regimes. To mitigate limited paired data across design conditions, we introduce a dual-stream training strategy that combines supervision from engineered layouts with density-consistency constraints under counterfactual conditions. Experiments on 143 residential floor plans show that the proposed method achieves an Image IoU of 0.597 and improves over an edge-based GNN baseline by 9.8 percentage points. Ablation results indicate that conditioning is the primary driver of controllability, and case-based finite-element evaluation further suggests engineering feasibility under the tested settings.
+\end{abstract}
+
+%%Graphical abstract
+% \begin{graphicalabstract}
+% \includegraphics{grabs}
+% \end{graphicalabstract}
+
+%%Research highlights
+% \begin{strip}
+\begin{highlights}
+\item A room-level graph formulation for structural layout generation that encodes architectural spaces and their adjacencies, enabling direct use of room semantics and boundary constraints while reducing the scale of graph inference relative to primitive-based formulations.
+\item A conditional GNN architecture with FiLM-based modulation for controllable shear wall layout generation under prescribed wall-density categories, including a decoding design that predicts both wall existence and geometry.
+\item A dual-stream training scheme that improves conditional compliance under limited paired data by combining supervised learning with counterfactual, density-oriented regularization.
+\end{highlights}
+% \end{strip}
+
+\begin{keyword}
+%% keywords here, in the form: keyword \sep keyword
+shear wall layout \sep graph neural networks \sep conditional generation \sep room-level representation \sep structural design automation 
+%% PACS codes here, in the form: \PACS code \sep code
+% \PACS 0000 \sep 1111
+%% MSC codes here, in the form: \MSC code \sep code
+%% or \MSC[2008] code \sep code (2000 is the default)
+% \MSC 0000 \sep 1111
+\end{keyword}
+
+\end{frontmatter}
+
+%% \linenumbers
+
+%%%%%%%%%%%%%%%%%%%%%%% main body start %%%%%%%%%%%%%%%%%%%%%%
+\input{sections/1intro} % introduction
+
+\input{sections/2related} % related works
+
+\input{sections/3methodology} % methodology
+
+\input{sections/4experiments} % experiments
+
+\input{sections/5discussion} % discussion
+
+\input{sections/6conclusion} % conclusion
+%%%%%%%%%%%%%%%%%%%%%%% main body end %%%%%%%%%%%%%%%%%%%%%%
+
+\section*{Data availability statement}
+The dataset and all codes for this study are available by request to the corresponding author. All inquiries regarding this content should be directed to the corresponding author. 
+
+\section*{Declaration of Competing Interest}
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+\section*{CRediT authorship contribution statement}
+Hao Leng: Conceptualization, Methodology, Software, Formal analysis, Data curation, Writing – original draft \& Visualization. Yuqing Gao: Conceptualization, Methodology, Review, Supervision. Ying Zhou: Conceptualization, Review \& Editing, Supervision, Project administration, Funding acquisition. 
+
+\section*{Acknowledgments}
+This work was supported by the National Natural Science Foundation of China (No. 52025083, U2139209), the Shanghai Social Development Science and Technology Research Project (Grant No. 22dz1201400), and the Shanghai Urban Digital Transformation Special Fund (Grant No. 202201033). The authors would like to acknowledge Mr. Zhen Zhang and Mr. Yi Wang from Tongji Architectural Design Institute for providing valuable design drawings used to train the model in this study. We would also like to express our gratitude to Mr. YiJing Lin, Mr. Jiang Li, Mr. Jiawei Chen, Mr. Fan Zhang, Mr. Guanhong Peng, Mr. Linghao Mei, Mr. Yuzhen Chen, Mr. Meiyu Du, Mr. Changru Liu, Mr. Chao Tang and Miss. Sihan Huang for curating the layout sketches used for model training.
+
+
+%%%%%%%%%%%%%%%%%%%%%%% appendix %%%%%%%%%%%%%%%%%%%%%%
+% \input{sections/8appendix}
+
+%%%%%%%%%%%%%%%%%%%%%%% bibliography %%%%%%%%%%%%%%%%%%%%%%
+%% If you have bibdatabase file and want bibtex to generate the
+%% bibitems, please use
+%%
+\bibliographystyle{elsarticle-num} 
+\bibliography{cas-refs}
+
+%% else use the following coding to input the bibitems directly in the
+%% TeX file.
+
+% \begin{thebibliography}{00}
+
+% %% \bibitem{label}
+% %% Text of bibliographic item
+
+% \bibitem{}
+
+% \end{thebibliography}
+\end{document}
+\endinput
+%%
+%% End of file `elsarticle-template-num.tex'.
