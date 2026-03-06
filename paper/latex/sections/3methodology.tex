@@ -1,3 +1,4 @@
+% !TeX root = ../main.tex
 \section{Methodology}
 \label{sec:methodology}
 
@@ -185,7 +186,7 @@ The 16-dimensional vector maps to wall coverage ratios for each half-segment.}
 
 The shear wall layout generation task is formulated as conditional graph-to-matrix regression.
 Given:
-\begin{enumerate}[(\arabic*)]
+\begin{enumerate}
 \item Room adjacency graph $G = (\mathcal{V}, \mathcal{E}, \mathbf{X}, \mathbf{A})$ constructed from floor plan $\mathcal{P}$
 \item Design condition $c \in \{0, 1, 2\}$ specifying target shear wall density category (low, medium, high)
 \item Constraint mask $\mathbf{M} \in \{0,1\}^{N \times 16}$ indicating buildable locations
