@@ -45,7 +45,7 @@ $\mathcal{N}_i$ & Neighborhood of node $v_i$ \\
 \subsection{Room-based Graph Representation}
 \label{subsec:room_graph}
 
-The choice of graph representation is critical for capturing the architectural logic governing shear wall placement. Traditional approaches typically employ a component-level representation, where geometric primitives (e.g., wall segments) serve as edges and their intersections as nodes. While this preserves detailed topology, it suffers from semantic gaps and computational redundancy.
+The choice of graph representation is critical for capturing the architectural logic governing shear wall placement. Traditional approaches typically employ a component-level representation, where geometric primitives (e.g., wall segments) serve as edges and their intersections as nodes \cite{zhaoIntelligentDesignShear2023b,zhaoDesignconditioninformedShearWall2023d}. While this preserves detailed topology, it suffers from semantic gaps and computational redundancy.
 
 \begin{figure*}[t]
 \centering
@@ -57,7 +57,7 @@ The choice of graph representation is critical for capturing the architectural l
 As illustrated in Fig.~\ref{fig:graph_comparison}, the limitation of the component-level approach is visually evident: a standard residential plan can generate a graph with over 100 nodes and edges (Fig.~\ref{fig:graph_comparison}a), yet individual wall segments carry little information about the functional spaces they enclose. In contrast, our proposed room-level formulation (Fig.~\ref{fig:graph_comparison}b) elevates the abstraction by modeling functional rooms as nodes and their physical adjacencies as edges.
 
 Modeling floor plans at the room level therefore allows the learning problem to incorporate architectural semantics and boundary feasibility in a compact representation, while remaining compatible with standard message-passing GNNs.
-It should be noted that the current formulation assumes rectangular room geometry; non-rectangular spaces are pre-processed via rectilinear decomposition before graph construction (Section~\ref{subsubsec:graph_construction}), and the resulting virtual partition boundaries are excluded from wall placement through the constraint mask.
+It should be noted that the current formulation assumes rectangular room geometry; non-rectangular spaces are pre-processed via rectilinear decomposition before graph construction (Section~\ref{subsubsec:graph_construction}), and the resulting virtual partition boundaries are excluded from wall placement through the constraint mask. This choice is consistent with prior zoning- and decomposition-based abstractions used to simplify structural design spaces \cite{Claessens_2020,Liu_2021}.
 
 
 \subsubsection{Graph Construction from Floor Plans}
@@ -174,7 +174,7 @@ The topological consistency loss $\mathcal{L}_{cons}$ (Section~\ref{subsec:train
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.7\textwidth]{figs/output_param.png}
+\includegraphics[width=0.85\textwidth]{figs/output_param.png}
 \caption{Output parameterization illustration.
 A room with four boundaries, each divided into two half-segments.
 The 16-dimensional vector maps to wall coverage ratios for each half-segment.}
@@ -240,15 +240,15 @@ where $D_c = 32$ is the condition embedding dimension.
 
 \subsubsection{GATv2 Backbone for Spatial Aggregation}
 
-Graph Attention Networks v2 (GATv2) serve as the backbone encoder, aggregating information across room neighborhoods through learned attention weights.
-Unlike standard Graph Convolutional Networks that use fixed aggregation weights, GATv2 dynamically computes attention coefficients based on node pair features, enabling the model to focus on structurally significant neighbors.For node $v_i$ and neighbor $v_j \in \mathcal{N}_i$, the attention coefficient is computed as:
+Graph Attention Networks v2 (GATv2) serve as the backbone encoder, aggregating information across room neighborhoods through learned attention weights \cite{velickovicGraphAttentionNetworks2018,brodyHowAttentiveAre2022}.
+Unlike standard graph convolution variants that use less adaptive neighborhood aggregation, GATv2 dynamically computes attention coefficients based on node pair features, enabling the model to focus on structurally significant neighbors. For node $v_i$ and neighbor $v_j \in \mathcal{N}_i$, the attention coefficient is computed as:
 \begin{equation}
 e_{ij} = \mathbf{a}^T \text{LeakyReLU}\left(\mathbf{W} [\mathbf{h}_i \| \mathbf{h}_j \| \mathbf{e}_{ij}]\right)
 \label{eq:method_gat_attn_logit}
 \end{equation}
 where $\|$ denotes concatenation, $\mathbf{W}$ is a learnable weight matrix, and $\mathbf{a}$ is a learnable attention vector.
 
-GATv2 differs from standard GAT by applying the nonlinearity after the linear transformation, ensuring strictly dynamic attention computationAttention coefficients are normalized via softmax:
+GATv2 differs from standard GAT by applying the nonlinearity after the linear transformation, ensuring strictly dynamic attention computation \cite{brodyHowAttentiveAre2022}. Attention coefficients are normalized via softmax:
 \begin{equation}
 \alpha_{ij} = \frac{\exp(e_{ij})}{\sum_{k \in \mathcal{N}_i} \exp(e_{ik})}
 \label{eq:method_gat_attn_softmax}
@@ -278,8 +278,7 @@ Batch normalization is applied after each GATv2 layer to stabilize training.
 \subsubsection{FiLM-based Conditional Injection}
 
 A critical requirement is ensuring generated layouts respect the specified design condition (shear wall density category).
-Direct concatenation of condition embeddings with input features often leads to the condition signal being overwhelmed by high-dimensional geometric features during deep propagation---a phenomenon termed 'posterior collapse' in conditional generation.
-To address this, Feature-wise Linear Modulation (FiLM) is applied after each GATv2 layer.
+Direct concatenation of condition embeddings with input features often leads to the condition signal being overwhelmed by high-dimensional geometric features during deep propagation, a failure mode related to conditional collapse in generative models \cite{lucasUnderstandingPosteriorCollapse2019}. To address this, Feature-wise Linear Modulation (FiLM) is applied after each GATv2 layer \cite{perezFiLMVisualReasoning2018}.
 The condition embedding $\mathbf{z}_c$ is transformed into scaling and shifting parameters:
 \begin{align}
 \gamma^{(\ell)} &= \mathbf{W}_\gamma^{(\ell)} \mathbf{z}_c + \mathbf{b}_\gamma^{(\ell)} \\
@@ -299,8 +298,7 @@ This late-fusion approach---applying conditioning after initial feature extracti
 \subsubsection{Dual-Head Decoder}
 
 Shear wall distributions exhibit sparsity: most boundary segments contain no structural walls.
-Direct regression on this sparse target leads to models predicting near-zero values to minimize error---a manifestation of zero-inflation bias.
-To address this, the prediction task is decoupled into two sub-tasks handled by parallel decoder:
+Direct regression on this sparse target leads to models predicting near-zero values to minimize error, a common issue in sparse-output learning and imbalanced prediction tasks \cite{johnsonSurveyDeepLearning2019}. To address this, the prediction task is decoupled into two sub-tasks handled by parallel decoder, following the general rationale of multi-task decomposition for coupled classification and regression problems \cite{crawshawMultitaskLearningDeep2020,ottJointClassificationTrajectory2022}:
 
 \textbf{Classification Head}: Predicts the probability of wall existence at each of the 16 positions:
 \begin{equation}
@@ -392,12 +390,12 @@ The regression head is optimized by mean squared error:
 where $S^+ = \{(i,j) : y_{ij}^{gt} > 0.01 \land \mathbf{M}[i,j] = 1\}$ restricts the loss to positive samples in buildable regions, preventing collapse to zero predictions.
 
 \textbf{(2) Geometric regularization.} In addition to point-wise regression, global overlap and boundary consistency are encouraged so that predicted layouts form coherent wall patterns aligned with room geometry.
-First, a vector-level IoU loss is adopted to optimize holistic overlap between predicted and ground-truth parameter vectors:
+First, a vector-level IoU loss is adopted to optimize holistic overlap between predicted and ground-truth parameter vectors, following the broader use of overlap-based losses in structured prediction and segmentation:
 \begin{equation}
 \mathcal{L}_{IoU} = 1 - \frac{\sum_{i,j}\min(\hat{y}_{ij}^{reg}, y_{ij}^{gt})}{\sum_{i,j}\max(\hat{y}_{ij}^{reg}, y_{ij}^{gt}) + \epsilon}.
 \label{eq:loss_iou}
 \end{equation}
-Here $\epsilon$ denotes a small constant for numerical stability.
+Here $\epsilon$ denotes a small constant for numerical stability \cite{huangBatchingSoftIoU2020,zhaoRethinkingDiceLoss2020}.
 Second, a topological consistency term is introduced to discourage contradictory predictions on shared room boundaries:
 \begin{equation}
 \mathcal{L}_{cons} = \sum_{(u,v) \in \mathcal{E}} \left\|\hat{\mathbf{y}}_u^{(side_v)} - \hat{\mathbf{y}}_v^{(side_u)}\right\|^2,
