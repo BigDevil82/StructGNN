@@ -105,8 +105,8 @@ def run_case_study(
     print("\n[3/5] 模型预测...")
     predictions = predict_shear_walls(model, data_batch, device)
 
-    # 保存原始预测
-    np.save(os.path.join(output_dir, f"{file_name}_predictions.npy"), predictions)
+    # # 保存原始预测
+    # np.save(os.path.join(output_dir, f"{file_name}_predictions.npy"), predictions)
 
     # 4. 解析为FEM构件 (使用新的 Builder)
     print("\n[4/5] 解析为FEM构件 (Shapely Topology)...")
@@ -137,7 +137,7 @@ def run_case_study(
         result,
         room_polys,
         title=f"FEM Topology (Shapely) - {file_name}",
-        # save_path=os.path.join(output_dir, f"{file_name}_fem_members.png"),
+        save_path=os.path.join(output_dir, f"{file_name}_fem_members.png"),
     )
 
     # 绘制预测对比图
@@ -149,8 +149,8 @@ def run_case_study(
     )
 
     # 导出数据
-    export_to_json(result, os.path.join(output_dir, f"{file_name}_fem_data.json"))
-    export_shearwall_coords(result, os.path.join(output_dir, f"{file_name}_shearwall_coords.json"))
+    # export_to_json(result, os.path.join(output_dir, f"{file_name}_fem_data.json"))
+    # export_shearwall_coords(result, os.path.join(output_dir, f"{file_name}_shearwall_coords.json"))
 
     print("\n" + "=" * 60)
     print("案例研究完成！")

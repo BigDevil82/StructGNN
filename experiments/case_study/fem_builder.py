@@ -78,7 +78,13 @@ class FEMTopologyBuilder:
         # 3. 过滤短构件
         segments = [s for s in segments if s["length"] >= self.min_length]
 
-        # 4. 构建节点拓扑
+        # 4. 在交叉点处打断构件，确保梁-梁、梁-墙、墙-墙相交处都有节点
+        segments = self._split_at_intersections(segments)
+
+        # 5. 再次过滤打断后的短构件
+        segments = [s for s in segments if s["length"] >= self.min_length]
+
+        # 6. 构建节点拓扑
         self._build_topology(segments)
 
         return self._format_result()
@@ -310,6 +316,190 @@ class FEMTopologyBuilder:
                 elif isinstance(g, MultiLineString):
                     lines.extend(g.geoms)
         return lines
+
+    def _split_at_intersections(self, segments: List[dict]) -> List[dict]:
+        """
+        在所有构件的交叉点处打断，确保相交处产生共享节点。
+
+        处理两类情况：
+        1. 两条线段相交（十字交叉、T字交叉）→ 在交点处打断
+        2. 一条线段的端点落在另一条线段内部 → 在该端点处打断
+
+        只处理水平/垂直线段的正交相交。
+        """
+        tolerance = self.snap_tolerance
+
+        # 收集所有需要在每条线段上插入的打断点
+        # key: segment index, value: list of ratio values (0~1) along the segment
+        split_ratios: Dict[int, List[float]] = {i: [] for i in range(len(segments))}
+
+        for i in range(len(segments)):
+            line_i = segments[i]["geometry"]
+            ci = list(line_i.coords)
+            pi1, pi2 = np.array(ci[0]), np.array(ci[-1])
+            vec_i = pi2 - pi1
+            len_i = np.linalg.norm(vec_i)
+            if len_i < 1:
+                continue
+
+            # 判断水平/垂直
+            is_h_i = abs(vec_i[1]) < tolerance
+            is_v_i = abs(vec_i[0]) < tolerance
+            if not (is_h_i or is_v_i):
+                continue
+
+            for j in range(i + 1, len(segments)):
+                line_j = segments[j]["geometry"]
+                cj = list(line_j.coords)
+                pj1, pj2 = np.array(cj[0]), np.array(cj[-1])
+                vec_j = pj2 - pj1
+                len_j = np.linalg.norm(vec_j)
+                if len_j < 1:
+                    continue
+
+                is_h_j = abs(vec_j[1]) < tolerance
+                is_v_j = abs(vec_j[0]) < tolerance
+                if not (is_h_j or is_v_j):
+                    continue
+
+                # 只处理正交情况（水平vs垂直）
+                if is_h_i == is_h_j:
+                    # 共线方向：端点可能落在对方内部
+                    self._check_collinear_splits(
+                        pi1, pi2, len_i, pj1, pj2, len_j,
+                        is_h_i, tolerance, split_ratios, i, j
+                    )
+                else:
+                    # 正交交叉
+                    self._check_orthogonal_intersection(
+                        pi1, pi2, vec_i, len_i, is_h_i,
+                        pj1, pj2, vec_j, len_j,
+                        tolerance, split_ratios, i, j
+                    )
+
+        # 根据打断点拆分线段
+        result = []
+        for idx, seg in enumerate(segments):
+            ratios = split_ratios[idx]
+            if not ratios:
+                result.append(seg)
+                continue
+
+            # 去重并排序
+            ratios = sorted(set(ratios))
+            # 去掉过于接近端点的打断点
+            ratios = [r for r in ratios if 0.01 < r < 0.99]
+            if not ratios:
+                result.append(seg)
+                continue
+
+            # 用打断点拆分
+            coords = list(seg["geometry"].coords)
+            p1, p2 = np.array(coords[0]), np.array(coords[-1])
+            vec = p2 - p1
+
+            breakpoints = [0.0] + ratios + [1.0]
+            for k in range(len(breakpoints) - 1):
+                r_start = breakpoints[k]
+                r_end = breakpoints[k + 1]
+                start_pt = tuple(p1 + vec * r_start)
+                end_pt = tuple(p1 + vec * r_end)
+                new_line = LineString([start_pt, end_pt])
+                if new_line.length >= 1:
+                    result.append({
+                        "geometry": new_line,
+                        "type": seg["type"],
+                        "length": new_line.length,
+                    })
+
+        n_splits = len(result) - len(segments)
+        if n_splits > 0:
+            print(f"    交叉打断: {len(segments)} -> {len(result)} 段 (+{n_splits})")
+
+        return result
+
+    def _check_collinear_splits(
+        self, pi1, pi2, len_i, pj1, pj2, len_j,
+        is_horizontal, tolerance, split_ratios, i, j
+    ):
+        """检查共线线段的端点是否落在对方内部，若是则添加打断点"""
+        if is_horizontal:
+            # 水平线段：检查y是否相同
+            if abs(pi1[1] - pj1[1]) > tolerance:
+                return
+            # i的范围
+            xi_min, xi_max = min(pi1[0], pi2[0]), max(pi1[0], pi2[0])
+            xj_min, xj_max = min(pj1[0], pj2[0]), max(pj1[0], pj2[0])
+
+            # j的端点落在i内部
+            for xp in [pj1[0], pj2[0]]:
+                if xi_min + tolerance < xp < xi_max - tolerance:
+                    r = abs(xp - pi1[0]) / len_i
+                    split_ratios[i].append(r)
+            # i的端点落在j内部
+            for xp in [pi1[0], pi2[0]]:
+                if xj_min + tolerance < xp < xj_max - tolerance:
+                    r = abs(xp - pj1[0]) / len_j
+                    split_ratios[j].append(r)
+        else:
+            # 垂直线段
+            if abs(pi1[0] - pj1[0]) > tolerance:
+                return
+            yi_min, yi_max = min(pi1[1], pi2[1]), max(pi1[1], pi2[1])
+            yj_min, yj_max = min(pj1[1], pj2[1]), max(pj1[1], pj2[1])
+
+            for yp in [pj1[1], pj2[1]]:
+                if yi_min + tolerance < yp < yi_max - tolerance:
+                    r = abs(yp - pi1[1]) / len_i
+                    split_ratios[i].append(r)
+            for yp in [pi1[1], pi2[1]]:
+                if yj_min + tolerance < yp < yj_max - tolerance:
+                    r = abs(yp - pj1[1]) / len_j
+                    split_ratios[j].append(r)
+
+    def _check_orthogonal_intersection(
+        self, pi1, pi2, vec_i, len_i, is_h_i,
+        pj1, pj2, vec_j, len_j,
+        tolerance, split_ratios, i, j
+    ):
+        """检查正交线段是否相交，若是则在交点处添加打断点"""
+        if is_h_i:
+            # i 水平, j 垂直
+            h_y = pi1[1]
+            h_xmin, h_xmax = min(pi1[0], pi2[0]), max(pi1[0], pi2[0])
+            v_x = pj1[0]
+            v_ymin, v_ymax = min(pj1[1], pj2[1]), max(pj1[1], pj2[1])
+        else:
+            # i 垂直, j 水平
+            h_y = pj1[1]
+            h_xmin, h_xmax = min(pj1[0], pj2[0]), max(pj1[0], pj2[0])
+            v_x = pi1[0]
+            v_ymin, v_ymax = min(pi1[1], pi2[1]), max(pi1[1], pi2[1])
+
+        # 检查交点是否在两条线段的范围内（不含端点附近）
+        if not (h_xmin + tolerance < v_x < h_xmax - tolerance
+                and v_ymin + tolerance < h_y < v_ymax - tolerance):
+            # 交点不在两条线段的严格内部 → 可能是T字或端点连接
+            # 仍需检查：交点是否至少在一条线段内部（T字情况）
+            in_h = h_xmin - tolerance <= v_x <= h_xmax + tolerance
+            in_v = v_ymin - tolerance <= h_y <= v_ymax + tolerance
+            if not (in_h and in_v):
+                return
+
+        # 交点坐标
+        cross_x, cross_y = v_x, h_y
+
+        # 计算交点在 i 上的ratio
+        if len_i > 1:
+            ri = np.dot(np.array([cross_x, cross_y]) - pi1, vec_i) / (len_i * len_i)
+            if 0.01 < ri < 0.99:
+                split_ratios[i].append(ri)
+
+        # 计算交点在 j 上的ratio
+        if len_j > 1:
+            rj = np.dot(np.array([cross_x, cross_y]) - pj1, vec_j) / (len_j * len_j)
+            if 0.01 < rj < 0.99:
+                split_ratios[j].append(rj)
 
     def _build_topology(self, segments: List[dict]):
         """构建节点和构件列表"""

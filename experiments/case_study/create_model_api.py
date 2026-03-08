@@ -13,6 +13,7 @@ ETABS自动建模脚本
 import os
 import sys
 from pathlib import Path
+from typing import Iterable
 
 import comtypes
 import numpy as np
@@ -31,6 +32,7 @@ from experiments.case_study.etabs_util import (
     define_slab_sec,
     define_wall_sec,
 )
+from experiments.case_study.unit import GPa, M, kN, mm
 from shearwall_pred.config import model_config, viz_config
 from shearwall_pred.cross_validate import EnsembleShearWallGNN
 from shearwall_pred.utils import build_graph_from_dxf
@@ -46,7 +48,6 @@ MODEL_DIR = "result/shearwall_pred/0126_cond_kfold"  # 训练好的模型目录
 CATEGORY = None  # 建筑类别 (0/1/2/None)
 DEVICE = "cuda"  # 推理设备
 
-FC = 40  # 混凝土强度等级 (C40)
 
 MODEL_SAVE_DIR = "result/case_study/etabs_file"  # ETABS模型保存目录
 MODEL_NAME = "model_001"  # 模型文件名（不含扩展名）
@@ -56,6 +57,16 @@ ETABS_PROGRAM_PATH = r"C:\Program Files\Computers and Structures\ETABS 18\ETABS.
 # True: 附加到已运行的ETABS实例；False: 启动新实例
 ATTACH_TO_INSTANCE = True
 
+######################## 结构参数 ########################
+SCALE_FACTOR = 0.6  # 坐标缩放比例（根据DXF实际尺寸调整，确保建模尺寸合理）
+floor_num = 15  # 楼层数
+story_height = 3.0 * M  # 层高（米）
+wall_thick = 400 * mm  # 剪力墙厚度
+slab_thick = 150 * mm  # 楼板厚度
+beam_h = 500 * mm  # 梁高
+beam_b = 300 * mm  # 梁宽
+
+FC = 40  # 混凝土强度等级 (C40)
 # 荷载参数（kN/m²）
 DEAD_LOAD = 5.0  # 附加恒载（面层、隔墙等，不含自重）
 LIVE_LOAD = 2.0  # 活载（住宅）
@@ -77,9 +88,14 @@ def load_ensemble_model(model_dir: str, device: str) -> EnsembleShearWallGNN:
     return model
 
 
-def predict_fem_members(dxf_path: str, model_dir: str, category: int, device: str) -> dict:
+def predict_fem_members(
+    dxf_path: str, model_dir: str, category: int, device: str, use_gt: bool = False
+) -> dict:
     """
-    从DXF图纸预测剪力墙和梁的布置，返回FEM构件结果。
+    从DXF图纸获取剪力墙和梁的布置，返回FEM构件结果。
+
+    Args:
+        use_gt: True 使用Ground Truth标注，False 使用模型预测
 
     Returns:
         result dict，包含 'members' 列表，每项含 'type', 'start_coord', 'end_coord'
@@ -89,39 +105,51 @@ def predict_fem_members(dxf_path: str, model_dir: str, category: int, device: st
 
     # 1. 读取DXF并构建图
     builder_graph = build_graph_from_dxf(dxf_path, mode="none")
-    data = builder_graph.to_pyg_data()
-
-    if category is not None:
-        cate_one_hot = np.zeros((1, 3))
-        cate_one_hot[:, category] = 1.0
-        data.condition = torch.tensor(cate_one_hot, dtype=torch.float)
-
-    data_batch = Batch.from_data_list([data]).to(device)
 
     # 提取房间信息
     node_ids = list(builder_graph.graph.nodes())
     room_polys = [builder_graph.graph.nodes[n]["poly"] for n in node_ids]
     masks_list = [builder_graph.graph.nodes[n].get("masks", []) for n in node_ids]
 
-    # 2. 模型推理
-    model = load_ensemble_model(model_dir, device)
-    model.eval()
-    with torch.no_grad():
-        pred_prob, pred_ratio = model(data_batch)
-        pred_combined = (pred_prob > viz_config.PRED_PROB_THRESHOLD) * pred_ratio
-        predictions = pred_combined.cpu().numpy()
-        predictions = np.where(predictions < viz_config.PRED_RATIO_THRESHOLD, 0.0, predictions)
+    # 2. 获取剪力墙向量
+    if use_gt:
+        print("  使用 Ground Truth 标注")
+        sw_vectors = []
+        for n in node_ids:
+            sv = builder_graph.graph.nodes[n].get("sw_vector")
+            if sv is None:
+                raise ValueError(f"节点 {n} 缺少 sw_vector，该DXF可能没有GT标注")
+            sw_vectors.append(sv)
+    else:
+        print("  使用模型预测")
+        data = builder_graph.to_pyg_data()
+        if category is not None:
+            cate_one_hot = np.zeros((1, 3))
+            cate_one_hot[:, category] = 1.0
+            data.condition = torch.tensor(cate_one_hot, dtype=torch.float)
+        data_batch = Batch.from_data_list([data]).to(device)
+
+        model = load_ensemble_model(model_dir, device)
+        model.eval()
+        with torch.no_grad():
+            pred_prob, pred_ratio = model(data_batch)
+            pred_combined = (pred_prob > viz_config.PRED_PROB_THRESHOLD) * pred_ratio
+            predictions = pred_combined.cpu().numpy()
+            predictions = np.where(predictions < viz_config.PRED_RATIO_THRESHOLD, 0.0, predictions)
+        sw_vectors = [predictions[i] for i in range(len(node_ids))]
 
     # 3. 构建FEM拓扑
     fem_builder = FEMTopologyBuilder(gap_tolerance=200.0, min_length=100.0)
     for i, room_poly in enumerate(room_polys):
-        fem_builder.add_room(room_poly, predictions[i], masks_list[i])
+        fem_builder.add_room(room_poly, sw_vectors[i], masks_list[i])
 
     result = fem_builder.build()
 
+    source = "GT" if use_gt else "预测"
     stats = result["statistics"]
     print(
-        f"  预测完成：{stats['num_shearwalls']} 剪力墙，{stats['num_beams']} 梁，{stats['num_slabs']} 楼板，{stats['num_nodes']} 节点"
+        f"  {source}完成：{stats['num_shearwalls']} 剪力墙，{stats['num_beams']} 梁，"
+        f"{stats['num_slabs']} 楼板，{stats['num_nodes']} 节点"
     )
     return result
 
@@ -144,8 +172,8 @@ def print_model_diagnostics(fem_result: dict):
         print("[诊断] 无构件数据")
         return
 
-    xs = [c[0] for c in all_coords]
-    ys = [c[1] for c in all_coords]
+    xs = [c[0] * SCALE_FACTOR for c in all_coords]
+    ys = [c[1] * SCALE_FACTOR for c in all_coords]
     x_range = max(xs) - min(xs)
     y_range = max(ys) - min(ys)
 
@@ -156,7 +184,7 @@ def print_model_diagnostics(fem_result: dict):
     print(f"  构件数量: {len(walls)} 剪力墙, {len(beams)} 梁")
 
     if walls:
-        wall_lens = [m["length"] for m in walls]
+        wall_lens = [m["length"] * SCALE_FACTOR for m in walls]
         print(
             f"  剪力墙长度: min={min(wall_lens):.0f}mm, max={max(wall_lens):.0f}mm, "
             f"avg={sum(wall_lens)/len(wall_lens):.0f}mm"
@@ -164,7 +192,7 @@ def print_model_diagnostics(fem_result: dict):
         print(f"             ({min(wall_lens)*mm:.2f}m ~ {max(wall_lens)*mm:.2f}m)")
 
     if beams:
-        beam_lens = [m["length"] for m in beams]
+        beam_lens = [m["length"] * SCALE_FACTOR for m in beams]
         print(
             f"  梁跨度:     min={min(beam_lens):.0f}mm, max={max(beam_lens):.0f}mm, "
             f"avg={sum(beam_lens)/len(beam_lens):.0f}mm"
@@ -199,18 +227,17 @@ def check_ret(ret, msg: str = ""):
     """检查ETABS API调用返回值，非0表示失败"""
     if isinstance(ret, (tuple, list)):
         ret = ret[-1]
-    if ret != 0:
+    if ret != 0 and msg:
         print(f"警告：{msg} (ret={ret})")
+    return ret
 
 
 def run_analysis_and_extract(etabs):
     """运行分析并提取关键结果（假设用户已手动设置好荷载工况和时程分析）"""
     print("\n[分析] 运行分析...")
     ret = etabs.Analyze.RunAnalysis()
-    check_ret(ret, "运行分析")
+    ret = check_ret(ret, "运行分析")
 
-    if isinstance(ret, (tuple, list)):
-        ret = ret[-1] if len(ret) > 0 else ret
     if ret != 0:
         print("分析失败，无法提取结果")
         return None
@@ -221,7 +248,7 @@ def run_analysis_and_extract(etabs):
     etabs.Results.Setup.SetCaseSelectedForOutput("Modal")
 
     ret = etabs.Results.ModalPeriod()
-    if isinstance(ret, (tuple, list)) and ret[-1] == 0:
+    if check_ret(ret) == 0:
         n_modes = ret[0]
         periods = ret[4]
         print(f"  前 {min(n_modes, 5)} 阶模态周期:")
@@ -231,7 +258,7 @@ def run_analysis_and_extract(etabs):
     # 提取层间位移角（选择所有已定义的工况）
     print("\n[结果] 提取层间位移角...")
     ret = etabs.Results.StoryDrifts()
-    if isinstance(ret, (tuple, list)) and ret[-1] == 0:
+    if check_ret(ret) == 0:
         n = ret[0]
         stories = ret[1]
         load_cases = ret[2]
@@ -253,7 +280,7 @@ def run_analysis_and_extract(etabs):
     return ret
 
 
-def create_etabs_model(fem_result: dict = None, run_analysis: bool = False):
+def create_etabs_model(fem_result: dict = None, run_analysis: bool = False, use_gt: bool = False):
     """
     根据FEM预测结果在ETABS中创建结构模型。
 
@@ -262,13 +289,14 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False):
                     为 None 时自动调用预测流程（使用顶部配置）。
         run_analysis: 是否在建模后运行分析并提取结果。
                       设为True前需确保已在ETABS中手动设置好时程函数、荷载工况、质量源。
+        use_gt: True 使用Ground Truth标注建模，False 使用模型预测建模。
     """
-    from experiments.case_study.unit import GPa, M, kN, mm
 
     if fem_result is None:
-        print("\n[预测] 从DXF预测FEM构件...")
+        source = "GT标注" if use_gt else "模型预测"
+        print(f"\n[{'GT' if use_gt else '预测'}] 从DXF获取FEM构件（{source}）...")
         device = DEVICE if torch.cuda.is_available() else "cpu"
-        fem_result = predict_fem_members(DXF_PATH, MODEL_DIR, CATEGORY, device)
+        fem_result = predict_fem_members(DXF_PATH, MODEL_DIR, CATEGORY, device, use_gt=use_gt)
 
     # 打印诊断信息
     print_model_diagnostics(fem_result)
@@ -278,13 +306,6 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False):
     beam_members = [m for m in members if m["type"] == "beam"]
     slab_polys = fem_result.get("slabs", [])
 
-    ######################## 结构参数 ########################
-    floor_num = 20  # 楼层数
-    story_height = 3.3 * M  # 层高（米）
-    wall_thick = 400 * mm  # 剪力墙厚度
-    slab_thick = 150 * mm  # 楼板厚度
-    beam_h = 500 * mm  # 梁高
-    beam_b = 300 * mm  # 梁宽
     N_m_C = 10  # ETABS单位系统：N, m, C
 
     # 荷载值（转换为 N/m²，与ETABS单位系统一致）
@@ -294,8 +315,7 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False):
     ######################## 坐标换算 ########################
     # 预测坐标单位为毫米，转换至米
     def to_meters(coord):
-        scale_factor = 0.6
-        return (coord[0] * mm * scale_factor, coord[1] * mm * scale_factor)
+        return (coord[0] * mm * SCALE_FACTOR, coord[1] * mm * SCALE_FACTOR)
 
     ######################## 启动ETABS ########################
     os.makedirs(MODEL_SAVE_DIR, exist_ok=True)
@@ -389,6 +409,30 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False):
         if i % refresh_freq == 0 or i == floor_num:
             etabs.View.RefreshView(0, False)
 
+    ###################### 底层节点固定约束 ####################
+    print("\n[约束] 对底层节点施加固定约束...")
+    point_ret = etabs.PointObj.GetNameList()
+    point_names = []
+    if check_ret(point_ret) == 0:
+        point_names = point_ret[1]
+
+    fixed_count = 0
+    tol = 1e-6  # m
+    for p_name in point_names:
+        coord_ret = etabs.PointObj.GetCoordCartesian(p_name)
+        if check_ret(coord_ret) != 0:
+            continue
+
+        x, y, z = coord_ret[0], coord_ret[1], coord_ret[2]
+        if abs(z) <= tol:
+            # UX, UY, UZ, RX, RY, RZ 全固定
+            ret = etabs.PointObj.SetRestraint(p_name, [True, True, True, True, True, True])
+            ret = check_ret(ret, f"固定底层节点 {p_name} @ ({x:.3f}, {y:.3f}, {z:.3f})")
+            if ret == 0:
+                fixed_count += 1
+
+    print(f"  已固定底层节点数量: {fixed_count}")
+
     #################### 施加楼板荷载 #################
     print(f"\n[荷载] 对 {len(slab_obj_names)} 块楼板施加荷载...")
     print(f"  附加恒载: {DEAD_LOAD} kN/m²，活载: {LIVE_LOAD} kN/m²")
@@ -427,11 +471,18 @@ if __name__ == "__main__":
     parser.add_argument("--category", type=int, default=CATEGORY, choices=[0, 1, 2])
     parser.add_argument("--device", type=str, default=DEVICE)
     parser.add_argument("--output_dir", type=str, default=MODEL_SAVE_DIR)
-    parser.add_argument("--model_name", type=str, default=MODEL_NAME)
+    parser.add_argument(
+        "--model_name", type=str, default=None, help="保存的ETABS模型文件名（不含扩展名），默认为DXF文件名"
+    )
     parser.add_argument(
         "--run_analysis",
         action="store_true",
         help="建模后运行分析（需先在ETABS中手动设置时程/荷载工况/质量源）",
+    )
+    parser.add_argument(
+        "--use_gt",
+        action="store_true",
+        help="使用Ground Truth标注建模（而非模型预测）",
     )
     args = parser.parse_args()
 
@@ -441,9 +492,11 @@ if __name__ == "__main__":
     CATEGORY = args.category
     DEVICE = args.device if torch.cuda.is_available() else "cpu"
     MODEL_SAVE_DIR = args.output_dir
-    MODEL_NAME = args.model_name
+    MODEL_NAME = args.model_name or os.path.basename(DXF_PATH).split(".")[0]
+    if args.use_gt:
+        MODEL_NAME += "_GT"
 
-    model_path = create_etabs_model(run_analysis=args.run_analysis)
+    model_path = create_etabs_model(run_analysis=args.run_analysis, use_gt=args.use_gt)
     if model_path:
         print(f"建模成功：{model_path}")
     else:
