@@ -8,9 +8,15 @@
 
 综合指标 Conditional Generation Score (CGS):
 CGS = w_density * DensityScore + w_iou * MatchedIoU + w_uniformity * UniformityScore
+
+附属参照指标 Score_DC:
+Score_DC = IoU_SW × w1 × w2
+w1 = 1 - |SW_gt1 - SW_pre1| / SW_gt1
+w2 = 1 - |SW_gt2 - SW_pre2| / SW_gt2
 """
 
 import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -82,6 +88,163 @@ class ConditionalEvalMetrics:
 
     # 原始数据
     predicted_densities: Dict[int, List[float]]
+
+
+@dataclass
+class ScoreDCMetrics:
+    """Score_DC 评估指标（附属参照）"""
+
+    score_dc: float
+    iou_sw: float
+    w1: float
+    w2: float
+    sample_count: int
+
+
+class ScoreDCEvaluator:
+    """
+    Score_DC 评估器
+
+    指标定义：
+        Score_DC = IoU_SW × w1 × w2
+        w1 = 1 - |SW_gt1 - SW_pre1| / SW_gt1
+        w2 = 1 - |SW_gt2 - SW_pre2| / SW_gt2
+
+    说明：
+        - IoU_SW 基于 ImageIoU（将16维向量恢复为墙线并进行像素级IoU）
+    - 默认将16维拆成两个主方向：
+        dir1: Top + Bottom = [0:4] + [8:12]
+        dir2: Right + Left = [4:8] + [12:16]
+      如需替换分组，可通过构造参数传入自定义索引。
+    """
+
+    def __init__(
+        self,
+        test_subset,
+        device: str = "cuda",
+        dir1_indices: Optional[List[int]] = None,
+        dir2_indices: Optional[List[int]] = None,
+        image_size: tuple = (512, 512),
+        line_width: int = 3,
+    ):
+        from experiments.metrics.image_iou import ImageIoUCalculator
+
+        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
+        self.test_subset = test_subset
+        self.image_iou_calc = ImageIoUCalculator(image_size=image_size, line_width=line_width)
+
+        # 默认两主方向分组（基于 16 维 [Top(4), Right(4), Bottom(4), Left(4)]）
+        self.dir1_indices = dir1_indices or list(range(0, 4)) + list(range(8, 12))
+        self.dir2_indices = dir2_indices or list(range(4, 8)) + list(range(12, 16))
+
+        # 构建测试样本到 dxf 路径的映射（顺序与 test_subset 一致）
+        dataset = self.test_subset.dataset
+        self.sample_dxf_paths = []
+        self._room_polys_cache = {}
+        if hasattr(self.test_subset, "indices") and dataset is not None:
+            for sample_idx in self.test_subset.indices:
+                file_idx = dataset.file_indices[sample_idx]
+                dxf_file = dataset.dxf_files[file_idx]
+                self.sample_dxf_paths.append(os.path.join(dataset.dxf_dir, dxf_file))
+
+    def _get_room_polys(self, dxf_path: str):
+        """加载并缓存 dxf 对应的房间多边形（节点顺序与图构建保持一致）"""
+        from shearwall_pred.utils import build_graph_from_dxf
+
+        if dxf_path not in self._room_polys_cache:
+            builder = build_graph_from_dxf(dxf_path, mode="none")
+            room_polys = [node_data["poly"] for _, node_data in builder.graph.nodes(data=True)]
+            self._room_polys_cache[dxf_path] = room_polys
+        return self._room_polys_cache[dxf_path]
+
+    def _image_iou(self, pred: torch.Tensor, gt: torch.Tensor, room_polys) -> float:
+        """使用 ImageIoU 计算 IoU_SW。"""
+        from experiments.metrics.image_iou import vector_to_walls
+
+        pred_np = pred.detach().cpu().numpy()
+        gt_np = gt.detach().cpu().numpy()
+
+        room_count = min(len(room_polys), pred_np.shape[0], gt_np.shape[0])
+        if room_count == 0:
+            return 0.0
+
+        pred_walls = []
+        gt_walls = []
+        for idx in range(room_count):
+            gt_walls.extend(vector_to_walls(room_polys[idx], gt_np[idx]))
+            pred_walls.extend(vector_to_walls(room_polys[idx], pred_np[idx]))
+
+        iou, _ = self.image_iou_calc.compute_iou(gt_walls, pred_walls)
+        return float(iou)
+
+    @staticmethod
+    def _safe_direction_weight(sw_gt: float, sw_pred: float, eps: float = 1e-6) -> float:
+        """计算方向权重 w，带零值保护，并裁剪到 [0, 1]。"""
+        if sw_gt <= eps:
+            return 1.0 if sw_pred <= eps else 0.0
+
+        score = 1.0 - abs(sw_gt - sw_pred) / (sw_gt + eps)
+        return float(max(0.0, min(1.0, score)))
+
+    @staticmethod
+    def _vector_iou(pred: torch.Tensor, gt: torch.Tensor, eps: float = 1e-6) -> float:
+        """向量IoU：sum(min) / sum(max)"""
+        intersection = torch.min(pred, gt).sum().item()
+        union = torch.max(pred, gt).sum().item()
+        return float((intersection + eps) / (union + eps))
+
+    def evaluate_model(self, model: torch.nn.Module, threshold: float = 0.5) -> ScoreDCMetrics:
+        """在测试集上评估 Score_DC（按真实条件匹配的预测）"""
+        model.eval()
+        model.to(self.device)
+
+        test_loader = DataLoader(self.test_subset, batch_size=1, shuffle=False)
+
+        score_dc_list = []
+        iou_list = []
+        w1_list = []
+        w2_list = []
+
+        with torch.no_grad():
+            for sample_order, batch in enumerate(test_loader):
+                batch = batch.to(self.device)
+                true_cond = batch.condition.argmax(dim=1).item()
+
+                condition = torch.zeros(1, 3, device=self.device)
+                condition[0, true_cond] = 1.0
+
+                pred_prob, pred_ratio = model(batch, condition=condition)
+                pred_combined = (pred_prob > threshold).float() * pred_ratio
+                gt = batch.y
+
+                dxf_path = self.sample_dxf_paths[sample_order]
+                room_polys = self._get_room_polys(dxf_path)
+                iou_sw = self._image_iou(pred_combined, gt, room_polys)
+
+                sw_gt1 = gt[:, self.dir1_indices].sum().item()
+                sw_pre1 = pred_combined[:, self.dir1_indices].sum().item()
+                sw_gt2 = gt[:, self.dir2_indices].sum().item()
+                sw_pre2 = pred_combined[:, self.dir2_indices].sum().item()
+
+                w1 = self._safe_direction_weight(sw_gt1, sw_pre1)
+                w2 = self._safe_direction_weight(sw_gt2, sw_pre2)
+                score_dc = iou_sw * w1 * w2
+
+                iou_list.append(iou_sw)
+                w1_list.append(w1)
+                w2_list.append(w2)
+                score_dc_list.append(score_dc)
+
+        if not score_dc_list:
+            return ScoreDCMetrics(score_dc=0.0, iou_sw=0.0, w1=0.0, w2=0.0, sample_count=0)
+
+        return ScoreDCMetrics(
+            score_dc=float(np.mean(score_dc_list)),
+            iou_sw=float(np.mean(iou_list)),
+            w1=float(np.mean(w1_list)),
+            w2=float(np.mean(w2_list)),
+            sample_count=len(score_dc_list),
+        )
 
 
 class ConditionalEvaluator:
@@ -328,6 +491,7 @@ def load_experiment_results(result_dir: str) -> Dict[str, dict]:
 def evaluate_experiment_conditional(
     experiment_dir: str,
     evaluator: ConditionalEvaluator,
+    score_dc_evaluator: Optional[ScoreDCEvaluator] = None,
 ) -> Dict[str, any]:
     """
     评估单个实验的条件化生成能力
@@ -337,7 +501,6 @@ def evaluate_experiment_conditional(
     from experiments.ablation.config import get_ablation_config
     from experiments.ablation.models import create_model_from_config
     from shearwall_pred.config import model_config
-    from shearwall_pred.model import ShearWallGNN
 
     exp_path = Path(experiment_dir)
     config_name = exp_path.name
@@ -370,6 +533,10 @@ def evaluate_experiment_conditional(
         # 评估
         metrics = evaluator.evaluate_model(model)
 
+        score_dc_metrics = None
+        if score_dc_evaluator is not None:
+            score_dc_metrics = score_dc_evaluator.evaluate_model(model)
+
         fold_results.append(
             {
                 "cgs": metrics.cgs,
@@ -380,13 +547,24 @@ def evaluate_experiment_conditional(
                 "smoothness_score": metrics.smoothness_score,
                 "no_outlier_score": metrics.no_outlier_score,
                 "density_mae": metrics.density_mae,
+                "score_dc": score_dc_metrics.score_dc if score_dc_metrics else 0.0,
+                "iou_sw": score_dc_metrics.iou_sw if score_dc_metrics else 0.0,
+                "w1": score_dc_metrics.w1 if score_dc_metrics else 0.0,
+                "w2": score_dc_metrics.w2 if score_dc_metrics else 0.0,
             }
         )
 
-        print(
-            f"  {fold_dir.name}: CGS={metrics.cgs:.4f}, Density={metrics.density_score:.4f}, "
-            f"IoU={metrics.matched_iou:.4f}, Uniform={metrics.uniformity_score:.4f}"
-        )
+        if score_dc_metrics is not None:
+            print(
+                f"  {fold_dir.name}: CGS={metrics.cgs:.4f}, Density={metrics.density_score:.4f}, "
+                f"IoU={metrics.matched_iou:.4f}, Uniform={metrics.uniformity_score:.4f}, "
+                f"Score_DC={score_dc_metrics.score_dc:.4f}"
+            )
+        else:
+            print(
+                f"  {fold_dir.name}: CGS={metrics.cgs:.4f}, Density={metrics.density_score:.4f}, "
+                f"IoU={metrics.matched_iou:.4f}, Uniform={metrics.uniformity_score:.4f}"
+            )
 
     if not fold_results:
         return {}
@@ -399,6 +577,11 @@ def evaluate_experiment_conditional(
         "avg_density_score": np.mean([r["density_score"] for r in fold_results]),
         "avg_matched_iou": np.mean([r["matched_iou"] for r in fold_results]),
         "avg_uniformity_score": np.mean([r["uniformity_score"] for r in fold_results]),
+        "avg_score_dc": np.mean([r.get("score_dc", 0.0) for r in fold_results]),
+        "std_score_dc": np.std([r.get("score_dc", 0.0) for r in fold_results]),
+        "avg_iou_sw": np.mean([r.get("iou_sw", 0.0) for r in fold_results]),
+        "avg_w1": np.mean([r.get("w1", 0.0) for r in fold_results]),
+        "avg_w2": np.mean([r.get("w2", 0.0) for r in fold_results]),
     }
 
 
@@ -410,13 +593,14 @@ def evaluate_all_experiments(
     """评估所有消融实验的条件化生成能力"""
     result_path = Path(result_dir)
     evaluator = ConditionalEvaluator(device=device)
+    score_dc_evaluator = ScoreDCEvaluator(test_subset=evaluator.test_subset, device=device)
 
     all_results = {}
 
     for exp_dir in sorted(result_path.iterdir()):
-        if exp_dir.is_dir() and exp_dir.name != "analysis":
+        if exp_dir.is_dir() and "analysis" not in exp_dir.name.lower():
             print(f"\n评估实验: {exp_dir.name}")
-            result = evaluate_experiment_conditional(str(exp_dir), evaluator)
+            result = evaluate_experiment_conditional(str(exp_dir), evaluator, score_dc_evaluator)
             if result:
                 all_results[exp_dir.name] = result
 
@@ -456,9 +640,14 @@ def create_comparison_table(
                 "Experiment": name,
                 "CGS": data["avg_cgs"],
                 "CGS Std": data.get("std_cgs", 0),
+                "Score_DC": data.get("avg_score_dc", 0),
+                "Score_DC Std": data.get("std_score_dc", 0),
                 "Density": data["avg_density_score"],
                 "Matched IoU": data["avg_matched_iou"],
                 "Uniformity": data["avg_uniformity_score"],
+                "IoU_SW": data.get("avg_iou_sw", 0),
+                "w1": data.get("avg_w1", 0),
+                "w2": data.get("avg_w2", 0),
             }
         )
 
@@ -546,10 +735,11 @@ def plot_boxplot(
         patch.set_facecolor(color)
         patch.set_alpha(0.7)
 
-    ax.set_xlabel("Experiment", fontsize=12)
+    ax.set_xlabel("Experiment", fontsize=14)
     ax.set_ylabel("CGS", fontsize=12)
-    ax.set_title("CGS Distribution Across Folds", fontsize=14, fontweight="bold")
-    ax.set_xticklabels(names, rotation=45, ha="right", fontsize=10)
+    # ax.set_title("CGS Distribution Across Folds", fontsize=14, fontweight="bold")
+    ax.set_xticklabels(names, rotation=45, ha="right", fontsize=12)
+    ax.tick_params(axis="y", labelsize=12)
     ax.grid(axis="y", linestyle="--", alpha=0.7)
 
     plt.tight_layout()
@@ -699,6 +889,15 @@ def statistical_significance_test(
         diff = np.array(baseline_cgs) - np.array(exp_cgs)
         cohens_d = np.mean(diff) / np.std(diff) if np.std(diff) > 0 else 0
 
+        baseline_dc = [r.get("score_dc", 0.0) for r in results[baseline]["fold_results"]]
+        exp_dc = [r.get("score_dc", 0.0) for r in data["fold_results"]]
+        if len(exp_dc) == len(baseline_dc) and len(exp_dc) > 0:
+            t_stat_dc, p_value_dc = stats.ttest_rel(baseline_dc, exp_dc)
+            diff_dc = np.array(baseline_dc) - np.array(exp_dc)
+            cohens_d_dc = np.mean(diff_dc) / np.std(diff_dc) if np.std(diff_dc) > 0 else 0
+        else:
+            t_stat_dc, p_value_dc, cohens_d_dc = np.nan, np.nan, np.nan
+
         rows.append(
             {
                 "Experiment": name,
@@ -709,6 +908,15 @@ def statistical_significance_test(
                 "p-value": p_value,
                 "Cohen's d": cohens_d,
                 "Significant (p<0.05)": "Yes" if p_value < 0.05 else "No",
+                "Baseline Score_DC": np.mean(baseline_dc),
+                "Experiment Score_DC": np.mean(exp_dc),
+                "Score_DC Diff": np.mean(baseline_dc) - np.mean(exp_dc),
+                "Score_DC t-stat": t_stat_dc,
+                "Score_DC p-value": p_value_dc,
+                "Score_DC Cohen's d": cohens_d_dc,
+                "Score_DC Significant (p<0.05)": (
+                    "Yes" if (not np.isnan(p_value_dc) and p_value_dc < 0.05) else "No"
+                ),
             }
         )
 
@@ -738,9 +946,9 @@ def generate_latex_table(
 \centering
 \caption{Ablation Study Results - Conditional Generation Score (CGS)}
 \label{tab:ablation_cgs}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Experiment} & \textbf{CGS} & \textbf{Density} & \textbf{IoU} & \textbf{Uniform.} \\
+	extbf{Experiment} & \textbf{CGS} & \textbf{Score\_DC} & \textbf{Density} & \textbf{IoU} & \textbf{Uniform.} \\
 \midrule
 """
 
@@ -748,6 +956,7 @@ def generate_latex_table(
 
     for name, data in sorted_items:
         cgs = data["avg_cgs"]
+        score_dc = data.get("avg_score_dc", 0.0)
         density = data["avg_density_score"]
         matched_iou = data["avg_matched_iou"]
         uniformity = data["avg_uniformity_score"]
@@ -755,10 +964,10 @@ def generate_latex_table(
         display_name = name.replace("_", " ").replace("wo ", "w/o ")
 
         if name == "full_model":
-            latex += rf"\textbf{{{display_name}}} & \textbf{{{cgs:.4f}}} & {density:.4f} & {matched_iou:.4f} & {uniformity:.4f} \\"
+            latex += rf"\textbf{{{display_name}}} & \textbf{{{cgs:.4f}}} & {score_dc:.4f} & {density:.4f} & {matched_iou:.4f} & {uniformity:.4f} \\"
         else:
             delta = cgs - baseline_cgs
-            latex += rf"{display_name} & {cgs:.4f} ({delta:+.4f}) & {density:.4f} & {matched_iou:.4f} & {uniformity:.4f} \\"
+            latex += rf"{display_name} & {cgs:.4f} ({delta:+.4f}) & {score_dc:.4f} & {density:.4f} & {matched_iou:.4f} & {uniformity:.4f} \\"
 
         latex += "\n"
 
@@ -847,13 +1056,13 @@ def analyze_results(
     print("\n" + "=" * 80)
     print("条件化生成能力评估结果汇总 (按CGS排序)")
     print("=" * 80)
-    print(f"{'实验名称':<30} {'CGS':>8} {'Density':>10} {'IoU':>8} {'Uniform':>10}")
+    print(f"{'实验名称':<30} {'CGS':>8} {'ScoreDC':>10} {'Density':>10} {'IoU':>8} {'Uniform':>10}")
     print("-" * 70)
 
     for name, data in sorted(results.items(), key=lambda x: x[1].get("avg_cgs", 0), reverse=True):
         if "avg_cgs" in data:
             print(
-                f"{name:<30} {data['avg_cgs']:>8.4f} {data['avg_density_score']:>10.4f} "
+                f"{name:<30} {data['avg_cgs']:>8.4f} {data.get('avg_score_dc', 0.0):>10.4f} {data['avg_density_score']:>10.4f} "
                 f"{data['avg_matched_iou']:>8.4f} {data['avg_uniformity_score']:>10.4f}"
             )
 
