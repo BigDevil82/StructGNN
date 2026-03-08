@@ -12,12 +12,11 @@ from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import Subset, WeightedRandomSampler
 from torch_geometric.loader import DataLoader
 
-# 复用你现有项目中的组件
 from shearwall_pred.config import ModelConfig, data_config, model_config, training_config
 from shearwall_pred.dataset import ShearWallDataset
-from shearwall_pred.losses import ConsistencyLoss, HybridLoss
+from shearwall_pred.losses import HybridLoss
 from shearwall_pred.model import ShearWallGNN
-from shearwall_pred.trainer import DataManager, Evaluator, Trainer
+from shearwall_pred.trainer import Evaluator, Trainer
 from shearwall_pred.utils import get_file_category  # 假设你已经把 Trainer 类封装好了
 
 
@@ -142,8 +141,6 @@ class EnsembleShearWallGNN(torch.nn.Module):
             model = ShearWallGNN(
                 node_in_dim=model_config.NODE_FEATURE_DIM,
                 edge_in_dim=model_config.EDGE_FEATURE_DIM,
-                hidden_dim=model_config.HIDDEN_DIM,
-                out_dim=model_config.OUTPUT_DIM,
             )
 
             # 2. 加载权重
@@ -159,7 +156,7 @@ class EnsembleShearWallGNN(torch.nn.Module):
 
         print("✅ 集成模型初始化完成")
 
-    def forward(self, data):
+    def forward(self, data, condition: torch.Tensor = None) -> tuple[torch.Tensor, torch.Tensor]:
         """
         前向传播：运行所有子模型并取平均
         """
@@ -173,7 +170,7 @@ class EnsembleShearWallGNN(torch.nn.Module):
         with torch.no_grad():  # 确保不计算梯度
             for model in self.models:
                 # 获取子模型输出 (假设输出已经是 Sigmoid 后的 [0,1])
-                prob, ratio = model(data)
+                prob, ratio = model(data, condition=condition)
 
                 prob_sum += prob
                 ratio_sum += ratio
@@ -277,9 +274,10 @@ def cross_validate_test():
 
     # 设置输出目录
     output_dir = cv_path / "ensemble_test_results"
+    output_dir.mkdir(exist_ok=True)
 
     print(f"\n🚀 开始集成模型评估...")
-    evaluator.visulize_testset(test_set, output_dir=str(output_dir))
+    iou_scores = evaluator.visulize_testset(test_set, output_dir=str(output_dir))
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ class TrainingConfig:
     """训练配置"""
 
     # 训练参数
-    BATCH_SIZE: int = 16
+    BATCH_SIZE: int = 1
     LEARNING_RATE: float = 1e-3
     WEIGHT_DECAY: float = 1e-4
     EPOCHS: int = 100
@@ -61,9 +61,9 @@ class DataConfig:
     """数据处理配置"""
 
     # 路径
-    DXF_DIR: str = r"dxf/dataset_split_8_2"
-    CACHE_DIR: str = "data_cache"
-    SAVE_DIR: str = "result/1226_cond_kfold"
+    DXF_DIR: str = r"dxf/shearwall_split_8_2"
+    CACHE_DIR: str = "data_cache/shearwall_dataset"
+    SAVE_DIR: str = "result/shearwall_pred/0126_cond_kfold"
 
     # 数据增广
     AUGMENTATIONS: List[str] = (

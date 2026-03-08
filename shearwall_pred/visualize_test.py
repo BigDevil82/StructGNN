@@ -106,7 +106,7 @@ def visualize_single_case(
     fig, (ax_gt, ax_pred) = plt.subplots(2, 1, figsize=viz_config.FIG_SIZE_DOUBLE)
 
     # 上图：Ground Truth
-    ax_gt.set_title("Ground Truth (真实分布)", fontsize=14, fontweight="bold")
+    # ax_gt.set_title("Ground Truth (真实分布)", fontsize=14, fontweight="bold")
     for node_id in builder.graph.nodes:
         # 从节点属性中直接获取数据
         node_data = builder.graph.nodes[node_id]
@@ -119,7 +119,7 @@ def visualize_single_case(
             plot_room_analysis(room_poly, gt_vec, masks, ax_gt, wall_color=viz_config.GT_WALL_COLOR)
 
     # 下图：Prediction
-    ax_pred.set_title("Model Prediction (模型预测)", fontsize=14, fontweight="bold")
+    # ax_pred.set_title("Model Prediction (模型预测)", fontsize=14, fontweight="bold")
     iou_scores = []
 
     node_ids = list(builder.graph.nodes())
@@ -144,9 +144,9 @@ def visualize_single_case(
         iou = calculate_wall_iou(gt_walls, pred_walls, buffer_width=viz_config.IOU_BUFFER_WIDTH)
         iou_scores.append(iou)
 
-        # 在房间中心显示IoU
-        c = room_poly.centroid
-        ax_pred.text(c.x, c.y, f"{iou:.2f}", color="black", fontsize=6, fontweight="bold")
+        # # 在房间中心显示IoU
+        # c = room_poly.centroid
+        # ax_pred.text(c.x, c.y, f"{iou:.2f}", color="black", fontsize=6, fontweight="bold")
 
     # 设置样式
     avg_iou = np.mean(iou_scores) if iou_scores else 0
@@ -187,3 +187,27 @@ def test_conditional_predict(
         iou = visualize_single_case(dxf_path, model, save_path=save_path_i, category=i)
         ious.append(iou)
     return ious
+
+
+def conditional_pred_on_testset():
+    from shearwall_pred.config import data_config, model_config, training_config
+    from shearwall_pred.cross_validate import EnsembleShearWallGNN
+
+    cv_path = Path(data_config.SAVE_DIR)
+    model_paths = sorted(list(cv_path.glob("fold_*/best_model.pth")))
+    ensemble_model = EnsembleShearWallGNN(model_paths, model_config)
+    ensemble_model.to(training_config.DEVICE)
+
+    # dxf = r"dxf\dataset_split_8_2\test\L17_115.dxf"
+    cate_ious = {0: [], 1: [], 2: []}
+    for fname in os.listdir(data_config.DXF_DIR + "/test"):
+        if fname.endswith(".dxf"):
+            dxf = os.path.join(data_config.DXF_DIR, "test", fname)
+            save_dir = str(cv_path / "conditional_test_results")
+            os.makedirs(save_dir, exist_ok=True)
+
+            save_path = os.path.join(save_dir, os.path.basename(dxf).replace(".dxf", ".png"))
+            ious = test_conditional_predict(dxf_path=dxf, model=ensemble_model, save_path=save_path)
+
+            for i, iou in enumerate(ious):
+                cate_ious[i].append(iou)

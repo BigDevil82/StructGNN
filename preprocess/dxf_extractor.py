@@ -307,12 +307,12 @@ class DXFExtractor:
             save_path: 保存图片路径
         """
         color = {
-            "shear_walls": "red",
-            "beams": "orange",
-            "rooms": "pink",
-            # "doors": "blue",
-            # "windows": "green",
-            # "infill_walls": "gray",
+            "shear_walls": "gray",
+            # "beams": "orange",
+            # "rooms": "pink",
+            "doors": "blue",
+            "windows": "green",
+            "infill_walls": "gray",
         }
 
         # 创建绘图
@@ -448,7 +448,7 @@ def process_dxf(dxf_file: str):
     """处理单个DXF文件（顶层函数，便于多进程 pickling）"""
     extractor = DXFExtractor()
     data = extractor.extract_from_file(dxf_file)
-    save_path = os.path.join("dxf/plots", Path(dxf_file).stem + ".png")
+    save_path = os.path.join("dxf/plots/raw", Path(dxf_file).stem + ".png")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     extractor.plot_structure(data, save_path=str(save_path))
     return Path(dxf_file).stem
@@ -480,7 +480,7 @@ def main():
 
     dxf_files = []
     for root, dirs, files in os.walk(
-        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finish_modified_with_rooms"
+        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished\final"
     ):
         dxf_files.extend([os.path.join(root, f) for f in files if f.lower().endswith(".dxf")])
 

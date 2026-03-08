@@ -310,9 +310,9 @@ class LayoutGraphBuilder:
         # 1. 绘制房间底图 (复用 RoomAnalyzer 风格)
         for node_id in self.graph.nodes:
             room: Polygon = self.graph.nodes[node_id]["poly"]
-            x, y = room.exterior.xy
-            ax.plot(x, y, color="black", linewidth=2, alpha=0.5)
-            ax.fill(x, y, color="#A8A8A8", alpha=0.15)
+            # x, y = room.exterior.xy
+            # ax.plot(x, y, color="black", linewidth=2, alpha=0.5)
+            # ax.fill(x, y, color="#A8A8A8", alpha=0.15)
 
             # 绘制节点 (质心) - 使用原始坐标
             cx, cy = room.centroid.x, room.centroid.y
@@ -349,10 +349,10 @@ class LayoutGraphBuilder:
                 zorder=4,
             )
 
-            # 可选：绘制边的接触点/重叠中心 (使用原始几何)
-            shared_geom = self.graph.edges[u, v]["shared_geom"]
-            overlap_center = shared_geom.centroid
-            ax.scatter(overlap_center.x, overlap_center.y, c="red", s=20, marker="x", zorder=5)
+        #     # 可选：绘制边的接触点/重叠中心 (使用原始几何)
+        #     shared_geom = self.graph.edges[u, v]["shared_geom"]
+        #     overlap_center = shared_geom.centroid
+        #     ax.scatter(overlap_center.x, overlap_center.y, c="red", s=20, marker="x", zorder=5)
 
         ax.set_aspect("equal")
         ax.axis("off")
@@ -395,6 +395,7 @@ def convert_to_graph(dxf_path: str, save_path: str = None):
     # print("构建图结构...")
     graph_builder = LayoutGraphBuilder(dxf_path, calibrated_rooms)
     graph_builder.add_analysis_results(analysis_results)
+    # print(f"图节点数: {len(graph_builder.graph.nodes)}, 边数(双向): {len(graph_builder.graph.edges)}")
 
     # 5. 可视化
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -403,10 +404,11 @@ def convert_to_graph(dxf_path: str, save_path: str = None):
 
     # 叠加剪力墙 Ground Truth (可选，为了验证对齐情况)
     # 这里只画一部分验证
-    for res in analysis_results:
-        room = calibrated_rooms[res["room_index"]]
-        plot_room_analysis(room, np.array(res["sw_vector"]), res["masks"], ax, wall_color="green")
+    # for res in analysis_results:
+    #     room = calibrated_rooms[res["room_index"]]
+    #     plot_room_analysis(room, np.array(res["sw_vector"]), res["masks"], ax, wall_color="green")
 
+    ax.set_title(f"Layout Graph Visualization: {os.path.basename(dxf_path)}", fontsize=16, fontweight="bold")
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
         # print(f"图已保存到: {save_path}")
@@ -421,15 +423,20 @@ def convert_to_graph(dxf_path: str, save_path: str = None):
 # ==========================================
 if __name__ == "__main__":
     # test single file
-    dxf_path = r"dxf/to_process/room_finished/L1L28_232.dxf"
-    convert_to_graph(dxf_path)
+    # dxf_path = r"dxf/to_process/room_finished/L1L28_232.dxf"
+    # convert_to_graph(dxf_path)
 
-    # # convert batch files
-    # from tqdm import tqdm
+    # convert batch files
+    from tqdm import tqdm
 
-    # dxf_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished"
-    # dxf_files = [f for f in os.listdir(dxf_dir) if f.endswith(".dxf")]
-    # for dxf_file in tqdm(dxf_files):
-    #     dxf_path = os.path.join(dxf_dir, dxf_file)
-    #     save_path = Path(dxf_path).with_suffix(".png")
-    #     convert_to_graph(dxf_path, save_path)
+    dxf_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished\final"
+    save_dir = Path(dxf_dir).parent / "room_graph"
+    os.makedirs(save_dir, exist_ok=True)
+    dxf_files = [f for f in os.listdir(dxf_dir) if f.endswith(".dxf")]
+    for dxf_file in tqdm(dxf_files):
+        dxf_path = os.path.join(dxf_dir, dxf_file)
+        save_path = save_dir / (Path(dxf_path).stem + ".png")
+        try:
+            convert_to_graph(dxf_path, save_path)
+        except Exception as e:
+            print(f"处理文件 {dxf_file} 时出错: {e}")

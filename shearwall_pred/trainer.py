@@ -81,13 +81,13 @@ class DataManager:
 
         # 不切分 -> 返回全量训练 loader
         if val_ratio <= 0.0:
-            sampler = WeightedRandomSampler(
-                weights=sample_weights, num_samples=len(sample_weights), replacement=True
-            )
+            # sampler = WeightedRandomSampler(
+            #     weights=sample_weights, num_samples=len(sample_weights), replacement=True
+            # )
             train_loader = DataLoader(
                 dataset,
                 batch_size=training_config.BATCH_SIZE,
-                sampler=sampler,
+                sampler=None,
                 shuffle=False,
             )
             return train_loader, None
@@ -375,6 +375,7 @@ class Evaluator:
             iou_scores.append(avg_iou)
             print(f"  - {dxf_file}: Avg IoU = {avg_iou:.4f}")
         self._save_results(iou_scores, output_dir)
+        return iou_scores
 
 
 def main():
