@@ -105,6 +105,7 @@ Shear wall layout; Graph neural networks; Conditional generation; Architectural 
 ### 2.1 AI-based Structural Design (~300 words)
 
 **内容要点：**
+
 - 综述AI/ML在结构工程中的应用
 - 分类讨论：
   - 结构分析加速（代理模型）
@@ -465,6 +466,7 @@ for each batch:
 **4.4.2 Conditioning Method Comparison**
 
 **内容要点：**
+
 - 对比FiLM、Concat-Early、Concat-Late、None
 - 验证FiLM的有效性
 
@@ -549,6 +551,7 @@ for each batch:
 ### 5.1 Summary (~150 words)
 
 **内容要点：**
+
 - 简要重述研究目标和方法
 - 强调核心创新：房间级图表示、FiLM条件化、双流训练
 
@@ -559,6 +562,7 @@ for each batch:
 ### 5.2 Key Findings (~150 words)
 
 **内容要点（Bullet points）：**
+
 1. 房间级图表示相比几何图元方法在IoU上提升X%
 2. FiLM条件化机制使模型能够生成差异化密度的布置方案
 3. 双流训练策略显著增强条件响应能力（CGS提升X%）
@@ -655,52 +659,3 @@ for each batch:
 
 
 
-### **3.1 Problem Formulation**
-
-我们将住宅剪力墙布置设计问题建模为：在给定建筑空间拓扑结构、几何约束及抗震设计等级条件下的**条件化图生成任务（Conditional Graph Generation Task）**。具体而言，该任务旨在学习一个映射函数，将包含了建筑语义的图数据与设计条件映射为每个功能空间边界上的剪力墙物理分布参数。
-
-#### **3.1.1 建筑空间图表示 (Architectural Space Graph Representation)**
-
-给定一个住宅建筑平面方案 $\mathcal{P}$，我们首先将其抽象为一个**属性邻接图 (Attributed Adjacency Graph)**，记为 $G = (\mathcal{V}, \mathcal{E})$。
-
-- **节点集合 (Node Set) $\mathcal{V} = \{v_1, v_2, \dots, v_N\}$**：每个节点 $v_i$ 代表建筑中的一个独立功能空间（即房间）。
-
-- **边集合 (Edge Set) $\mathcal{E} \subseteq \mathcal{V} \times \mathcal{V}$**：边 $e_{ij} = (v_i, v_j)$ 存在当且仅当房间 $v_i$ 与 $v_j$ 在物理空间上相邻且共享墙体。
-
-- **节点特征 (Node Features) $\mathbf{X} \in \mathbb{R}^{N \times D_{in}}$**：每个节点 $v_i$ 关联一个特征向量 $\mathbf{x}_i \in \mathbb{R}^{D_{in}}$，编码了该房间的几何属性与物理约束。具体包括：
-
-  $$\mathbf{x}_i = [\mathbf{g}_i, \mathbf{m}_i]$$
-
-  其中，$\mathbf{g}_i$ 表示房间的几何描述符（如中心坐标、长宽、面积等），$\mathbf{m}_i$ 为物理约束掩码（Constraint Mask），指示了房间边界上不可布置剪力墙的区域（如门窗洞口位置）。
-
-- **边特征 (Edge Features) $\mathbf{E}^{attr} \in \mathbb{R}^{|\mathcal{E}| \times D_{edge}}$**：每条边 $e_{ij}$ 关联特征 $\mathbf{e}_{ij}$，描述了相邻房间的空间关系（如相对方位、共享墙长度等）。
-
-#### **3.1.2 设计条件与输入空间 (Design Conditions & Input Space)**
-
-为了实现差异化的设计生成，引入离散的设计条件变量 $c \in \mathcal{C}$，其中 $\mathcal{C} = \{c_{low}, c_{mid}, c_{high}\}$ 代表不同的剪力墙率等级（Shear Wall Ratio Levels），分别对应低、中、高三种抗震设防需求。
-
-在模型中，条件 $c$ 被映射为嵌入向量 $\mathbf{z}_c \in \mathbb{R}^{D_{cond}}$，并作为全局上下文信号注入到生成过程中。因此，模型的完整输入空间可以表示为图结构与条件的元组：$(G, c)$。
-
-#### **3.1.3 剪力墙布局参数化 (Shear Wall Layout Parameterization)**
-
-我们将剪力墙的物理布局 $L$ 转化为节点级的参数化表示。对于每个房间 $v_i$，其剪力墙分布被定义为一个连续向量 $\mathbf{y}_i \in [0, 1]^{16}$。
-
-我们将房间的边界定义为有序的四个面（上、右、下、左），每个面被中点分割为两个半段（Half-segments）。对于第 $k$ 个半段（$k \in \{1, \dots, 8\}$），我们预测其两端的剪力墙覆盖比例。因此，目标向量 $\mathbf{y}_i$ 定义为：
-
-$$\mathbf{y}_i = [r_{k}^{start}, r_{k}^{end}]_{k=1}^{8}$$
-
-其中，$r_{k}^{start}, r_{k}^{end} \in [0, 1]$ 分别表示该半段墙体从起点和终点延伸的归一化长度比例。这种参数化方式能够精确描述连续、断开或全长的剪力墙形态。
-
-#### **3.1.4 学习目标 (Learning Objective)**
-
-综上所述，剪力墙智能设计问题被形式化为学习一个参数为 $\theta$ 的条件化映射函数 $f_\theta$：
-
-$$\hat{\mathbf{Y}} = f_\theta(G, c)$$
-
-其中 $\hat{\mathbf{Y}} \in \mathbb{R}^{N \times 16}$ 是预测的剪力墙布局矩阵。
-
-训练的目标是最小化预测布局 $\hat{\mathbf{Y}}$ 与真实工程设计布局 $\mathbf{Y}_{gt}$ 之间的差异，同时满足物理可行性约束。损失函数 $\mathcal{L}$ 定义为：
-
-$$\min_\theta \mathbb{E}_{(G, c, \mathbf{Y}_{gt}) \sim \mathcal{D}} \left[ \mathcal{L}_{sup}(\hat{\mathbf{Y}}, \mathbf{Y}_{gt}) + \lambda \mathcal{L}_{phy}(\hat{\mathbf{Y}}, \mathbf{m}) \right]$$
-
-其中 $\mathcal{D}$ 为训练数据集，$\mathcal{L}_{sup}$ 为监督损失（包含 MSE 与 IoU 损失），$\mathcal{L}_{phy}$ 为物理约束惩罚项，旨在确保生成的剪力墙不侵占门窗等不可行区域（即 $\hat{\mathbf{Y}} \odot (1 - \mathbf{m}) \approx 0$）。
