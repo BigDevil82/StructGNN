@@ -15,7 +15,6 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from matplotlib.lines import Line2D
 from torch_geometric.data import Batch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -118,14 +117,7 @@ def visualize_prediction(
     - Left: Ground truth shear wall distribution
     - Right: Predicted shear wall distribution
     """
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
-
-    # Edge colors by type
-    edge_colors = {
-        data_config.EDGE_TYPE_PSW: "gray",  #  blue
-        data_config.EDGE_TYPE_DOOR: "blue",  #  blue
-        data_config.EDGE_TYPE_WINDOW: "green",  # green
-    }
+    fig, axes = plt.subplots(2, 1, figsize=(8, 6))
 
     for ax, values, title in [
         (axes[0], ground_truth, "Ground Truth"),
@@ -138,17 +130,20 @@ def visualize_prediction(
             edge_type = edge["edge_type"]
             coords = list(line.coords)
 
-            # Draw base line
-            xs = [c[0] for c in coords]
-            ys = [c[1] for c in coords]
-            base_color = edge_colors.get(edge_type, "gray")
-            ax.plot(xs, ys, color=base_color, linewidth=3, zorder=1)
-
-            # Draw shear wall overlay for PSW edges
+            # Only process PSW edges (skip doors and windows)
             if edge_type == data_config.EDGE_TYPE_PSW and edge_idx < len(values):
                 ratio_start, ratio_end = values[edge_idx]
 
-                # Draw shear wall at start (left)
+                # Calculate non-shear wall segments (填充墙)
+                xs = [c[0] for c in coords]
+                ys = [c[1] for c in coords]
+
+                # Draw full edge as fill wall first (灰色填充墙，与shearwall_pred保持一致)
+                ax.plot(xs, ys, color="#BBBBBB", linewidth=8, zorder=3)
+
+                # Draw shear wall overlay on top (红色剪力墙)
+                # Shear wall at start (left)
+                color = "green" if title == "Ground Truth" else "red"
                 if ratio_start > 0.02:
                     total_len = line.length
                     sw_len = total_len * ratio_start
@@ -156,12 +151,12 @@ def visualize_prediction(
                     ax.plot(
                         [coords[0][0], sw_point.x],
                         [coords[0][1], sw_point.y],
-                        color="red",
-                        linewidth=5,
-                        zorder=2,
+                        color=color,
+                        linewidth=4,
+                        zorder=4,
                     )
 
-                # Draw shear wall at end (right)
+                # Shear wall at end (right)
                 if ratio_end > 0.02:
                     total_len = line.length
                     sw_len = total_len * ratio_end
@@ -169,25 +164,16 @@ def visualize_prediction(
                     ax.plot(
                         [coords[-1][0], sw_point.x],
                         [coords[-1][1], sw_point.y],
-                        color="red",
-                        linewidth=5,
-                        zorder=2,
+                        color=color,
+                        linewidth=4,
+                        zorder=4,
                     )
 
             edge_idx += 2  # Account for bidirectional edges
 
         ax.set_aspect("equal")
-        ax.set_title(title, fontsize=14, fontweight="bold")
+        # ax.set_title(title, fontsize=14, fontweight="bold")
         ax.axis("off")
-
-    # Add legend
-    legend_elements = [
-        Line2D([0], [0], color="gray", linewidth=3, label="Wall (PSW)"),
-        Line2D([0], [0], color="blue", linewidth=3, label="Door"),
-        Line2D([0], [0], color="green", linewidth=3, label="Window"),
-        Line2D([0], [0], color="red", linewidth=5, label="Shear Wall"),
-    ]
-    fig.legend(handles=legend_elements, loc="upper right")
 
     # Calculate metrics for PSW edges
     mask = torch.tensor(
@@ -198,13 +184,17 @@ def visualize_prediction(
     metrics = compute_metrics(pred_tensor, gt_tensor, mask)
 
     plt.suptitle(
-        f"{file_key}\nMAE: {metrics['mae']:.4f} | Accuracy: {metrics['accuracy']:.4f}",
-        fontsize=12,
+        f"{file_key} MAE: {metrics['mae']:.4f} | Accuracy: {metrics['accuracy']:.4f}",
+        fontsize=16,
     )
     plt.tight_layout()
 
+    # Apply horizontal flip to both axes
+    for ax in axes:
+        ax.invert_yaxis()
+
     if save_path:
-        plt.savefig(save_path, dpi=200, bbox_inches="tight")
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Saved: {save_path}")
     else:
         plt.show()

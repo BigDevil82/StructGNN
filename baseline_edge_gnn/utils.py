@@ -20,6 +20,7 @@ def visualize_edge_graph(
     edges: List[dict],
     save_path: str = None,
     title: str = "Edge-based Graph",
+    style: Optional[dict] = None,
 ):
     """
     Visualize the edge-based graph structure.
@@ -33,18 +34,45 @@ def visualize_edge_graph(
     """
     fig, ax = plt.subplots(figsize=(12, 10))
 
-    # Color mapping for edge types
-    edge_colors = {
-        data_config.EDGE_TYPE_PSW: "gray",
-        data_config.EDGE_TYPE_DOOR: "blue",
-        data_config.EDGE_TYPE_WINDOW: "green",
-    }
+    if style is None:
+        style = {}
 
-    edge_labels = {
-        data_config.EDGE_TYPE_PSW: "PSW",
-        data_config.EDGE_TYPE_DOOR: "Door",
-        data_config.EDGE_TYPE_WINDOW: "Window",
-    }
+    # Color mapping for edge types
+    edge_colors = style.get(
+        "edge_colors",
+        {
+            data_config.EDGE_TYPE_PSW: "gray",
+            data_config.EDGE_TYPE_DOOR: "blue",
+            data_config.EDGE_TYPE_WINDOW: "green",
+        },
+    )
+
+    edge_labels = style.get(
+        "edge_labels",
+        {
+            data_config.EDGE_TYPE_PSW: "PSW",
+            data_config.EDGE_TYPE_DOOR: "Door",
+            data_config.EDGE_TYPE_WINDOW: "Window",
+        },
+    )
+
+    edge_width = style.get("edge_width", 2)
+    edge_alpha = style.get("edge_alpha", 0.8)
+    draw_sw = style.get("draw_sw", True)
+    sw_color = style.get("sw_color", "red")
+    sw_width = style.get("sw_width", 4)
+    sw_alpha = style.get("sw_alpha", 0.7)
+    show_legend = style.get("show_legend", True)
+    show_grid = style.get("show_grid", True)
+    axis_off = style.get("axis_off", False)
+    node_color = style.get("node_color", "black")
+    node_size = style.get("node_size", 50)
+    node_edge_color = style.get("node_edge_color", None)
+    node_edge_width = style.get("node_edge_width", 1)
+    node_labels = style.get("node_labels", True)
+    node_label_color = style.get("node_label_color", "black")
+    node_label_size = style.get("node_label_size", 8)
+    node_label_weight = style.get("node_label_weight", "normal")
 
     # Plot edges
     plotted_types = set()
@@ -58,10 +86,10 @@ def visualize_edge_graph(
         xs = [c[0] for c in coords]
         ys = [c[1] for c in coords]
 
-        ax.plot(xs, ys, color=color, linewidth=2, label=label, alpha=0.8)
+        ax.plot(xs, ys, color=color, linewidth=edge_width, label=label, alpha=edge_alpha)
 
         # Mark shear wall ratios for PSW edges
-        if edge_type == data_config.EDGE_TYPE_PSW:
+        if draw_sw and edge_type == data_config.EDGE_TYPE_PSW:
             ratio_start = edge["sw_ratio_start"]
             ratio_end = edge["sw_ratio_end"]
 
@@ -73,9 +101,9 @@ def visualize_edge_graph(
                 ax.plot(
                     [coords[0][0], sw_point.x],
                     [coords[0][1], sw_point.y],
-                    color="red",
-                    linewidth=4,
-                    alpha=0.7,
+                    color=sw_color,
+                    linewidth=sw_width,
+                    alpha=sw_alpha,
                 )
 
             if ratio_end > 0:
@@ -86,9 +114,9 @@ def visualize_edge_graph(
                 ax.plot(
                     [coords[-1][0], sw_point.x],
                     [coords[-1][1], sw_point.y],
-                    color="red",
-                    linewidth=4,
-                    alpha=0.7,
+                    color=sw_color,
+                    linewidth=sw_width,
+                    alpha=sw_alpha,
                 )
 
         plotted_types.add(edge_type)
@@ -96,20 +124,41 @@ def visualize_edge_graph(
     # Plot nodes
     xs = [n[0] for n in nodes]
     ys = [n[1] for n in nodes]
-    ax.scatter(xs, ys, c="black", s=50, zorder=5, label="Nodes")
+    ax.scatter(
+        xs,
+        ys,
+        c=node_color,
+        s=node_size,
+        zorder=5,
+        label="Nodes" if show_legend else None,
+        edgecolors=node_edge_color,
+        linewidths=node_edge_width,
+    )
 
     # Add node indices
-    for i, (x, y) in enumerate(nodes):
-        ax.annotate(str(i), (x, y), fontsize=8, ha="center", va="bottom")
+    if node_labels:
+        for i, (x, y) in enumerate(nodes):
+            ax.annotate(
+                str(i),
+                (x, y),
+                fontsize=node_label_size,
+                ha="center",
+                va="center",
+                color=node_label_color,
+                fontweight=node_label_weight,
+            )
 
     ax.set_aspect("equal")
-    ax.legend(loc="upper right")
+    if show_legend:
+        ax.legend(loc="upper right")
     ax.set_title(title)
-    ax.grid(True, alpha=0.3)
+    if show_grid:
+        ax.grid(True, alpha=0.3)
+    if axis_off:
+        ax.axis("off")
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
-        print(f"Saved visualization to {save_path}")
     else:
         plt.show()
 
