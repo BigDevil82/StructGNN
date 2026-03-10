@@ -139,8 +139,8 @@ def convert_cad_json_to_dxf(
     dxf_path: str,
     *,
     default_wall_thickness: float = 200.0,
-    door_width: float = 100.0,
-    window_width: float = 80.0,
+    door_width: float = 200.0,
+    window_width: float = 200.0,
     min_wall_length: float = 50.0,
     shear_threshold: Optional[float] = None,
 ) -> str:
@@ -190,9 +190,8 @@ def build_graph_from_dxf_inference(
     opening_buffer: float = 100.0,
     mode: str = "none",
 ):
-    from shearwall_pred.augmentor import GeometryAugmentor
-
     from preprocess.dxf_extractor import DXFExtractor
+    from shearwall_pred.augmentor import GeometryAugmentor
 
     extractor = DXFExtractor()
     extractor.extract_from_file(dxf_path)
@@ -269,8 +268,8 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert CAD JSON to DXF for inference.")
     parser.add_argument("--cad-json", required=True, help="Input CAD JSON path")
     parser.add_argument("--dxf-out", required=True, help="Output DXF path")
-    parser.add_argument("--door-width", type=float, default=100.0, help="Door buffer width (mm)")
-    parser.add_argument("--window-width", type=float, default=80.0, help="Window buffer width (mm)")
+    parser.add_argument("--door-width", type=float, default=200.0, help="Door buffer width (mm)")
+    parser.add_argument("--window-width", type=float, default=200.0, help="Window buffer width (mm)")
     parser.add_argument("--wall-threshold", type=float, default=None, help="Optional shear threshold (mm)")
     return parser.parse_args()
 
