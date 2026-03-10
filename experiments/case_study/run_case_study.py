@@ -18,9 +18,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from shapely.affinity import scale as _scale_geom
-from shapely.geometry import LineString, Polygon
-from shapely.ops import unary_union
 from torch_geometric.data import Batch
 
 # 添加项目根目录
@@ -28,7 +25,6 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 # [CHANGE 1] 引入新的 FEMTopologyBuilder，同时保留旧文件中的导出和可视化工具
 from experiments.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
-from preprocess.dxf_extractor import DXFExtractor
 from shearwall_pred.config import model_config, viz_config
 from shearwall_pred.cross_validate import EnsembleShearWallGNN
 from shearwall_pred.utils import build_graph_from_dxf
@@ -60,311 +56,12 @@ def predict_shear_walls(model, data_batch, device: str = "cuda") -> np.ndarray:
     return predictions
 
 
-def _extract_infill_union(dxf_path: str):
-    extractor = DXFExtractor()
-    extractor.extract_from_file(dxf_path)
-    polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.infill_walls]
-    if not polys:
-        return None
-    return unary_union(polys).buffer(0)
-
-
-def _compute_symmetry_score(geom, axis_x: float) -> float:
-    if geom is None or geom.is_empty or geom.area < 1e-6:
-        return 0.0
-    mirrored = _scale_geom(geom, xfact=-1.0, yfact=1.0, origin=(axis_x, 0.0))
-    inter = geom.intersection(mirrored)
-    inter_area = inter.area
-    denom = 2.0 * geom.area - inter_area
-    if denom <= 1e-9:
-        return 0.0
-    return float(inter_area / denom)
-
-
-def detect_left_right_symmetry(
-    geom,
-    *,
-    threshold: float = 0.85,
-    search_ratio: float = 0.1,
-    search_steps: int = 9,
-    simplify_tol: float = 0.0,
-):
-    if geom is None or geom.is_empty:
-        return False, None, 0.0
-
-    if simplify_tol and simplify_tol > 0:
-        geom = geom.simplify(simplify_tol)
-        if geom.is_empty:
-            return False, None, 0.0
-
-    minx, _, maxx, _ = geom.bounds
-    center = (minx + maxx) / 2.0
-    span = max((maxx - minx) * search_ratio, 0.0)
-
-    if search_steps <= 1 or span <= 1e-6:
-        axes = [center]
-    else:
-        axes = np.linspace(center - span, center + span, num=search_steps)
-
-    best_axis = center
-    best_score = -1.0
-    for axis_x in axes:
-        score = _compute_symmetry_score(geom, axis_x)
-        if score > best_score:
-            best_score = score
-            best_axis = float(axis_x)
-
-    return best_score >= threshold, best_axis, best_score
-
-
-def _mirror_line(line, axis_x: float) -> LineString:
-    coords = list(line.coords)
-    if len(coords) < 2:
-        return line
-    p1 = coords[0]
-    p2 = coords[-1]
-    m1 = (2 * axis_x - p1[0], p1[1])
-    m2 = (2 * axis_x - p2[0], p2[1])
-    return LineString([m1, m2])
-
-
-def _merge_intervals(intervals, gap: float = 0.0):
-    if not intervals:
-        return []
-    intervals = sorted((min(a, b), max(a, b)) for a, b in intervals if b - a > 1e-6)
-    merged = [list(intervals[0])]
-    for start, end in intervals[1:]:
-        if start <= merged[-1][1] + gap:
-            merged[-1][1] = max(merged[-1][1], end)
-        else:
-            merged.append([start, end])
-    return [(m[0], m[1]) for m in merged]
-
-
-def _intersect_intervals(a, b):
-    if not a or not b:
-        return []
-    a = _merge_intervals(a, gap=0.0)
-    b = _merge_intervals(b, gap=0.0)
-    i = j = 0
-    out = []
-    while i < len(a) and j < len(b):
-        s = max(a[i][0], b[j][0])
-        e = min(a[i][1], b[j][1])
-        if e - s > 1e-6:
-            out.append((s, e))
-        if a[i][1] < b[j][1]:
-            i += 1
-        else:
-            j += 1
-    return out
-
-
-def _edge_info(line: LineString, tol: float):
-    coords = list(line.coords)
-    if len(coords) < 2:
-        return None
-    x1, y1 = coords[0]
-    x2, y2 = coords[-1]
-    if abs(y1 - y2) <= tol and abs(x1 - x2) > tol:
-        y = (y1 + y2) / 2.0
-        minx, maxx = (x1, x2) if x1 <= x2 else (x2, x1)
-        return {
-            "orientation": "h",
-            "coord": y,
-            "min": minx,
-            "max": maxx,
-            "line": LineString([(minx, y), (maxx, y)]),
-        }
-    if abs(x1 - x2) <= tol and abs(y1 - y2) > tol:
-        x = (x1 + x2) / 2.0
-        miny, maxy = (y1, y2) if y1 <= y2 else (y2, y1)
-        return {
-            "orientation": "v",
-            "coord": x,
-            "min": miny,
-            "max": maxy,
-            "line": LineString([(x, miny), (x, maxy)]),
-        }
-    return None
-
-
-def _intervals_from_ratios(info, ratios):
-    if not ratios:
-        return []
-    length = info["max"] - info["min"]
-    if length <= 1e-6:
-        return []
-    out = []
-    for r0, r1 in ratios:
-        s = info["min"] + r0 * length
-        e = info["min"] + r1 * length
-        if e - s > 1e-6:
-            out.append((s, e))
-    return _merge_intervals(out, gap=0.0)
-
-
-def _mirror_intervals(intervals, info_from, info_to, axis_x: float):
-    if not intervals:
-        return []
-    if info_from["orientation"] == "h":
-        mirrored = []
-        for a, b in intervals:
-            m1 = 2.0 * axis_x - b
-            m2 = 2.0 * axis_x - a
-            s, e = (m1, m2) if m1 <= m2 else (m2, m1)
-            mirrored.append((s, e))
-        return _clip_intervals(mirrored, info_to["min"], info_to["max"])
-
-    return _clip_intervals(intervals, info_to["min"], info_to["max"])
-
-
-def _clip_intervals(intervals, minv, maxv):
-    out = []
-    for a, b in intervals:
-        s = max(minv, a)
-        e = min(maxv, b)
-        if e - s > 1e-6:
-            out.append((s, e))
-    return _merge_intervals(out, gap=0.0)
-
-
-def _intervals_to_lines(info, intervals):
-    lines = []
-    for a, b in intervals:
-        if b - a <= 1e-6:
-            continue
-        if info["orientation"] == "h":
-            lines.append(LineString([(a, info["coord"]), (b, info["coord"])]))
-        else:
-            lines.append(LineString([(info["coord"], a), (info["coord"], b)]))
-    return lines
-
-
-def symmetrize_walls_on_skeleton(
-    fem_builder,
-    axis_x: float,
-    *,
-    mode: str = "union",
-    snap: float = 10.0,
-    min_overlap: float = 50.0,
-):
-    if not fem_builder.raw_walls or not fem_builder.room_edges:
-        return fem_builder.raw_walls
-
-    skeleton = fem_builder._merge_collinear_lines(fem_builder.room_edges)
-    wall_lines = fem_builder._merge_collinear_lines(fem_builder.raw_walls)
-
-    infos = []
-    for line in skeleton:
-        info = _edge_info(line, fem_builder.snap_tolerance)
-        if info:
-            infos.append(info)
-
-    if not infos:
-        return fem_builder.raw_walls
-
-    h_map = {}
-    v_map = {}
-    for idx, info in enumerate(infos):
-        key = int(round(info["coord"] / snap))
-        if info["orientation"] == "h":
-            h_map.setdefault(key, []).append(idx)
-        else:
-            v_map.setdefault(key, []).append(idx)
-
-    intervals_map = {}
-    for idx, info in enumerate(infos):
-        ratios = fem_builder._find_overlapping_segments(info["line"], wall_lines)
-        intervals_map[idx] = _intervals_from_ratios(info, ratios)
-
-    processed = set()
-    new_intervals = dict(intervals_map)
-
-    for i, info in enumerate(infos):
-        if i in processed:
-            continue
-
-        mirror_line = _mirror_line(info["line"], axis_x)
-        mirror_info = _edge_info(mirror_line, fem_builder.snap_tolerance)
-        if not mirror_info:
-            continue
-
-        if info["orientation"] == "h":
-            key = int(round(mirror_info["coord"] / snap))
-            candidates = h_map.get(key, [])
-            best = None
-            best_overlap = 0.0
-            m_min, m_max = mirror_info["min"], mirror_info["max"]
-            for j in candidates:
-                if j == i:
-                    continue
-                c = infos[j]
-                overlap = min(m_max, c["max"]) - max(m_min, c["min"])
-                if overlap > best_overlap:
-                    best_overlap = overlap
-                    best = j
-            if best is None or best_overlap < min_overlap:
-                continue
-            j = best
-        else:
-            key = int(round(mirror_info["coord"] / snap))
-            candidates = v_map.get(key, [])
-            best = None
-            best_overlap = 0.0
-            m_min, m_max = mirror_info["min"], mirror_info["max"]
-            for j in candidates:
-                if j == i:
-                    continue
-                c = infos[j]
-                overlap = min(m_max, c["max"]) - max(m_min, c["min"])
-                if overlap > best_overlap:
-                    best_overlap = overlap
-                    best = j
-            if best is None or best_overlap < min_overlap:
-                continue
-            j = best
-
-        if j in processed:
-            continue
-
-        processed.add(i)
-        processed.add(j)
-
-        intervals_i = intervals_map.get(i, [])
-        intervals_j = intervals_map.get(j, [])
-        intervals_j_m = _mirror_intervals(intervals_j, infos[j], infos[i], axis_x)
-
-        if mode == "intersection":
-            combined = _intersect_intervals(intervals_i, intervals_j_m)
-        else:
-            combined = _merge_intervals(intervals_i + intervals_j_m, gap=fem_builder.gap_tolerance)
-
-        new_intervals[i] = combined
-        new_intervals[j] = _mirror_intervals(combined, infos[i], infos[j], axis_x)
-
-    new_walls = []
-    for idx, info in enumerate(infos):
-        intervals = new_intervals.get(idx, [])
-        if not intervals:
-            continue
-        new_walls.extend(_intervals_to_lines(info, intervals))
-
-    return new_walls
-
-
 def run_case_study(
     dxf_path: str,
     model_dir: str,
     output_dir: str,
     category: int = None,
     device: str = "cuda",
-    symmetry_mode: str = "none",
-    symmetry_threshold: float = 0.85,
-    symmetry_simplify: float = 0.0,
-    symmetry_search_ratio: float = 0.1,
-    symmetry_search_steps: int = 9,
-    symmetry_snap: float = 10.0,
 ):
     os.makedirs(output_dir, exist_ok=True)
     file_name = Path(dxf_path).stem
@@ -408,32 +105,6 @@ def run_case_study(
     print("\n[3/5] 模型预测...")
     predictions = predict_shear_walls(model, data_batch, device)
 
-    symmetry_axis = None
-    symmetry_score = 0.0
-    if symmetry_mode != "none":
-        infill_union = _extract_infill_union(dxf_path)
-        if infill_union is None:
-            infill_union = unary_union(room_polys).buffer(0)
-
-        print("  检测左右对称性...")
-        is_sym, axis_x, score = detect_left_right_symmetry(
-            infill_union,
-            threshold=symmetry_threshold,
-            search_ratio=symmetry_search_ratio,
-            search_steps=symmetry_search_steps,
-            simplify_tol=symmetry_simplify,
-        )
-
-        if is_sym:
-            symmetry_axis = axis_x
-            symmetry_score = score
-            print(
-                f"  检测到左右对称 (score={symmetry_score:.3f}, axis_x={symmetry_axis:.2f}), "
-                f"将使用 {symmetry_mode} 对称化"
-            )
-        else:
-            print(f"  对称检测未通过 (best_score={score:.3f})，跳过对称化")
-
     # # 保存原始预测
     # np.save(os.path.join(output_dir, f"{file_name}_predictions.npy"), predictions)
 
@@ -449,15 +120,6 @@ def run_case_study(
         masks = masks_list[i] if masks_list else None
         # [CHANGE 3] 使用 builder.add_room
         fem_builder.add_room(room_poly, predictions[i], masks)
-
-    if symmetry_axis is not None:
-        fem_builder.raw_walls = symmetrize_walls_on_skeleton(
-            fem_builder,
-            symmetry_axis,
-            mode=symmetry_mode,
-            snap=symmetry_snap,
-            min_overlap=fem_builder.min_length,
-        )
 
     # [CHANGE 4] 构建并获取结果
     result = fem_builder.build()
@@ -487,8 +149,8 @@ def run_case_study(
     )
 
     # 导出数据
-    export_to_json(result, os.path.join(output_dir, f"{file_name}_fem_data.json"))
-    export_shearwall_coords(result, os.path.join(output_dir, f"{file_name}_shearwall_coords.json"))
+    # export_to_json(result, os.path.join(output_dir, f"{file_name}_fem_data.json"))
+    # export_shearwall_coords(result, os.path.join(output_dir, f"{file_name}_shearwall_coords.json"))
 
     print("\n" + "=" * 60)
     print("案例研究完成！")
@@ -561,30 +223,6 @@ def main():
     parser.add_argument("--output_dir", type=str, default="result/case_study")
     parser.add_argument("--category", type=int, default=None, choices=[0, 1, 2])
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument(
-        "--symmetry_mode",
-        type=str,
-        default="none",
-        choices=["none", "union", "intersection"],
-        help="对称化策略 (none/union/intersection)",
-    )
-    parser.add_argument("--symmetry_threshold", type=float, default=0.85, help="对称检测阈值")
-    parser.add_argument(
-        "--symmetry_simplify",
-        type=float,
-        default=0.0,
-        help="对称检测几何简化容差（mm），>0 可显著加速",
-    )
-    parser.add_argument(
-        "--symmetry_grid",
-        dest="symmetry_simplify",
-        type=float,
-        default=0.0,
-        help="兼容参数：等同于 --symmetry_simplify",
-    )
-    parser.add_argument("--symmetry_search_ratio", type=float, default=0.1, help="轴搜索范围比例")
-    parser.add_argument("--symmetry_search_steps", type=int, default=9, help="轴搜索步数")
-    parser.add_argument("--symmetry_snap", type=float, default=10.0, help="对称线段匹配容差")
 
     args = parser.parse_args()
     if args.device == "cuda" and not torch.cuda.is_available():
@@ -596,12 +234,6 @@ def main():
         output_dir=args.output_dir,
         category=args.category,
         device=args.device,
-        symmetry_mode=args.symmetry_mode,
-        symmetry_threshold=args.symmetry_threshold,
-        symmetry_simplify=args.symmetry_simplify,
-        symmetry_search_ratio=args.symmetry_search_ratio,
-        symmetry_search_steps=args.symmetry_search_steps,
-        symmetry_snap=args.symmetry_snap,
     )
 
 
