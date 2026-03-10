@@ -18,6 +18,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import unary_union
 from torch_geometric.data import Batch
 
 # 添加项目根目录
@@ -25,6 +27,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 # [CHANGE 1] 引入新的 FEMTopologyBuilder，同时保留旧文件中的导出和可视化工具
 from experiments.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
+from preprocess.dxf_extractor import DXFExtractor
 from shearwall_pred.config import model_config, viz_config
 from shearwall_pred.cross_validate import EnsembleShearWallGNN
 from shearwall_pred.utils import build_graph_from_dxf
@@ -56,12 +59,143 @@ def predict_shear_walls(model, data_batch, device: str = "cuda") -> np.ndarray:
     return predictions
 
 
+def _extract_infill_union(dxf_path: str):
+    extractor = DXFExtractor()
+    extractor.extract_from_file(dxf_path)
+    polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.infill_walls]
+    if not polys:
+        return None
+    return unary_union(polys).buffer(0)
+
+
+def _compute_symmetry_score(geom, axis_x: float, step: float) -> float:
+    if geom is None or geom.is_empty:
+        return 0.0
+    minx, miny, maxx, maxy = geom.bounds
+    if maxx - minx < 1e-3 or maxy - miny < 1e-3:
+        return 0.0
+
+    xs = np.arange(minx, maxx + step, step)
+    ys = np.arange(miny, maxy + step, step)
+
+    inter = 0
+    union = 0
+    for x in xs:
+        for y in ys:
+            p = Point(x, y)
+            in_a = geom.covers(p)
+            x_m = 2 * axis_x - x
+            in_b = geom.covers(Point(x_m, y))
+            if in_a or in_b:
+                union += 1
+                if in_a and in_b:
+                    inter += 1
+
+    return float(inter / union) if union > 0 else 0.0
+
+
+def detect_left_right_symmetry(
+    geom,
+    *,
+    step: float = 200.0,
+    threshold: float = 0.85,
+    search_ratio: float = 0.1,
+    search_steps: int = 9,
+):
+    if geom is None or geom.is_empty:
+        return False, None, 0.0
+
+    minx, _, maxx, _ = geom.bounds
+    center = (minx + maxx) / 2.0
+    span = max((maxx - minx) * search_ratio, 0.0)
+
+    if span < step or search_steps <= 1:
+        axes = [center]
+    else:
+        axes = np.linspace(center - span, center + span, num=search_steps)
+
+    best_axis = center
+    best_score = -1.0
+    for axis_x in axes:
+        score = _compute_symmetry_score(geom, axis_x, step)
+        if score > best_score:
+            best_score = score
+            best_axis = float(axis_x)
+
+    return best_score >= threshold, best_axis, best_score
+
+
+def _line_key(line, snap: float) -> tuple:
+    coords = list(line.coords)
+    if len(coords) < 2:
+        return ()
+    p1 = (round(coords[0][0] / snap), round(coords[0][1] / snap))
+    p2 = (round(coords[-1][0] / snap), round(coords[-1][1] / snap))
+    if p1 > p2:
+        p1, p2 = p2, p1
+    return (p1[0], p1[1], p2[0], p2[1])
+
+
+def _mirror_line(line, axis_x: float) -> LineString:
+    coords = list(line.coords)
+    if len(coords) < 2:
+        return line
+    p1 = coords[0]
+    p2 = coords[-1]
+    m1 = (2 * axis_x - p1[0], p1[1])
+    m2 = (2 * axis_x - p2[0], p2[1])
+    return LineString([m1, m2])
+
+
+def symmetrize_lines(lines, axis_x: float, *, mode: str = "union", snap: float = 10.0):
+    if not lines:
+        return lines
+
+    keys = []
+    key_map = {}
+    for line in lines:
+        key = _line_key(line, snap)
+        if not key:
+            continue
+        keys.append(key)
+        key_map.setdefault(key, []).append(line)
+
+    key_set = set(keys)
+    result = []
+
+    if mode == "intersection":
+        for line in lines:
+            m_key = _line_key(_mirror_line(line, axis_x), snap)
+            if m_key in key_set:
+                result.append(line)
+        return result
+
+    if mode == "union":
+        result.extend(lines)
+        added = set(key_set)
+        for line in lines:
+            m_line = _mirror_line(line, axis_x)
+            m_key = _line_key(m_line, snap)
+            if m_key and m_key not in added:
+                result.append(m_line)
+                added.add(m_key)
+        return result
+
+    return lines
+
+
 def run_case_study(
     dxf_path: str,
     model_dir: str,
     output_dir: str,
     category: int = None,
     device: str = "cuda",
+    symmetry_mode: str = "none",
+    symmetry_threshold: float = 0.85,
+    symmetry_grid: float = 200.0,
+    symmetry_search_ratio: float = 0.1,
+    symmetry_search_steps: int = 9,
+    symmetry_snap: float = 10.0,
 ):
     os.makedirs(output_dir, exist_ok=True)
     file_name = Path(dxf_path).stem
@@ -105,6 +239,31 @@ def run_case_study(
     print("\n[3/5] 模型预测...")
     predictions = predict_shear_walls(model, data_batch, device)
 
+    symmetry_axis = None
+    symmetry_score = 0.0
+    if symmetry_mode != "none":
+        infill_union = _extract_infill_union(dxf_path)
+        if infill_union is None:
+            infill_union = unary_union(room_polys).buffer(0)
+
+        is_sym, axis_x, score = detect_left_right_symmetry(
+            infill_union,
+            step=symmetry_grid,
+            threshold=symmetry_threshold,
+            search_ratio=symmetry_search_ratio,
+            search_steps=symmetry_search_steps,
+        )
+
+        if is_sym:
+            symmetry_axis = axis_x
+            symmetry_score = score
+            print(
+                f"  检测到左右对称 (score={symmetry_score:.3f}, axis_x={symmetry_axis:.2f}), "
+                f"将使用 {symmetry_mode} 对称化"
+            )
+        else:
+            print(f"  对称检测未通过 (best_score={score:.3f})，跳过对称化")
+
     # # 保存原始预测
     # np.save(os.path.join(output_dir, f"{file_name}_predictions.npy"), predictions)
 
@@ -120,6 +279,11 @@ def run_case_study(
         masks = masks_list[i] if masks_list else None
         # [CHANGE 3] 使用 builder.add_room
         fem_builder.add_room(room_poly, predictions[i], masks)
+
+    if symmetry_axis is not None:
+        fem_builder.raw_walls = symmetrize_lines(
+            fem_builder.raw_walls, symmetry_axis, mode=symmetry_mode, snap=symmetry_snap
+        )
 
     # [CHANGE 4] 构建并获取结果
     result = fem_builder.build()
@@ -149,8 +313,8 @@ def run_case_study(
     )
 
     # 导出数据
-    # export_to_json(result, os.path.join(output_dir, f"{file_name}_fem_data.json"))
-    # export_shearwall_coords(result, os.path.join(output_dir, f"{file_name}_shearwall_coords.json"))
+    export_to_json(result, os.path.join(output_dir, f"{file_name}_fem_data.json"))
+    export_shearwall_coords(result, os.path.join(output_dir, f"{file_name}_shearwall_coords.json"))
 
     print("\n" + "=" * 60)
     print("案例研究完成！")
@@ -223,6 +387,18 @@ def main():
     parser.add_argument("--output_dir", type=str, default="result/case_study")
     parser.add_argument("--category", type=int, default=None, choices=[0, 1, 2])
     parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument(
+        "--symmetry_mode",
+        type=str,
+        default="none",
+        choices=["none", "union", "intersection"],
+        help="对称化策略 (none/union/intersection)",
+    )
+    parser.add_argument("--symmetry_threshold", type=float, default=0.85, help="对称检测阈值")
+    parser.add_argument("--symmetry_grid", type=float, default=200.0, help="对称检测采样步长")
+    parser.add_argument("--symmetry_search_ratio", type=float, default=0.1, help="轴搜索范围比例")
+    parser.add_argument("--symmetry_search_steps", type=int, default=9, help="轴搜索步数")
+    parser.add_argument("--symmetry_snap", type=float, default=10.0, help="对称线段匹配容差")
 
     args = parser.parse_args()
     if args.device == "cuda" and not torch.cuda.is_available():
@@ -234,6 +410,12 @@ def main():
         output_dir=args.output_dir,
         category=args.category,
         device=args.device,
+        symmetry_mode=args.symmetry_mode,
+        symmetry_threshold=args.symmetry_threshold,
+        symmetry_grid=args.symmetry_grid,
+        symmetry_search_ratio=args.symmetry_search_ratio,
+        symmetry_search_steps=args.symmetry_search_steps,
+        symmetry_snap=args.symmetry_snap,
     )
 
 
