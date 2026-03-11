@@ -25,6 +25,12 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 # [CHANGE 1] 引入新的 FEMTopologyBuilder，同时保留旧文件中的导出和可视化工具
 from experiments.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
+from experiments.case_study.symmetry_postprocess import (
+    detect_left_right_symmetry,
+    load_layout_reference_geometries,
+    save_symmetry_detection_debug_plot,
+    symmetrize_raw_walls,
+)
 from shearwall_pred.config import model_config, viz_config
 from shearwall_pred.cross_validate import EnsembleShearWallGNN
 from shearwall_pred.utils import build_graph_from_dxf
@@ -62,9 +68,13 @@ def run_case_study(
     output_dir: str,
     category: int = None,
     device: str = "cuda",
+    symmetry_mode: str = "none",
+    symmetry_threshold: float = 0.85,
 ):
     os.makedirs(output_dir, exist_ok=True)
     file_name = Path(dxf_path).stem
+    debug_dir = os.path.join(output_dir, "debug")
+    os.makedirs(debug_dir, exist_ok=True)
 
     print("=" * 60)
     print("Engineering Case Study (Shapely-Enhanced)")
@@ -79,7 +89,30 @@ def run_case_study(
     # 2. 读取DXF并构建图
     print("\n[2/5] 读取DXF并构建图...")
     builder_graph = build_graph_from_dxf(dxf_path, mode="none")
+    layout_geometries = load_layout_reference_geometries(dxf_path)
+    symmetry_info = detect_left_right_symmetry(
+        layout_geometries["infill_geometries"],
+        layout_geometries["room_geometries"],
+        threshold=symmetry_threshold,
+    )
     data = builder_graph.to_pyg_data()
+
+    if symmetry_info["axis_x"] is None:
+        print("  左右对称检测: 无有效几何，跳过")
+    else:
+        print(
+            "  左右对称检测: "
+            f"source={symmetry_info['source']}, axis_x={symmetry_info['axis_x']:.2f}, "
+            f"confidence={symmetry_info['confidence']:.3f}, "
+            f"is_symmetric={symmetry_info['is_symmetric']}"
+        )
+
+    save_symmetry_detection_debug_plot(
+        layout_geometries["infill_geometries"],
+        layout_geometries["room_geometries"],
+        symmetry_info,
+        os.path.join(debug_dir, f"{file_name}_symmetry_detection.png"),
+    )
 
     if category is not None:
         cate_one_hot = np.zeros((1, 3))
@@ -121,8 +154,39 @@ def run_case_study(
         # [CHANGE 3] 使用 builder.add_room
         fem_builder.add_room(room_poly, predictions[i], masks)
 
+    raw_wall_count_before = len(fem_builder.raw_walls)
+    symmetry_applied = False
+    if symmetry_mode != "none":
+        if symmetry_info["is_symmetric"] and symmetry_info["axis_x"] is not None:
+            fem_builder.raw_walls = symmetrize_raw_walls(
+                fem_builder.raw_walls,
+                fem_builder.room_edges,
+                axis_x=symmetry_info["axis_x"],
+                mode=symmetry_mode,
+                min_length=fem_builder.min_length,
+                debug_path=os.path.join(debug_dir, f"{file_name}_symmetry_postprocess.png"),
+            )
+            symmetry_applied = True
+            print(
+                "  对称化后处理: "
+                f"mode={symmetry_mode}, raw_walls {raw_wall_count_before} -> {len(fem_builder.raw_walls)}"
+            )
+        else:
+            print(
+                "  对称化后处理: 跳过, "
+                f"mode={symmetry_mode}, confidence={symmetry_info['confidence']:.3f} < {symmetry_threshold:.3f}"
+            )
+
     # [CHANGE 4] 构建并获取结果
     result = fem_builder.build()
+    result["symmetry"] = {
+        **symmetry_info,
+        "mode": symmetry_mode,
+        "threshold": symmetry_threshold,
+        "applied": symmetry_applied,
+        "raw_wall_count_before": raw_wall_count_before,
+        "raw_wall_count_after": len(fem_builder.raw_walls),
+    }
 
     print(f"  节点数量: {result['statistics']['num_nodes']}")
     print(f"  构件总数: {result['statistics']['num_members']}")
@@ -145,8 +209,16 @@ def run_case_study(
         builder_graph,
         predictions,
         room_polys,
-        save_path=os.path.join(output_dir, f"{file_name}_prediction.png"),
+        save_path=os.path.join(output_dir, f"{file_name}_raw_pred.png"),
     )
+
+    if symmetry_applied:
+        visualize_wall_layout(
+            room_polys,
+            fem_builder.raw_walls,
+            title=f"Symmetrized Shear Wall Layout - {file_name}",
+            save_path=os.path.join(output_dir, f"{file_name}_pred_symmetrized.png"),
+        )
 
     # 导出数据
     # export_to_json(result, os.path.join(output_dir, f"{file_name}_fem_data.json"))
@@ -200,6 +272,33 @@ def visualize_prediction_comparison(builder, predictions, room_polys, save_path=
     plt.close()
 
 
+def visualize_wall_layout(room_polys, walls, title, save_path=None):
+    """可视化后处理后的剪力墙布局。"""
+    plt.switch_backend("Agg")
+
+    _, ax = plt.subplots(1, 1, figsize=(10, 8))
+
+    for room_poly in room_polys:
+        x_coords, y_coords = room_poly.exterior.xy
+        ax.fill(x_coords, y_coords, facecolor=(0.678, 0.847, 0.902, 0.2), edgecolor="lightgray", linewidth=6)
+
+    for wall in walls:
+        if wall.is_empty:
+            continue
+        x_coords, y_coords = wall.xy
+        ax.plot(x_coords, y_coords, color="crimson", linewidth=4)
+
+    ax.set_aspect("equal")
+    ax.axis("off")
+    ax.set_title(title)
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=200, bbox_inches="tight")
+        print(f"  Saved: {save_path}")
+    plt.close()
+
+
 def export_shearwall_coords(result: dict, output_path: str):
     """导出简化的剪力墙坐标"""
     shearwall_coords = []
@@ -223,6 +322,19 @@ def main():
     parser.add_argument("--output_dir", type=str, default="result/case_study")
     parser.add_argument("--category", type=int, default=None, choices=[0, 1, 2])
     parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument(
+        "--symmetry_mode",
+        type=str,
+        default="none",
+        choices=["none", "union", "intersection"],
+        help="左右对称后处理模式",
+    )
+    parser.add_argument(
+        "--symmetry_threshold",
+        type=float,
+        default=0.85,
+        help="左右对称检测 IoU 阈值",
+    )
 
     args = parser.parse_args()
     if args.device == "cuda" and not torch.cuda.is_available():
@@ -234,6 +346,8 @@ def main():
         output_dir=args.output_dir,
         category=args.category,
         device=args.device,
+        symmetry_mode=args.symmetry_mode,
+        symmetry_threshold=args.symmetry_threshold,
     )
 
 
