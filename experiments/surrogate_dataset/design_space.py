@@ -10,7 +10,6 @@ class DesignSample:
     beam_width_mm: int
     beam_depth_mm: int
     concrete_grade: int
-    group_strength_factor: float
 
     def to_dict(self) -> Dict[str, float]:
         return {
@@ -18,7 +17,6 @@ class DesignSample:
             "beam_width_mm": float(self.beam_width_mm),
             "beam_depth_mm": float(self.beam_depth_mm),
             "concrete_grade": float(self.concrete_grade),
-            "group_strength_factor": float(self.group_strength_factor),
         }
 
 
@@ -38,16 +36,12 @@ def _pick_discrete(values: List[int], u: np.ndarray) -> np.ndarray:
 
 def sample_designs(space_cfg: Dict, n_samples: int, seed: int) -> List[DesignSample]:
     rng = np.random.default_rng(seed)
-    unit = _lhs_unit(n_samples, 5, rng)
+    unit = _lhs_unit(n_samples, 4, rng)
 
     wall_t = _pick_discrete(space_cfg["wall_thickness_mm"], unit[:, 0])
     beam_b = _pick_discrete(space_cfg["beam_width_mm"], unit[:, 1])
     beam_h = _pick_discrete(space_cfg["beam_depth_mm"], unit[:, 2])
     fc = _pick_discrete(space_cfg["concrete_grade"], unit[:, 3])
-
-    sf_min = float(space_cfg["group_strength_factor"]["min"])
-    sf_max = float(space_cfg["group_strength_factor"]["max"])
-    strength_factor = sf_min + (sf_max - sf_min) * unit[:, 4]
 
     designs = []
     for i in range(n_samples):
@@ -57,8 +51,6 @@ def sample_designs(space_cfg: Dict, n_samples: int, seed: int) -> List[DesignSam
                 beam_width_mm=int(beam_b[i]),
                 beam_depth_mm=int(beam_h[i]),
                 concrete_grade=int(fc[i]),
-                group_strength_factor=float(strength_factor[i]),
             )
         )
     return designs
-

@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 
 @dataclass
@@ -30,7 +30,17 @@ class TopologySummary:
         }
 
 
-def _span(coords: List[List[float]]) -> (float, float):
+@dataclass
+class TopologyData:
+    topology_id: str
+    source_path: str
+    nodes: List[Dict[str, float]]
+    shearwalls: List[Dict[str, object]]
+    beams: List[Dict[str, object]]
+    summary: TopologySummary
+
+
+def _span(coords: List[List[float]]) -> Tuple[float, float]:
     if not coords:
         return 0.0, 0.0
     xs = [c[0] for c in coords]
@@ -38,10 +48,7 @@ def _span(coords: List[List[float]]) -> (float, float):
     return float(max(xs) - min(xs)), float(max(ys) - min(ys))
 
 
-def load_topology_summary(path: Path) -> TopologySummary:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
+def _build_summary_from_data(path: Path, data: Dict) -> TopologySummary:
     nodes = data.get("nodes", [])
     walls = data.get("shearwalls", [])
     beams = data.get("beams", [])
@@ -69,3 +76,22 @@ def load_topology_summary(path: Path) -> TopologySummary:
         wall_density=wall_density,
     )
 
+
+def load_topology_summary(path: Path) -> TopologySummary:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return _build_summary_from_data(path, data)
+
+
+def load_topology_data(path: Path) -> TopologyData:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    summary = _build_summary_from_data(path, data)
+    return TopologyData(
+        topology_id=summary.topology_id,
+        source_path=summary.source_path,
+        nodes=data.get("nodes", []),
+        shearwalls=data.get("shearwalls", []),
+        beams=data.get("beams", []),
+        summary=summary,
+    )

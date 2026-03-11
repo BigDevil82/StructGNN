@@ -11,9 +11,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from experiments.surrogate_dataset.analyzer_proxy import ProxyAnalyzer
 from experiments.surrogate_dataset.design_space import sample_designs
-from experiments.surrogate_dataset.topology_io import load_topology_summary
+from experiments.surrogate_dataset.opensees_wall_analyzer import OpenSeesWallElasticAnalyzer
+from experiments.surrogate_dataset.topology_io import load_topology_data
 
 
 def _load_config(path: Path) -> Dict:
@@ -57,19 +57,28 @@ def generate(config: Dict) -> Dict:
     topology_paths = topology_paths[:n_limit]
 
     rows = []
-    analyzer = ProxyAnalyzer(constraints=config["constraints"])
+    analyzer = OpenSeesWallElasticAnalyzer(constraints=config["constraints"])
     spp = int(config["samples_per_topology"])
     seed_base = int(config.get("seed", 42))
     context = dict(config["context"])
 
     for topo_idx, topo_path in enumerate(topology_paths):
-        topo = load_topology_summary(Path(topo_path))
-        topo_feat = topo.to_feature_dict()
+        topo = load_topology_data(Path(topo_path))
+        topo_feat = topo.summary.to_feature_dict()
         designs = sample_designs(config["design_space"], spp, seed=seed_base + topo_idx)
 
         for sample_idx, design in enumerate(designs):
             design_dict = design.to_dict()
-            response = analyzer.evaluate(topo_feat=topo_feat, design=design_dict, context=context)
+            response = analyzer.evaluate(
+                topology={
+                    "summary": topo.summary,
+                    "shearwalls": topo.shearwalls,
+                    "beams": topo.beams,
+                    "nodes": topo.nodes,
+                },
+                design=design_dict,
+                context=context,
+            )
             rows.append(
                 {
                     "topology_id": topo.topology_id,
@@ -85,11 +94,13 @@ def generate(config: Dict) -> Dict:
     _write_jsonl(Path(config["output_jsonl"]), rows)
 
     feasible_count = sum(int(r["feasible"]) for r in rows)
+    fail_count = sum(int(r.get("analysis_failed", 0.0)) for r in rows)
     meta = {
         "num_topologies": len(topology_paths),
         "samples_per_topology": spp,
         "num_samples_total": len(rows),
         "feasible_ratio": (feasible_count / len(rows)) if rows else 0.0,
+        "analysis_failure_ratio": (fail_count / len(rows)) if rows else 0.0,
         "config": config,
     }
     _write_meta(Path(config["output_meta"]), meta)
@@ -97,7 +108,7 @@ def generate(config: Dict) -> Dict:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Generate bootstrap surrogate dataset.")
+    parser = argparse.ArgumentParser(description="Generate surrogate dataset with OpenSees linear elastic model.")
     parser.add_argument(
         "--config",
         type=str,
@@ -115,6 +126,7 @@ def main():
     print(f"  num_topologies: {meta['num_topologies']}")
     print(f"  samples_total:  {meta['num_samples_total']}")
     print(f"  feasible_ratio: {meta['feasible_ratio']:.3f}")
+    print(f"  failure_ratio:  {meta['analysis_failure_ratio']:.3f}")
     print(f"  csv:            {config['output_csv']}")
     print(f"  jsonl:          {config['output_jsonl']}")
     print(f"  meta:           {config['output_meta']}")
