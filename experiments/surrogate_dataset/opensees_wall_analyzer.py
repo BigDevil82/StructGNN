@@ -18,70 +18,179 @@ class OpenSeesWallElasticAnalyzer:
         dead = float(context["dead_load_kpa"])
         live = float(context["live_load_kpa"])
 
+        slab_t = float(context.get("slab_thickness_mm", 120.0)) / 1000.0
+        density = float(context.get("density_kg_m3", 2500.0))
+        live_mass_factor = float(context.get("live_mass_factor", 0.5))
+        self_weight_scale = float(context.get("self_weight_scale", 0.65))
+        seismic_coeff = float(context.get("seismic_coeff", 0.02))
+        stiffness_reduction = float(context.get("stiffness_reduction", 0.002))
+        beam_stiffness_factor = float(context.get("beam_stiffness_factor", 0.10))
+        auto_calibrate = bool(context.get("auto_calibrate", False))
+        target_period = float(context.get("target_period_s", 0.0))
+        target_drift = float(context.get("target_drift_ratio", 0.0))
+        target_mass_dead = float(context.get("target_mass_dead_t", 0.0))
+        target_mass_live = float(context.get("target_mass_live_t", 0.0))
+
+        wall_t = float(design["wall_thickness_mm"]) / 1000.0
+        beam_b = float(design["beam_width_mm"]) / 1000.0
+        beam_h = float(design["beam_depth_mm"]) / 1000.0
+        fc = float(design["concrete_grade"])
+        e = 4700.0 * math.sqrt(fc) * 1000.0  # kN/m^2
+
         span_x = max(topology["summary"].plan_span_x_mm / 1000.0, 1.0)
         span_y = max(topology["summary"].plan_span_y_mm / 1000.0, 1.0)
         floor_area = max(span_x * span_y, 10.0)
-        floor_w = (dead + 0.5 * live) * floor_area
-        floor_m = floor_w / 9.81
 
-        wall_t = design["wall_thickness_mm"] / 1000.0
-        fc_mpa = design["concrete_grade"]
-        e_pa = 3.0e10 * (fc_mpa / 30.0) ** 0.5
-        e_kn_m2 = e_pa / 1000.0
-
-        walls = topology["shearwalls"]
-        x_walls, y_walls = self._split_walls(walls)
-        if not x_walls and not y_walls:
+        walls_x, walls_y = self._split_members(topology["shearwalls"])
+        beams_x, beams_y = self._split_members(topology["beams"])
+        if not walls_x and not walls_y:
             return self._failed_result("no_walls")
 
-        drift_x, period_x, base_shear_x = self._analyze_direction(
-            ops=ops,
-            wall_count=len(y_walls),  # walls parallel Y resist X drift
-            wall_lengths=y_walls,
+        mass_dead, mass_live, mass_total = self._estimate_mass_ton(
+            floor_area=floor_area,
+            total_wall_len=sum(walls_x + walls_y),
+            total_beam_len=sum(beams_x + beams_y),
             wall_t=wall_t,
-            e_kn_m2=e_kn_m2,
-            num_stories=num_stories,
+            beam_b=beam_b,
+            beam_h=beam_h,
+            slab_t=slab_t,
+            density=density,
+            dead=dead,
+            live=live,
+            live_mass_factor=live_mass_factor,
+            self_weight_scale=self_weight_scale,
             story_h=story_h,
-            floor_w=floor_w,
-            floor_m=floor_m,
-        )
-        drift_y, period_y, base_shear_y = self._analyze_direction(
-            ops=ops,
-            wall_count=len(x_walls),  # walls parallel X resist Y drift
-            wall_lengths=x_walls,
-            wall_t=wall_t,
-            e_kn_m2=e_kn_m2,
             num_stories=num_stories,
-            story_h=story_h,
-            floor_w=floor_w,
-            floor_m=floor_m,
         )
+        mass_calib_dead = 1.0
+        mass_calib_live = 1.0
+        if target_mass_dead > 0.0 and mass_dead > 0.0:
+            mass_calib_dead = target_mass_dead / mass_dead
+            self_weight_scale *= mass_calib_dead
+        if target_mass_live > 0.0 and mass_live > 0.0:
+            mass_calib_live = target_mass_live / mass_live
+            live_mass_factor *= mass_calib_live
 
+        if mass_calib_dead != 1.0 or mass_calib_live != 1.0:
+            mass_dead, mass_live, mass_total = self._estimate_mass_ton(
+                floor_area=floor_area,
+                total_wall_len=sum(walls_x + walls_y),
+                total_beam_len=sum(beams_x + beams_y),
+                wall_t=wall_t,
+                beam_b=beam_b,
+                beam_h=beam_h,
+                slab_t=slab_t,
+                density=density,
+                dead=dead,
+                live=live,
+                live_mass_factor=live_mass_factor,
+                self_weight_scale=self_weight_scale,
+                story_h=story_h,
+                num_stories=num_stories,
+            )
+        if mass_total <= 0.0:
+            return self._failed_result("invalid_mass")
+
+        floor_mass = mass_total / num_stories
+
+        drift_x, period_x = self._analyze_direction(
+            ops=ops,
+            wall_lengths=walls_y,
+            beam_lengths=beams_x,
+            wall_t=wall_t,
+            beam_b=beam_b,
+            beam_h=beam_h,
+            e=e,
+            story_h=story_h,
+            num_stories=num_stories,
+            floor_mass=floor_mass,
+            seismic_coeff=seismic_coeff,
+            stiffness_reduction=stiffness_reduction,
+            beam_stiffness_factor=beam_stiffness_factor,
+        )
+        drift_y, period_y = self._analyze_direction(
+            ops=ops,
+            wall_lengths=walls_x,
+            beam_lengths=beams_y,
+            wall_t=wall_t,
+            beam_b=beam_b,
+            beam_h=beam_h,
+            e=e,
+            story_h=story_h,
+            num_stories=num_stories,
+            floor_mass=floor_mass,
+            seismic_coeff=seismic_coeff,
+            stiffness_reduction=stiffness_reduction,
+            beam_stiffness_factor=beam_stiffness_factor,
+        )
         if drift_x is None and drift_y is None:
             return self._failed_result("analysis_not_converged")
 
-        drift_vals = [v for v in [drift_x, drift_y] if v is not None]
-        period_vals = [v for v in [period_x, period_y] if v is not None]
-        shear_vals = [v for v in [base_shear_x, base_shear_y] if v is not None]
+        drift = max(v for v in [drift_x, drift_y] if v is not None)
+        period = max(v for v in [period_x, period_y] if v is not None)
+        calib_k = 1.0
+        calib_s = 1.0
 
-        drift_max = max(drift_vals) if drift_vals else 1.0
-        period = max(period_vals) if period_vals else 99.0
-        base_shear = max(shear_vals) if shear_vals else 0.0
-        total_weight = floor_w * num_stories
-        shear_weight_ratio = base_shear / max(total_weight, 1e-6)
+        if auto_calibrate and (target_period > 0.0 or target_drift > 0.0):
+            if target_period > 0.0 and period > 0.0:
+                calib_k = (period / target_period) ** 2
+                stiffness_reduction = max(stiffness_reduction * calib_k, 1.0e-6)
 
-        wall_area_total = wall_t * sum(x_walls + y_walls)
-        fc_kn_m2 = fc_mpa * 1000.0
-        gravity_axial = total_weight / max(len(walls), 1)
-        axial_ratio = gravity_axial / max(fc_kn_m2 * (wall_area_total / max(len(walls), 1)), 1e-6)
+            if target_drift > 0.0 and drift > 0.0:
+                drift_after_k = drift / max(calib_k, 1.0e-6)
+                calib_s = target_drift / max(drift_after_k, 1.0e-12)
+                seismic_coeff = max(seismic_coeff * calib_s, 1.0e-6)
 
-        drift_margin = self.constraints["drift_limit"] - drift_max
+            drift_x, period_x = self._analyze_direction(
+                ops=ops,
+                wall_lengths=walls_y,
+                beam_lengths=beams_x,
+                wall_t=wall_t,
+                beam_b=beam_b,
+                beam_h=beam_h,
+                e=e,
+                story_h=story_h,
+                num_stories=num_stories,
+                floor_mass=floor_mass,
+                seismic_coeff=seismic_coeff,
+                stiffness_reduction=stiffness_reduction,
+                beam_stiffness_factor=beam_stiffness_factor,
+            )
+            drift_y, period_y = self._analyze_direction(
+                ops=ops,
+                wall_lengths=walls_x,
+                beam_lengths=beams_y,
+                wall_t=wall_t,
+                beam_b=beam_b,
+                beam_h=beam_h,
+                e=e,
+                story_h=story_h,
+                num_stories=num_stories,
+                floor_mass=floor_mass,
+                seismic_coeff=seismic_coeff,
+                stiffness_reduction=stiffness_reduction,
+                beam_stiffness_factor=beam_stiffness_factor,
+            )
+            if drift_x is None and drift_y is None:
+                return self._failed_result("analysis_not_converged_after_calibration")
+
+            drift = max(v for v in [drift_x, drift_y] if v is not None)
+            period = max(v for v in [period_x, period_y] if v is not None)
+
+        shear_weight_ratio = seismic_coeff
+
+        total_wall_area = wall_t * sum(walls_x + walls_y)
+        avg_wall_area = total_wall_area / max(len(topology["shearwalls"]), 1)
+        avg_wall_axial = (mass_total * 9.81) / max(len(topology["shearwalls"]), 1)
+        axial_ratio = avg_wall_axial / max(fc * 1000.0 * avg_wall_area, 1.0e-6)
+
+        drift_margin = self.constraints["drift_limit"] - drift
         axial_margin = self.constraints["axial_ratio_limit"] - axial_ratio
         shear_margin = shear_weight_ratio - self.constraints["shear_weight_ratio_min"]
-        feasible = 1.0 if (drift_margin >= 0 and axial_margin >= 0 and shear_margin >= 0) else 0.0
+        feasible = 1.0 if (drift_margin >= 0.0 and axial_margin >= 0.0 and shear_margin >= 0.0) else 0.0
 
         return {
-            "drift": drift_max,
+            "drift": drift,
             "period": period,
             "axial_ratio_max": axial_ratio,
             "shear_weight_ratio": shear_weight_ratio,
@@ -96,109 +205,142 @@ class OpenSeesWallElasticAnalyzer:
             "drift_y": drift_y if drift_y is not None else -1.0,
             "period_x": period_x if period_x is not None else -1.0,
             "period_y": period_y if period_y is not None else -1.0,
+            "mass_dead_t": mass_dead,
+            "mass_live_t": mass_live,
+            "mass_total_t": mass_total,
+            "calib_k_factor": calib_k,
+            "calib_seismic_factor": calib_s,
+            "calib_mass_dead_factor": mass_calib_dead,
+            "calib_mass_live_factor": mass_calib_live,
         }
 
     def _analyze_direction(
         self,
         ops,
-        wall_count: int,
         wall_lengths: List[float],
+        beam_lengths: List[float],
         wall_t: float,
-        e_kn_m2: float,
-        num_stories: int,
+        beam_b: float,
+        beam_h: float,
+        e: float,
         story_h: float,
-        floor_w: float,
-        floor_m: float,
-    ) -> Tuple[float, float, float]:
-        if wall_count <= 0:
-            return None, None, None
+        num_stories: int,
+        floor_mass: float,
+        seismic_coeff: float,
+        stiffness_reduction: float,
+        beam_stiffness_factor: float,
+    ) -> Tuple[float, float]:
+        if not wall_lengths:
+            return None, None
+
+        # Story lateral stiffness from wall + coupling beam contributions.
+        i_wall = sum(wall_t * (lw**3) / 12.0 for lw in wall_lengths)
+        i_beam = len(beam_lengths) * beam_b * (beam_h**3) / 12.0
+        i_eff = max(stiffness_reduction * (i_wall + beam_stiffness_factor * i_beam), 1.0e-5)
+        k_story = max(12.0 * e * i_eff / (story_h**3), 1.0)  # kN/m
 
         ops.wipe()
-        ops.model("basic", "-ndm", 2, "-ndf", 3)
-        ops.geomTransf("Linear", 1)
+        ops.model("basic", "-ndm", 1, "-ndf", 1)
 
         for i in range(num_stories + 1):
-            ops.node(i + 1, 0.0, i * story_h)
+            tag = i + 1
+            ops.node(tag, i * story_h)
             if i == 0:
-                ops.fix(i + 1, 1, 1, 1)
+                ops.fix(tag, 1)
             else:
-                ops.mass(i + 1, floor_m, 1e-9, 1e-9)
+                ops.mass(tag, floor_mass)
 
-        # Multiple walls combined in parallel: sum(A), sum(I)
-        area_sum = 0.0
-        inertia_sum = 0.0
-        for lw in wall_lengths:
-            l = max(lw, 0.2)
-            area_sum += wall_t * l
-            inertia_sum += wall_t * (l**3) / 12.0
-        area_sum = max(area_sum, 0.05)
-        inertia_sum = max(inertia_sum, 1e-5)
-
+        e_truss = 1.0e6
+        mat_tag = 1
+        ops.uniaxialMaterial("Elastic", mat_tag, e_truss)
         for i in range(1, num_stories + 1):
-            ops.element("elasticBeamColumn", i, i, i + 1, area_sum, e_kn_m2, inertia_sum, 1)
+            area = max(k_story * story_h / e_truss, 1.0e-9)
+            ops.element("truss", i, i, i + 1, area, mat_tag)
+
+        lambdas = ops.eigen(1)
+        if not lambdas:
+            return None, None
+        lam = float(lambdas[0])
+        if lam <= 0.0:
+            return None, None
+        period = 2.0 * math.pi / math.sqrt(lam)
+
+        total_weight = floor_mass * 9.81 * num_stories
+        base_shear = seismic_coeff * total_weight
+        idx_sum = num_stories * (num_stories + 1) / 2.0
 
         ops.timeSeries("Linear", 1)
         ops.pattern("Plain", 1, 1)
         for i in range(1, num_stories + 1):
-            ops.load(i + 1, 0.0, -floor_w, 0.0)
+            fi = base_shear * (i / idx_sum)
+            ops.load(i + 1, fi)
 
         ops.system("BandGeneral")
         ops.numberer("RCM")
         ops.constraints("Plain")
-        ops.test("NormDispIncr", 1.0e-10, 50)
-        ops.algorithm("Newton")
+        ops.algorithm("Linear")
         ops.integrator("LoadControl", 1.0)
         ops.analysis("Static")
         if ops.analyze(1) != 0:
-            return None, None, None
-
-        ops.loadConst("-time", 0.0)
-        ops.timeSeries("Linear", 2)
-        ops.pattern("Plain", 2, 2)
-        lateral_base = 0.08 * floor_w * num_stories
-        story_idx_sum = num_stories * (num_stories + 1) / 2.0
-        for i in range(1, num_stories + 1):
-            fi = lateral_base * (i / story_idx_sum)
-            ops.load(i + 1, fi, 0.0, 0.0)
-
-        if ops.analyze(1) != 0:
-            return None, None, None
+            return None, None
 
         drift_max = 0.0
         for i in range(1, num_stories + 1):
-            d = abs((ops.nodeDisp(i + 1, 1) - ops.nodeDisp(i, 1)) / story_h)
-            drift_max = max(drift_max, d)
+            u1 = float(ops.nodeDisp(i)[0])
+            u2 = float(ops.nodeDisp(i + 1)[0])
+            drift_i = abs((u2 - u1) / story_h)
+            drift_max = max(drift_max, drift_i)
 
-        ops.reactions()
-        base_shear = abs(ops.nodeReaction(1, 1))
-
-        lambdas = ops.eigen(1)
-        if not lambdas:
-            period = 99.0
-        else:
-            lam = float(lambdas[0])
-            period = (2.0 * math.pi / math.sqrt(lam)) if lam > 0 else 99.0
-
-        return drift_max, period, base_shear
+        return drift_max, period
 
     @staticmethod
-    def _split_walls(walls: List[Dict]) -> Tuple[List[float], List[float]]:
-        x_walls: List[float] = []
-        y_walls: List[float] = []
+    def _estimate_mass_ton(
+        floor_area: float,
+        total_wall_len: float,
+        total_beam_len: float,
+        wall_t: float,
+        beam_b: float,
+        beam_h: float,
+        slab_t: float,
+        density: float,
+        dead: float,
+        live: float,
+        live_mass_factor: float,
+        self_weight_scale: float,
+        story_h: float,
+        num_stories: int,
+    ) -> Tuple[float, float, float]:
+        # floor self-weight from wall, beam, slab volumes
+        vol_wall = total_wall_len * wall_t * story_h
+        vol_beam = total_beam_len * beam_b * beam_h
+        vol_slab = floor_area * slab_t
+        self_mass_floor = self_weight_scale * density * (vol_wall + vol_beam + vol_slab) / 1000.0
+
+        dead_mass_floor = dead * floor_area / 9.81
+        live_mass_floor = live_mass_factor * live * floor_area / 9.81
+
+        dead_mass = (self_mass_floor + dead_mass_floor) * num_stories
+        live_mass = live_mass_floor * num_stories
+        return dead_mass, live_mass, dead_mass + live_mass
+
+    @staticmethod
+    def _split_members(members: List[Dict]) -> Tuple[List[float], List[float]]:
+        x_list: List[float] = []
+        y_list: List[float] = []
         tol = 1.0e-6
-        for w in walls:
-            s = w.get("start", [0.0, 0.0])
-            e = w.get("end", [0.0, 0.0])
+        for m in members:
+            s = m.get("start", [0.0, 0.0])
+            e = m.get("end", [0.0, 0.0])
             dx = float(e[0]) - float(s[0])
             dy = float(e[1]) - float(s[1])
-            length_m = float(w.get("length", 0.0)) / 1000.0
-            if length_m <= 0.0:
+            length = float(m.get("length", 0.0)) / 1000.0
+            if length <= 0.0:
                 continue
             if abs(dy) <= tol and abs(dx) > tol:
-                x_walls.append(length_m)
+                x_list.append(length)
             elif abs(dx) <= tol and abs(dy) > tol:
-                y_walls.append(length_m)
-        return x_walls, y_walls
+                y_list.append(length)
+        return x_list, y_list
 
     @staticmethod
     def _cost_index(topo_feat: Dict[str, float], design: Dict[str, float], n_story: int, area: float) -> float:
@@ -221,7 +363,7 @@ class OpenSeesWallElasticAnalyzer:
             "drift_margin": -1.0,
             "axial_margin": -9.0,
             "shear_margin": -1.0,
-            "cost_index": 1e9,
+            "cost_index": 1.0e9,
             "feasible": 0.0,
             "analysis_failed": 1.0,
             "failure_reason": reason,
@@ -229,5 +371,11 @@ class OpenSeesWallElasticAnalyzer:
             "drift_y": -1.0,
             "period_x": -1.0,
             "period_y": -1.0,
+            "mass_dead_t": -1.0,
+            "mass_live_t": -1.0,
+            "mass_total_t": -1.0,
+            "calib_k_factor": -1.0,
+            "calib_seismic_factor": -1.0,
+            "calib_mass_dead_factor": -1.0,
+            "calib_mass_live_factor": -1.0,
         }
-

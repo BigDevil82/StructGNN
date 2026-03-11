@@ -24,7 +24,10 @@ Required keys:
 - Analysis type: linear elastic static + modal.
 - X and Y directions are analyzed separately.
 - Walls are grouped by orientation and assembled as equivalent parallel wall systems.
+- Mass explicitly includes slab self-weight + additional dead load + live-load mass factor.
 - Drift limit in config is set to `1/1000` (`0.001`).
+- You can calibrate by `self_weight_scale`, `stiffness_reduction`, `beam_stiffness_factor`, and `seismic_coeff`.
+- `auto_calibrate` can align one benchmark case to `target_period_s` and `target_drift_ratio`.
 
 ## Quick start (conda env `dl`)
 

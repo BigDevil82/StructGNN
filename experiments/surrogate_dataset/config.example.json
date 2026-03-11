@@ -4,12 +4,24 @@
   "samples_per_topology": 80,
   "seed": 42,
   "context": {
-    "num_stories": 15,
+    "num_stories": 18,
     "story_height_m": 3.0,
     "site_intensity": 7,
     "dead_load_kpa": 5.0,
     "live_load_kpa": 2.0,
-    "concrete_grade_default": 40
+    "slab_thickness_mm": 120,
+    "density_kg_m3": 2500,
+    "live_mass_factor": 0.5,
+    "self_weight_scale": 0.65,
+    "seismic_coeff": 0.02,
+    "stiffness_reduction": 0.002,
+    "beam_stiffness_factor": 0.10,
+    "auto_calibrate": true,
+    "target_period_s": 1.22,
+    "target_drift_ratio": 0.000143,
+    "target_mass_dead_t": 6881.712,
+    "target_mass_live_t": 414.435,
+    "concrete_grade_default": 30
   },
   "design_space": {
     "wall_thickness_mm": [
@@ -31,6 +43,7 @@
       600
     ],
     "concrete_grade": [
+      30,
       35,
       40,
       45,
