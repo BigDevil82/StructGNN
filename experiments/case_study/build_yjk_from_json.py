@@ -43,6 +43,32 @@ def _dedup_segments(segments: Iterable[Segment]) -> list[Segment]:
     return result
 
 
+def _scale_segment(segment: Segment, coord_scale: float) -> Segment:
+    (x1, y1), (x2, y2) = segment
+    return ((x1 * coord_scale, y1 * coord_scale), (x2 * coord_scale, y2 * coord_scale))
+
+
+def _translate_segments_to_origin(
+    wall_segments: list[Segment], beam_segments: list[Segment]
+) -> tuple[list[Segment], list[Segment], tuple[float, float]]:
+    all_points = [point for segment in [*wall_segments, *beam_segments] for point in segment]
+    if not all_points:
+        return wall_segments, beam_segments, (0.0, 0.0)
+
+    min_x = min(point[0] for point in all_points)
+    min_y = min(point[1] for point in all_points)
+
+    def _shift(segment: Segment) -> Segment:
+        (x1, y1), (x2, y2) = segment
+        return ((x1 - min_x, y1 - min_y), (x2 - min_x, y2 - min_y))
+
+    return (
+        [_shift(segment) for segment in wall_segments],
+        [_shift(segment) for segment in beam_segments],
+        (min_x, min_y),
+    )
+
+
 def load_segments_from_json(json_path: Path) -> tuple[list[Segment], list[Segment]]:
     with json_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
@@ -111,22 +137,29 @@ def build_model_from_json(
     if not wall_segments and not (with_beam and beam_segments):
         raise ValueError("JSON 中未找到可建模构件")
 
+    wall_segments = [_scale_segment(segment, coord_scale) for segment in wall_segments]
+    beam_segments = [_scale_segment(segment, coord_scale) for segment in beam_segments]
+
+    modeled_beam_segments = beam_segments if with_beam else []
+    wall_segments, modeled_beam_segments, translation = _translate_segments_to_origin(
+        wall_segments,
+        modeled_beam_segments,
+    )
+    if with_beam:
+        beam_segments = modeled_beam_segments
+
     data_func = DataFunc()  # type: ignore
     std_flr = data_func.StdFlr_Generate(story_height, dead_load, live_load)
 
     wall_sect = data_func.WallSect_Def(6, 1, wall_thickness)
     beam_sect = data_func.BeamSect_Def(6, 1, beam_size) if with_beam and beam_segments else None
 
-    def _scaled(seg: Segment) -> Segment:
-        (x1, y1), (x2, y2) = seg
-        return ((x1 * coord_scale, y1 * coord_scale), (x2 * coord_scale, y2 * coord_scale))
-
     for seg in wall_segments:
-        _add_wall_or_beam(data_func, std_flr, wall_sect, _scaled(seg), is_wall=True)
+        _add_wall_or_beam(data_func, std_flr, wall_sect, seg, is_wall=True)
 
     if beam_sect is not None:
         for seg in beam_segments:
-            _add_wall_or_beam(data_func, std_flr, beam_sect, _scaled(seg), is_wall=False)
+            _add_wall_or_beam(data_func, std_flr, beam_sect, seg, is_wall=False)
 
     if story_num > 1:
         data_func.Floors_Assemb(0, std_flr, story_num, story_height)
@@ -149,14 +182,15 @@ def build_model_from_json(
     print(
         f"建模完成: 剪力墙 {len(wall_segments)} 段, "
         f"梁 {len(beam_segments) if with_beam else 0} 段, "
-        f"层数 {story_num}, 层高 {story_height}mm, 坐标缩放系数 {coord_scale}"
+        f"层数 {story_num}, 层高 {story_height}mm, 坐标缩放系数 {coord_scale}, "
+        f"平移量 ({translation[0]:.2f}, {translation[1]:.2f})"
     )
 
 
 def pyyjks():
     # 直接在这里修改参数（用于在 YJK 中以命令方式调用脚本）
     json_path = (
-        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\result\case_study\L27_136_fem_data.json"
+        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\result\case_study\archi_comp_fem_data.json"
     )
     story_num = 18
     story_height = 3000
