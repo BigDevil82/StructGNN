@@ -13,7 +13,10 @@ Current goal:
 - `topology_io.py`: load and summarize topology JSON files.
 - `design_space.py`: grouped design variables and LHS sampling.
 - `analyzer_proxy.py`: fast proxy evaluator (replaceable by OpenSees evaluator later).
-- `config.example.json`: example config.
+- `config.example.json`: proxy example config.
+- `opensees_analyzer.py`: OpenSeesPy equivalent shear-building analyzer.
+- `generate_dataset_opensees.py`: dataset generation entrypoint using OpenSees.
+- `config.opensees.example.json`: OpenSees example config.
 
 ## Input topology format
 
@@ -37,13 +40,28 @@ Outputs:
 - JSONL dataset (`output_jsonl`)
 - metadata JSON (`output_meta`)
 
-## Next step: OpenSees integration
+## OpenSees run (equivalent model)
 
-Replace `ProxyAnalyzer` in `generate_dataset.py` with your `OpenSeesAnalyzer`.
-The interface is intentionally simple:
+```powershell
+pip install openseespy
+python experiments/surrogate_dataset/generate_dataset_opensees.py `
+  --config experiments/surrogate_dataset/config.opensees.example.json
+```
+
+The OpenSees version currently uses an equivalent stick model for throughput.
+It already outputs:
+- `drift`
+- `period`
+- `axial_ratio_max`
+- `shear_weight_ratio`
+- `feasible`
+- `analysis_failed`, `failure_reason`
+
+## Next step: refine OpenSees model
+
+The analyzer interface is intentionally simple:
 
 - input: `topology_features`, `design_variables`, `context`
 - output: response dict (`drift`, `period`, `axial_ratio`, `feasible`, ...)
 
-This lets you keep the same sampling/aggregation pipeline while switching analyzers.
-
+This lets you keep the same sampling/aggregation pipeline while refining analyzers.
