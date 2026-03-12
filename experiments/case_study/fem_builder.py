@@ -366,15 +366,12 @@ class FEMTopologyBuilder:
                 if is_h_i == is_h_j:
                     # 共线方向：端点可能落在对方内部
                     self._check_collinear_splits(
-                        pi1, pi2, len_i, pj1, pj2, len_j,
-                        is_h_i, tolerance, split_ratios, i, j
+                        pi1, pi2, len_i, pj1, pj2, len_j, is_h_i, tolerance, split_ratios, i, j
                     )
                 else:
                     # 正交交叉
                     self._check_orthogonal_intersection(
-                        pi1, pi2, vec_i, len_i, is_h_i,
-                        pj1, pj2, vec_j, len_j,
-                        tolerance, split_ratios, i, j
+                        pi1, pi2, vec_i, len_i, is_h_i, pj1, pj2, vec_j, len_j, tolerance, split_ratios, i, j
                     )
 
         # 根据打断点拆分线段
@@ -406,11 +403,13 @@ class FEMTopologyBuilder:
                 end_pt = tuple(p1 + vec * r_end)
                 new_line = LineString([start_pt, end_pt])
                 if new_line.length >= 1:
-                    result.append({
-                        "geometry": new_line,
-                        "type": seg["type"],
-                        "length": new_line.length,
-                    })
+                    result.append(
+                        {
+                            "geometry": new_line,
+                            "type": seg["type"],
+                            "length": new_line.length,
+                        }
+                    )
 
         n_splits = len(result) - len(segments)
         if n_splits > 0:
@@ -419,8 +418,7 @@ class FEMTopologyBuilder:
         return result
 
     def _check_collinear_splits(
-        self, pi1, pi2, len_i, pj1, pj2, len_j,
-        is_horizontal, tolerance, split_ratios, i, j
+        self, pi1, pi2, len_i, pj1, pj2, len_j, is_horizontal, tolerance, split_ratios, i, j
     ):
         """检查共线线段的端点是否落在对方内部，若是则添加打断点"""
         if is_horizontal:
@@ -458,9 +456,7 @@ class FEMTopologyBuilder:
                     split_ratios[j].append(r)
 
     def _check_orthogonal_intersection(
-        self, pi1, pi2, vec_i, len_i, is_h_i,
-        pj1, pj2, vec_j, len_j,
-        tolerance, split_ratios, i, j
+        self, pi1, pi2, vec_i, len_i, is_h_i, pj1, pj2, vec_j, len_j, tolerance, split_ratios, i, j
     ):
         """检查正交线段是否相交，若是则在交点处添加打断点"""
         if is_h_i:
@@ -477,8 +473,9 @@ class FEMTopologyBuilder:
             v_ymin, v_ymax = min(pi1[1], pi2[1]), max(pi1[1], pi2[1])
 
         # 检查交点是否在两条线段的范围内（不含端点附近）
-        if not (h_xmin + tolerance < v_x < h_xmax - tolerance
-                and v_ymin + tolerance < h_y < v_ymax - tolerance):
+        if not (
+            h_xmin + tolerance < v_x < h_xmax - tolerance and v_ymin + tolerance < h_y < v_ymax - tolerance
+        ):
             # 交点不在两条线段的严格内部 → 可能是T字或端点连接
             # 仍需检查：交点是否至少在一条线段内部（T字情况）
             in_h = h_xmin - tolerance <= v_x <= h_xmax + tolerance
@@ -583,6 +580,8 @@ class FEMTopologyBuilder:
             "slabs": slabs,
             "statistics": {
                 "num_nodes": len(self.nodes),
+                "min_xy": np.min(self.nodes, axis=0).tolist(),
+                "max_xy": np.max(self.nodes, axis=0).tolist(),
                 "num_members": len(self.elements),
                 "num_shearwalls": sum(1 for m in self.elements if m["type"] == "shearwall"),
                 "num_beams": sum(1 for m in self.elements if m["type"] == "beam"),

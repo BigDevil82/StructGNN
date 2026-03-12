@@ -23,15 +23,15 @@ from torch_geometric.data import Batch
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from experiments.case_study.etabs_util import (
-    ShellType,
-    SlabType,
-    create_ETABS_instance,
-    define_beam_sec,
-    define_Conc_Mat,
-    define_slab_sec,
-    define_wall_sec,
-)
+from experiments.case_study.etabs_util import (ShellType, SlabType,
+                                               create_ETABS_instance,
+                                               define_beam_sec,
+                                               define_Conc_Mat,
+                                               define_slab_sec,
+                                               define_wall_sec)
+from experiments.case_study.symmetry_postprocess import (
+    detect_left_right_symmetry, load_layout_reference_geometries,
+    symmetrize_raw_walls)
 from experiments.case_study.unit import GPa, M, kN, mm
 from shearwall_pred.config import model_config, viz_config
 from shearwall_pred.cross_validate import EnsembleShearWallGNN
@@ -47,6 +47,8 @@ DXF_PATH = "dxf/shearwall_split_8_2/test/L27_136.dxf"  # 输入DXF文件路径
 MODEL_DIR = "result/shearwall_pred/0126_cond_kfold"  # 训练好的模型目录
 CATEGORY = None  # 建筑类别 (0/1/2/None)
 DEVICE = "cuda"  # 推理设备
+SYMMETRY_MODE = "none"  # 对称后处理模式: none/union/intersection
+SYMMETRY_THRESHOLD = 0.85  # 对称检测阈值
 
 
 MODEL_SAVE_DIR = "result/case_study/etabs_file"  # ETABS模型保存目录
@@ -58,18 +60,20 @@ ETABS_PROGRAM_PATH = r"C:\Program Files\Computers and Structures\ETABS 18\ETABS.
 ATTACH_TO_INSTANCE = True
 
 ######################## 结构参数 ########################
-SCALE_FACTOR = 0.6  # 坐标缩放比例（根据DXF实际尺寸调整，确保建模尺寸合理）
-floor_num = 15  # 楼层数
+SCALE_FACTOR = 1.0  # 坐标缩放比例（根据DXF实际尺寸调整，确保建模尺寸合理）
+floor_num = 18  # 楼层数
 story_height = 3.0 * M  # 层高（米）
-wall_thick = 400 * mm  # 剪力墙厚度
-slab_thick = 150 * mm  # 楼板厚度
+wall_thick = 200 * mm  # 剪力墙厚度
+slab_thick = 120 * mm  # 楼板厚度
 beam_h = 500 * mm  # 梁高
 beam_b = 300 * mm  # 梁宽
 
-FC = 40  # 混凝土强度等级 (C40)
+FC = 30  # 混凝土强度等级 (C40)
 # 荷载参数（kN/m²）
 DEAD_LOAD = 5.0  # 附加恒载（面层、隔墙等，不含自重）
 LIVE_LOAD = 2.0  # 活载（住宅）
+APPLY_RIGID_DIAPHRAGM = True  # 是否为每层施加刚性楼板约束
+DIAPHRAGM_Z_TOL = 1e-4  # 节点归层容差（m）
 
 ##############################################################################
 
@@ -89,7 +93,13 @@ def load_ensemble_model(model_dir: str, device: str) -> EnsembleShearWallGNN:
 
 
 def predict_fem_members(
-    dxf_path: str, model_dir: str, category: int, device: str, use_gt: bool = False
+    dxf_path: str,
+    model_dir: str,
+    category: int,
+    device: str,
+    use_gt: bool = False,
+    symmetry_mode: str = "none",
+    symmetry_threshold: float = 0.85,
 ) -> dict:
     """
     从DXF图纸获取剪力墙和梁的布置，返回FEM构件结果。
@@ -105,6 +115,22 @@ def predict_fem_members(
 
     # 1. 读取DXF并构建图
     builder_graph = build_graph_from_dxf(dxf_path, mode="none")
+    layout_geometries = load_layout_reference_geometries(dxf_path)
+    symmetry_info = detect_left_right_symmetry(
+        layout_geometries["infill_geometries"],
+        layout_geometries["room_geometries"],
+        threshold=symmetry_threshold,
+    )
+
+    if symmetry_info["axis_x"] is None:
+        print("  左右对称检测: 无有效几何，跳过")
+    else:
+        print(
+            "  左右对称检测: "
+            f"source={symmetry_info['source']}, axis_x={symmetry_info['axis_x']:.2f}, "
+            f"confidence={symmetry_info['confidence']:.3f}, "
+            f"is_symmetric={symmetry_info['is_symmetric']}"
+        )
 
     # 提取房间信息
     node_ids = list(builder_graph.graph.nodes())
@@ -143,7 +169,37 @@ def predict_fem_members(
     for i, room_poly in enumerate(room_polys):
         fem_builder.add_room(room_poly, sw_vectors[i], masks_list[i])
 
+    raw_wall_count_before = len(fem_builder.raw_walls)
+    symmetry_applied = False
+    if symmetry_mode != "none":
+        if symmetry_info["is_symmetric"] and symmetry_info["axis_x"] is not None:
+            fem_builder.raw_walls = symmetrize_raw_walls(
+                fem_builder.raw_walls,
+                fem_builder.room_edges,
+                axis_x=symmetry_info["axis_x"],
+                mode=symmetry_mode,
+                min_length=fem_builder.min_length,
+            )
+            symmetry_applied = True
+            print(
+                "  对称化后处理: "
+                f"mode={symmetry_mode}, raw_walls {raw_wall_count_before} -> {len(fem_builder.raw_walls)}"
+            )
+        else:
+            print(
+                "  对称化后处理: 跳过, "
+                f"mode={symmetry_mode}, confidence={symmetry_info['confidence']:.3f} < {symmetry_threshold:.3f}"
+            )
+
     result = fem_builder.build()
+    result["symmetry"] = {
+        **symmetry_info,
+        "mode": symmetry_mode,
+        "threshold": symmetry_threshold,
+        "applied": symmetry_applied,
+        "raw_wall_count_before": raw_wall_count_before,
+        "raw_wall_count_after": len(fem_builder.raw_walls),
+    }
 
     source = "GT" if use_gt else "预测"
     stats = result["statistics"]
@@ -232,6 +288,91 @@ def check_ret(ret, msg: str = ""):
     return ret
 
 
+def _define_diaphragm(etabs, diaphragm_name: str) -> int:
+    """定义楼板约束，优先使用 ETABS Diaphragm API。"""
+    if hasattr(etabs, "Diaphragm") and hasattr(etabs.Diaphragm, "SetDiaphragm"):
+        try:
+            # False 表示刚性楼板（非半刚性）
+            return etabs.Diaphragm.SetDiaphragm(diaphragm_name, False)
+        except Exception:
+            pass
+
+    if hasattr(etabs, "ConstraintDef") and hasattr(etabs.ConstraintDef, "SetDiaphragm"):
+        try:
+            return etabs.ConstraintDef.SetDiaphragm(diaphragm_name, 3)
+        except Exception:
+            pass
+
+    return -1
+
+
+def _assign_point_diaphragm(etabs, point_name: str, diaphragm_name: str) -> int:
+    """给节点施加楼板约束，兼容不同 ETABS 版本的接口签名。"""
+    if not hasattr(etabs, "PointObj"):
+        return -1
+
+    setters = [
+        lambda: etabs.PointObj.SetDiaphragm(point_name, 3, diaphragm_name),
+        lambda: etabs.PointObj.SetDiaphragm(point_name, diaphragm_name),
+        lambda: etabs.PointObj.SetConstraint(point_name, diaphragm_name),
+    ]
+    for setter in setters:
+        try:
+            return setter()
+        except Exception:
+            continue
+    return -1
+
+
+def apply_rigid_diaphragm_constraints(
+    etabs,
+    floor_num: int,
+    story_height: float,
+    z_tol: float = 1e-4,
+):
+    """为每层创建刚性楼板约束，并将该层所有节点施加到对应约束。"""
+    print("\n[约束] 创建并施加每层刚性楼板约束...")
+
+    point_ret = etabs.PointObj.GetNameList()
+    if check_ret(point_ret, "获取节点列表") != 0:
+        print("  跳过刚性楼板约束：无法获取节点列表")
+        return
+
+    point_names = point_ret[1]
+    points_by_floor = {i: [] for i in range(1, floor_num + 1)}
+
+    for p_name in point_names:
+        coord_ret = etabs.PointObj.GetCoordCartesian(p_name)
+        if check_ret(coord_ret) != 0:
+            continue
+        z_val = coord_ret[2]
+
+        for floor_idx in range(1, floor_num + 1):
+            target_z = floor_idx * story_height
+            if abs(z_val - target_z) <= z_tol:
+                points_by_floor[floor_idx].append(p_name)
+                break
+
+    total_assigned = 0
+    for floor_idx in range(1, floor_num + 1):
+        diaphragm_name = f"D{floor_idx}"
+        ret = _define_diaphragm(etabs, diaphragm_name)
+        if check_ret(ret, f"定义楼板约束 {diaphragm_name}") != 0:
+            print(f"  跳过 {diaphragm_name}: 约束定义失败")
+            continue
+
+        assigned_count = 0
+        for p_name in points_by_floor[floor_idx]:
+            ret = _assign_point_diaphragm(etabs, p_name, diaphragm_name)
+            if check_ret(ret) == 0:
+                assigned_count += 1
+
+        total_assigned += assigned_count
+        print(f"  {diaphragm_name}: 施加节点数 {assigned_count}")
+
+    print(f"  刚性楼板约束施加完成，总节点数: {total_assigned}")
+
+
 def run_analysis_and_extract(etabs):
     """运行分析并提取关键结果（假设用户已手动设置好荷载工况和时程分析）"""
     print("\n[分析] 运行分析...")
@@ -296,7 +437,15 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False, use_
         source = "GT标注" if use_gt else "模型预测"
         print(f"\n[{'GT' if use_gt else '预测'}] 从DXF获取FEM构件（{source}）...")
         device = DEVICE if torch.cuda.is_available() else "cpu"
-        fem_result = predict_fem_members(DXF_PATH, MODEL_DIR, CATEGORY, device, use_gt=use_gt)
+        fem_result = predict_fem_members(
+            DXF_PATH,
+            MODEL_DIR,
+            CATEGORY,
+            device,
+            use_gt=use_gt,
+            symmetry_mode=SYMMETRY_MODE,
+            symmetry_threshold=SYMMETRY_THRESHOLD,
+        )
 
     # 打印诊断信息
     print_model_diagnostics(fem_result)
@@ -305,6 +454,7 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False, use_
     wall_members = [m for m in members if m["type"] == "shearwall"]
     beam_members = [m for m in members if m["type"] == "beam"]
     slab_polys = fem_result.get("slabs", [])
+    min_x, min_y = fem_result["statistics"].get("min_xy", (0.0, 0.0))
 
     N_m_C = 10  # ETABS单位系统：N, m, C
 
@@ -315,7 +465,7 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False, use_
     ######################## 坐标换算 ########################
     # 预测坐标单位为毫米，转换至米
     def to_meters(coord):
-        return (coord[0] * mm * SCALE_FACTOR, coord[1] * mm * SCALE_FACTOR)
+        return ((coord[0] - min_x) * mm * SCALE_FACTOR, (coord[1] - min_y) * mm * SCALE_FACTOR)
 
     ######################## 启动ETABS ########################
     os.makedirs(MODEL_SAVE_DIR, exist_ok=True)
@@ -409,6 +559,14 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False, use_
         if i % refresh_freq == 0 or i == floor_num:
             etabs.View.RefreshView(0, False)
 
+    if APPLY_RIGID_DIAPHRAGM:
+        apply_rigid_diaphragm_constraints(
+            etabs,
+            floor_num=floor_num,
+            story_height=story_height,
+            z_tol=DIAPHRAGM_Z_TOL,
+        )
+
     ###################### 底层节点固定约束 ####################
     print("\n[约束] 对底层节点施加固定约束...")
     point_ret = etabs.PointObj.GetNameList()
@@ -468,6 +626,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="从DXF预测结果自动创建ETABS有限元模型")
     parser.add_argument("--dxf_path", type=str, default=DXF_PATH)
     parser.add_argument("--model_dir", type=str, default=MODEL_DIR)
+    parser.add_argument(
+        "--scale_factor", type=float, default=SCALE_FACTOR, help="坐标缩放比例（默认1.0，单位转换时调整）"
+    )
     parser.add_argument("--category", type=int, default=CATEGORY, choices=[0, 1, 2])
     parser.add_argument("--device", type=str, default=DEVICE)
     parser.add_argument("--output_dir", type=str, default=MODEL_SAVE_DIR)
@@ -484,14 +645,43 @@ if __name__ == "__main__":
         action="store_true",
         help="使用Ground Truth标注建模（而非模型预测）",
     )
+    parser.add_argument(
+        "--symmetry_mode",
+        type=str,
+        default=SYMMETRY_MODE,
+        choices=["none", "union", "intersection"],
+        help="左右对称后处理模式",
+    )
+    parser.add_argument(
+        "--symmetry_threshold",
+        type=float,
+        default=SYMMETRY_THRESHOLD,
+        help="左右对称检测 IoU 阈值",
+    )
+    parser.add_argument(
+        "--disable_rigid_diaphragm",
+        action="store_true",
+        help="不施加每层刚性楼板约束",
+    )
+    parser.add_argument(
+        "--diaphragm_z_tol",
+        type=float,
+        default=DIAPHRAGM_Z_TOL,
+        help="节点归层的z坐标容差（m）",
+    )
     args = parser.parse_args()
 
     # 支持命令行覆盖配置
     DXF_PATH = args.dxf_path
     MODEL_DIR = args.model_dir
     CATEGORY = args.category
+    SCALE_FACTOR = args.scale_factor
     DEVICE = args.device if torch.cuda.is_available() else "cpu"
     MODEL_SAVE_DIR = args.output_dir
+    SYMMETRY_MODE = args.symmetry_mode
+    SYMMETRY_THRESHOLD = args.symmetry_threshold
+    APPLY_RIGID_DIAPHRAGM = not args.disable_rigid_diaphragm
+    DIAPHRAGM_Z_TOL = args.diaphragm_z_tol
     MODEL_NAME = args.model_name or os.path.basename(DXF_PATH).split(".")[0]
     if args.use_gt:
         MODEL_NAME += "_GT"
