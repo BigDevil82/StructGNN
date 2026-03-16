@@ -4,8 +4,12 @@ from pathlib import Path
 
 from YJKAPI import *  # type: ignore # noqa: F401,F403
 
-from .common import setup_file_logger
-from .config import OutputConfig
+try:
+    from .common import setup_file_logger
+    from .config import OutputConfig
+except ImportError:
+    from common import setup_file_logger
+    from config import OutputConfig
 
 
 class YJKAnalysisRunner:

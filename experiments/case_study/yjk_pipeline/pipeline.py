@@ -4,12 +4,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from .analysis_runner import YJKAnalysisRunner
-from .common import clean_output_files, setup_file_logger
-from .config import PipelineConfig
-from .json_loader import load_segments_from_json, scale_segments, translate_segments_to_origin
-from .model_builder import YJKJsonModelBuilder
-from .result_extractor import StoryDriftData, YJKResultExtractor
+try:
+    from .analysis_runner import YJKAnalysisRunner
+    from .common import clean_output_files, setup_file_logger
+    from .config import PipelineConfig
+    from .json_loader import load_segments_from_json, scale_segments, translate_segments_to_origin
+    from .model_builder import YJKJsonModelBuilder
+    from .result_extractor import StoryDriftData, YJKResultExtractor
+except ImportError:
+    from analysis_runner import YJKAnalysisRunner
+    from common import clean_output_files, setup_file_logger
+    from config import PipelineConfig
+    from json_loader import load_segments_from_json, scale_segments, translate_segments_to_origin
+    from model_builder import YJKJsonModelBuilder
+    from result_extractor import StoryDriftData, YJKResultExtractor
 
 
 @dataclass

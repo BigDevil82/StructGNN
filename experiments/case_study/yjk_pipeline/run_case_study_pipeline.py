@@ -1,16 +1,24 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from .config import PipelineConfig
-from .pipeline import run_pipeline_from_json
+try:
+    from .config import PipelineConfig
+    from .pipeline import run_pipeline_from_json
+except ImportError:
+    from config import PipelineConfig
+    from pipeline import run_pipeline_from_json
 
 
 def pyyjks():
     """YJK 脚本入口：读取 JSON 完成建模、分析和结果提取。"""
     config = PipelineConfig()
 
-    json_path = Path(__file__).resolve().parents[2] / "result" / "case_study" / "archi_comp_fem_data.json"
+    default_json_path = (
+        Path(__file__).resolve().parents[3] / "result" / "case_study" / "archi_comp_fem_data.json"
+    )
+    json_path = Path(os.getenv("YJK_PIPELINE_JSON", str(default_json_path))).resolve()
 
     result = run_pipeline_from_json(json_path, config)
 

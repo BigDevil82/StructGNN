@@ -9,8 +9,12 @@ from typing import Dict, Optional
 
 from YJKAPI import *  # type: ignore # noqa: F401,F403
 
-from .common import setup_file_logger
-from .config import ExtractionConfig, OutputConfig
+try:
+    from .common import setup_file_logger
+    from .config import ExtractionConfig, OutputConfig
+except ImportError:
+    from common import setup_file_logger
+    from config import ExtractionConfig, OutputConfig
 
 
 @dataclass
