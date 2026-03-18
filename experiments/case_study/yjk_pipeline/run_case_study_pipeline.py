@@ -15,8 +15,15 @@ def pyyjks():
     """YJK 脚本入口：读取 JSON 完成建模、分析和结果提取。"""
     config = PipelineConfig()
 
+    project_root = Path(__file__).resolve().parents[3]
+    default_output_dir = project_root / "result" / "case_study" / "yjk_pipeline_output"
+    output_dir = Path(os.getenv("YJK_PIPELINE_OUTPUT", str(default_output_dir)))
+    if not output_dir.is_absolute():
+        output_dir = (project_root / output_dir).resolve()
+    config.output.output_dir = output_dir
+
     default_json_path = (
-        Path(__file__).resolve().parents[3] / "result" / "case_study" / "archi_comp_fem_data.json"
+        project_root / "result" / "case_study" / "building_components_fem_data.json"
     )
     json_path = Path(os.getenv("YJK_PIPELINE_JSON", str(default_json_path))).resolve()
 
