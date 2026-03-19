@@ -158,6 +158,7 @@ def run_manual_rsa(
 ):
     num_modes = len(eigs)
     num_stories = len(floor_nodes)
+    active_dirs = tuple(mass_active_directions)
 
     modal_drifts = [[] for _ in range(num_stories)]
 
@@ -172,12 +173,19 @@ def run_manual_rsa(
         sa_t = interpolate_sa(period, periods, spectral_acc)
         sd_t = sa_t / lam
 
-        # mode shape (single direction)
+        # mode shape in the excited direction and in all directions carrying mass.
         mode_shape = [ops.nodeEigenvector(node_tag, mode, direction) for node_tag in floor_nodes]
+        active_mode_shapes = {
+            dof: [ops.nodeEigenvector(node_tag, mode, dof) for node_tag in floor_nodes]
+            for dof in active_dirs
+        }
 
-        # participation factor
+        # Approximate OpenSees MPF = (phi^T M R) / (phi^T M phi)
+        # using the floor master-node translational masses only.
         numerator = sum(m * phi for m, phi in zip(floor_masses, mode_shape))
-        denominator = sum(m * phi**2 for m, phi in zip(floor_masses, mode_shape))
+        denominator = 0.0
+        for dof in active_dirs:
+            denominator += sum(m * phi**2 for m, phi in zip(floor_masses, active_mode_shapes[dof]))
 
         gamma = numerator / denominator if denominator != 0.0 else 0.0
 
