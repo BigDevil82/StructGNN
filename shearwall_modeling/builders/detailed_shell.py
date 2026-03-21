@@ -64,6 +64,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
         node_cache: dict[tuple[float, float, float], int] = {}
         node_coords: dict[int, tuple[float, float, float]] = {}
+        fixed_base_nodes: set[int] = set()
 
         def _coord_key(x: float, y: float, z: float) -> tuple[float, float, float]:
             q = self.coord_tol
@@ -103,7 +104,9 @@ class DetailedShellBuilder(StructuralModelBuilder):
                     n = get_or_create_node(x, y, z)
                     row.append(n)
                     if level == 0:
-                        ops.fix(n, 1, 1, 1, 1, 1, 1)
+                        if n not in fixed_base_nodes:
+                            ops.fix(n, 1, 1, 1, 1, 1, 1)
+                            fixed_base_nodes.add(n)
                     else:
                         floor_plan_nodes[level].add(n)
                 wall_grid.append(row)
