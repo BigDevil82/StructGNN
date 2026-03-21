@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from shearwall_modeling import ModelConfig, ShearWallAnalysisEngine, load_and_scale_input
 
 
@@ -15,7 +16,7 @@ def main() -> None:
     scale_seed = 42
     manual_scale_factor = 1
     combine_method = "CQC"
-    builder_name = "equivalent_frame"
+    builder_name = "detailed_shell"
 
     input_data, scale = load_and_scale_input(
         json_path=json_path,
