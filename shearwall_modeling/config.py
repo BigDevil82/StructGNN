@@ -10,8 +10,8 @@ class MaterialConfig:
 @dataclass
 class SectionConfig:
     wall_thickness: float = 0.2
-    beam_width: float = 0.2
-    beam_depth: float = 0.4
+    beam_width: float = 0.3
+    beam_depth: float = 0.5
 
 
 @dataclass
@@ -30,10 +30,25 @@ class SeismicConfig:
 
 
 @dataclass
+class MassSourceConfig:
+    dead_kpa: float = 5.0
+    live_kpa: float = 2.0
+    dead_factor: float = 1.0
+    live_factor: float = 0.5
+    gravity: float = 9.81
+
+    def additional_mass_per_area(self) -> float:
+        # Convert ETABS-like source loads (kN/m^2) to kg/m^2.
+        source_kpa = self.dead_factor * self.dead_kpa + self.live_factor * self.live_kpa
+        return source_kpa * 1000.0 / self.gravity
+
+
+@dataclass
 class ModelConfig:
     num_stories: int = 8
     story_height: float = 3.0
     mass_per_area: float = 1000.0
+    mass_source: MassSourceConfig = field(default_factory=MassSourceConfig)
     material: MaterialConfig = field(default_factory=MaterialConfig)
     section: SectionConfig = field(default_factory=SectionConfig)
     seismic: SeismicConfig = field(default_factory=SeismicConfig)

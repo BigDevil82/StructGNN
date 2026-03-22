@@ -50,7 +50,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
         )
 
         floor_area = estimate_floor_area(input_data)
-        floor_mass = config.mass_per_area * floor_area
+        additional_mass_per_area = config.mass_source.additional_mass_per_area()
+        floor_mass = (config.mass_per_area + additional_mass_per_area) * floor_area
 
         mat_tag = 1
         shell_sec_tag = 1
@@ -180,6 +181,6 @@ class DetailedShellBuilder(StructuralModelBuilder):
         print(
             f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
             f"beams={len(input_data.beams)}, shellElems={shell_count}, beamElems={beam_count}, "
-            f"floor_area~{floor_area:.2f} m^2"
+            f"floor_area~{floor_area:.2f} m^2, add_mass_per_area={additional_mass_per_area:.2f} kg/m^2"
         )
         return ModelBuildResult(master_nodes=master_nodes, floor_area=floor_area)

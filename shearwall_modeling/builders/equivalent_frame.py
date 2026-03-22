@@ -43,7 +43,8 @@ class EquivalentFrameBuilder(StructuralModelBuilder):
         e = config.material.E
         g = config.material.G
         floor_area = estimate_floor_area(input_data)
-        floor_mass = config.mass_per_area * floor_area
+        additional_mass_per_area = config.mass_source.additional_mass_per_area()
+        floor_mass = (config.mass_per_area + additional_mass_per_area) * floor_area
 
         beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(
             config.section.beam_width, config.section.beam_depth
