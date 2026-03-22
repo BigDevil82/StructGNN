@@ -4,14 +4,16 @@ import openseespy.opensees as ops
 
 from ..config import ModelConfig
 from ..domain import FEMInput, PlanMember
-from ..geometry import estimate_floor_area
+from ..geometry import estimate_floor_area, estimate_structural_self_mass_per_floor
 from .base import ModelBuildResult, StructuralModelBuilder
 
 
 def _beam_section_props(width: float, depth: float) -> tuple[float, float, float, float]:
     area = width * depth
-    iz = width * (depth**3) / 12.0
-    iy = depth * (width**3) / 12.0
+    # With geomTransf(..., 0,0,1) for floor beams, local z is vertical.
+    # Therefore strong-axis inertia (b*h^3/12) should be Iy, not Iz.
+    iy = width * (depth**3) / 12.0
+    iz = depth * (width**3) / 12.0
     j = iy + iz
     return area, j, iy, iz
 
@@ -26,11 +28,12 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
     name = "detailed_shell"
 
-    def __init__(self, wall_mesh_size_m: float = 1.2, coord_tol: float = 1.0e-6) -> None:
+    def __init__(self, wall_mesh_size_m: float = 2.5, coord_tol: float = 1.0e-6) -> None:
         self.wall_mesh_size_m = wall_mesh_size_m
         self.coord_tol = coord_tol
 
     def build(self, input_data: FEMInput, config: ModelConfig) -> ModelBuildResult:
+        print("Building detailed shell model...")
         if not input_data.walls:
             raise ValueError("detailed_shell builder requires at least one shear wall.")
 
@@ -50,8 +53,23 @@ class DetailedShellBuilder(StructuralModelBuilder):
         )
 
         floor_area = estimate_floor_area(input_data)
-        additional_mass_per_area = config.mass_source.additional_mass_per_area()
-        floor_mass = (config.mass_per_area + additional_mass_per_area) * floor_area
+        load_mass_per_area = config.mass_source.load_to_mass_per_area()
+        load_mass_per_floor = load_mass_per_area * floor_area
+        self_mass_info = estimate_structural_self_mass_per_floor(
+            input_data=input_data,
+            story_height=config.story_height,
+            wall_thickness=config.section.wall_thickness,
+            beam_width=config.section.beam_width,
+            beam_depth=config.section.beam_depth,
+            slab_thickness=config.section.slab_thickness,
+            density_kg_m3=config.material.density_kg_m3,
+            floor_area=floor_area,
+        )
+        self_mass_per_floor = (
+            self_mass_info["total_mass"] if config.mass_source.include_structural_self_weight else 0.0
+        )
+        floor_mass = load_mass_per_floor + self_mass_per_floor
+        total_structure_mass = floor_mass * config.num_stories
 
         mat_tag = 1
         shell_sec_tag = 1
@@ -169,7 +187,11 @@ class DetailedShellBuilder(StructuralModelBuilder):
             ops.node(master, com_x, com_y, z)
             node_tag += 1
 
-            rot_mass = floor_mass * max(1.0, floor_area) / 12.0
+            nodal_mass = floor_mass / len(level_nodes)
+            rot_mass = sum(
+                nodal_mass * ((node_coords[n][0] - com_x) ** 2 + (node_coords[n][1] - com_y) ** 2)
+                for n in level_nodes
+            )
             ops.mass(master, floor_mass, floor_mass, 0.0, 0.0, 0.0, rot_mass)
             ops.fix(master, 0, 0, 1, 1, 1, 0)
 
@@ -181,6 +203,10 @@ class DetailedShellBuilder(StructuralModelBuilder):
         print(
             f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
             f"beams={len(input_data.beams)}, shellElems={shell_count}, beamElems={beam_count}, "
-            f"floor_area~{floor_area:.2f} m^2, add_mass_per_area={additional_mass_per_area:.2f} kg/m^2"
+            f"floor_area~{floor_area:.2f} m^2, load_mass_per_area={load_mass_per_area:.2f} kg/m^2, "
+            f"load_mass_per_floor={load_mass_per_floor:.2f} kg, self_mass_per_floor={self_mass_per_floor:.2f} kg, "
+            f"self_mass_breakdown(kg): wall={self_mass_info['wall_mass']:.2f}, beam={self_mass_info['beam_mass']:.2f}, slab={self_mass_info['slab_mass']:.2f}, "
+            f"floor_mass={floor_mass:.2f} kg, "
+            f"total_mass={total_structure_mass:.2f} kg ({total_structure_mass / 1000.0:.3f} t)"
         )
         return ModelBuildResult(master_nodes=master_nodes, floor_area=floor_area)

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Union
 
 import openseespy.opensees as ops
 
@@ -14,7 +15,7 @@ class AnalysisResult:
 
 
 class ShearWallAnalysisEngine:
-    def __init__(self, registry: BuilderRegistry | None = None) -> None:
+    def __init__(self, registry: Union[BuilderRegistry, None] = None) -> None:
         self.registry = registry or DEFAULT_REGISTRY
 
     def analyze(

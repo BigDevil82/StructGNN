@@ -1,4 +1,5 @@
 import math
+from time import time
 
 import openseespy.opensees as ops
 
@@ -16,10 +17,11 @@ def run_builtin_rsa(master_nodes: list[int], config: ModelConfig) -> dict[str, l
     ops.analysis("Static")
 
     nreq = min(config.num_modes, len(master_nodes) * 2)
-    try:
-        eigs = ops.eigen("-genBandArpack", nreq)
-    except Exception:
-        eigs = ops.eigen("-fullGenLapack", nreq)
+    print(f"Extracting {nreq} eigenvalues...")
+    start = time()
+    eigs = ops.eigen("-genBandArpack", nreq)
+    end = time()
+    print(f"Eigenvalue extraction completed in {end - start:.2f} seconds.")
 
     if isinstance(eigs, (int, float)):
         eigs = [float(eigs)]
