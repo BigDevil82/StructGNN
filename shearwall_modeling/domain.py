@@ -24,6 +24,7 @@ class PlanMember:
 class FEMInput:
     walls: list[PlanMember]
     beams: list[PlanMember]
+    slabs: list[list[tuple[float, float]]]
 
     @classmethod
     def from_json(cls, json_path: Path, xy_scale_to_m: float = 0.001) -> "FEMInput":
@@ -44,7 +45,16 @@ class FEMInput:
             )
             for b in data.get("beams", [])
         ]
-        return cls(walls=walls, beams=beams)
+        slabs = [
+            [
+                (float(p[0]) * xy_scale_to_m, float(p[1]) * xy_scale_to_m)
+                for p in slab
+                if isinstance(p, (list, tuple)) and len(p) >= 2
+            ]
+            for slab in data.get("slabs", [])
+            if isinstance(slab, list)
+        ]
+        return cls(walls=walls, beams=beams, slabs=slabs)
 
     def all_members(self) -> list[PlanMember]:
         return self.walls + self.beams
@@ -53,4 +63,5 @@ class FEMInput:
         return FEMInput(
             walls=[w.scaled(factor) for w in self.walls],
             beams=[b.scaled(factor) for b in self.beams],
+            slabs=[[(x * factor, y * factor) for x, y in slab] for slab in self.slabs],
         )
