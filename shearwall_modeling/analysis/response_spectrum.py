@@ -10,7 +10,7 @@ from ..modal_combination import combine_story_drifts
 def run_builtin_rsa(master_nodes: list[int], config: ModelConfig) -> dict[str, list[float]]:
     ops.constraints("Transformation")
     ops.numberer("RCM")
-    ops.system("BandGeneral")
+    ops.system("UmfPack")
     ops.test("NormDispIncr", 1.0e-6, 20)
     ops.algorithm("Linear")
     ops.integrator("LoadControl", 0.0)
