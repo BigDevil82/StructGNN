@@ -48,6 +48,8 @@ class FEMTopologyBuilder:
                 self.raw_walls.append(walls_geom)
             elif hasattr(walls_geom, "geoms"):
                 self.raw_walls.extend(list(walls_geom.geoms))
+        else:
+            print("  [FEMBuilder] 警告: 房间没有检测到剪力墙")
 
     def build(self) -> dict:
         print("  [FEMBuilder] 正在构建拓扑 (Interval-based)...")
@@ -76,13 +78,13 @@ class FEMTopologyBuilder:
                 segments.extend(beam_segs)
 
         # 3. 过滤短构件
-        segments = [s for s in segments if s["length"] >= self.min_length]
+        # segments = [s for s in segments if s["length"] >= self.min_length]
 
         # 4. 在交叉点处打断构件，确保梁-梁、梁-墙、墙-墙相交处都有节点
         segments = self._split_at_intersections(segments)
 
         # 5. 再次过滤打断后的短构件
-        segments = [s for s in segments if s["length"] >= self.min_length]
+        # segments = [s for s in segments if s["length"] >= self.min_length]
 
         # 6. 构建节点拓扑
         self._build_topology(segments)
@@ -289,15 +291,17 @@ class FEMTopologyBuilder:
             start_pt = tuple(p1 + vec * w_start)
             end_pt = tuple(p1 + vec * w_end)
             line = LineString([start_pt, end_pt])
-            if line.length >= 1:
-                wall_segments.append({"geometry": line, "type": "shearwall", "length": line.length})
+            wall_segments.append({"geometry": line, "type": "shearwall", "length": line.length})
 
         for b_start, b_end in beam_intervals:
             start_pt = tuple(p1 + vec * b_start)
             end_pt = tuple(p1 + vec * b_end)
             line = LineString([start_pt, end_pt])
-            if line.length >= 1:
+            if line.length >= 400:
                 beam_segments.append({"geometry": line, "type": "beam", "length": line.length})
+            else:
+                # 过短的梁可能是误差，合并到剪力墙
+                wall_segments.append({"geometry": line, "type": "shearwall", "length": line.length})
 
         return wall_segments, beam_segments
 
@@ -570,6 +574,10 @@ class FEMTopologyBuilder:
         for room in self.room_polys:
             slabs.append(list(room.exterior.coords)[:-1])
 
+        # sum area for statistics
+        total_slab_area = sum(Polygon(slab).area for slab in slabs)
+        print(f"    计算楼板: {len(slabs)} 块, 总面积约 {total_slab_area:.2f} 平方单位")
+
         return slabs
 
     def _format_result(self) -> dict:
@@ -597,7 +605,7 @@ def visualize_fem_result(
     room_polys: List[Polygon] = None,
     title: str = "FEM Members",
     save_path: Optional[str] = None,
-    figsize: Tuple[int, int] = (14, 10),
+    figsize: Tuple[int, int] = (10, 8),
 ):
     """
     可视化FEM解析结果
@@ -628,23 +636,23 @@ def visualize_fem_result(
         if member["type"] == "shearwall":
             color = "red"
             linewidth = 4
-            zorder = 1
+            zorder = 10
         else:  # beam
             color = "blue"
-            linewidth = 2
+            linewidth = 4
             zorder = 2
 
         ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=linewidth, zorder=zorder)
 
-    # 绘制节点
-    node_x = [n[0] for n in nodes]
-    node_y = [n[1] for n in nodes]
-    ax.scatter(node_x, node_y, color="black", s=20, zorder=4)
+    # # 绘制节点
+    # node_x = [n[0] for n in nodes]
+    # node_y = [n[1] for n in nodes]
+    # ax.scatter(node_x, node_y, color="black", s=20, zorder=4)
 
-    # 添加节点编号（可选）
-    if len(nodes) <= 100:
-        for i, (x, y) in enumerate(nodes):
-            ax.annotate(str(i), (x, y), fontsize=6, ha="center", va="bottom")
+    # # 添加节点编号（可选）
+    # if len(nodes) <= 100:
+    #     for i, (x, y) in enumerate(nodes):
+    #         ax.annotate(str(i), (x, y), fontsize=6, ha="center", va="bottom")
 
     # 图例
     legend_elements = [
@@ -652,15 +660,15 @@ def visualize_fem_result(
             [0], [0], color="red", linewidth=4, label=f'Shear Wall ({result["statistics"]["num_shearwalls"]})'
         ),
         Line2D([0], [0], color="blue", linewidth=2, label=f'Beam ({result["statistics"]["num_beams"]})'),
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            color="w",
-            markerfacecolor="black",
-            markersize=6,
-            label=f'Nodes ({result["statistics"]["num_nodes"]})',
-        ),
+        # Line2D(
+        #     [0],
+        #     [0],
+        #     marker="o",
+        #     color="w",
+        #     markerfacecolor="black",
+        #     markersize=6,
+        #     label=f'Nodes ({result["statistics"]["num_nodes"]})',
+        # ),
     ]
     ax.legend(handles=legend_elements, loc="upper right")
 
@@ -713,6 +721,7 @@ def export_to_json(result: dict, output_path: str):
             for m in result["members"]
             if m["type"] == "beam"
         ],
+        "slabs": result["slabs"],
         "statistics": result["statistics"],
     }
 
