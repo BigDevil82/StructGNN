@@ -1,0 +1,334 @@
+import math
+from dataclasses import dataclass
+
+import openseespy.opensees as ops
+
+from .config import ModelConfig
+from .modal_combination import cqc, srss
+
+
+@dataclass
+class StoryMetric:
+    story: int
+    drift_max: float
+    drift_avg: float
+    torsion_ratio: float
+    shear_weight_ratio: float
+    stiffness_k: float
+    gamma1: float  # K_i / K_{i+1}
+    gamma2: float  # K_i / avg(K_{i+1}, K_{i+2}, K_{i+3})
+
+
+@dataclass
+class DirectionCheckResult:
+    direction: str
+    metrics: list[StoryMetric]
+    modal_periods: list[float]
+    translational_mode_index: int | None
+    translational_period: float | None
+    torsional_mode_index: int | None
+    torsional_period: float | None
+    period_ratio: float | None
+    is_torsion_passed: bool
+    is_shear_weight_passed: bool
+    is_stiffness_passed: bool
+    is_period_ratio_passed: bool
+
+
+class SeismicCodeChecker:
+    """
+    独立于标准分析的综合指标校核器 (高级分析引擎模式)。
+    仅需执行一次循环，同时输出常规层间位移角和规范抗震指标。
+    """
+
+    def __init__(self, master_nodes: list[int], config: ModelConfig):
+        self.master_nodes = master_nodes
+        self.config = config
+        self.num_stories = len(master_nodes)
+        self.h = config.story_height
+
+        self.xmin, self.xmax, self.ymin, self.ymax = self._get_model_bbox()
+        self.floor_masses = [ops.nodeMass(n, 1) for n in master_nodes]
+        self.min_shear_ratio = self._get_min_shear_ratio(config.seismic.design_acc_g)
+
+    def _get_model_bbox(self) -> tuple[float, float, float, float]:
+        nodes = ops.getNodeTags()
+        xs = [ops.nodeCoord(n, 1) for n in nodes]
+        ys = [ops.nodeCoord(n, 2) for n in nodes]
+        return min(xs), max(xs), min(ys), max(ys)
+
+    def _get_min_shear_ratio(self, acc_g: float) -> float:
+        mapping = {0.10: 0.016, 0.15: 0.024, 0.20: 0.032, 0.30: 0.048}
+        key = round(float(acc_g), 2)
+        return mapping.get(key, 0.016)
+
+    def _combine(self, modal_vals: list[float], eigs: list[float]) -> float:
+        num_modes = len(modal_vals)
+        damping = [self.config.seismic.damping_ratio] * num_modes
+        scale_factors = [1.0] * num_modes
+        if self.config.seismic.combination_method.upper() == "CQC":
+            return cqc(modal_vals, eigs, damping, scale_factors)
+        return srss(modal_vals, scale_factors)
+
+    def _classify_mode(self, mode: int) -> str:
+        trans_x = 0.0
+        trans_y = 0.0
+        torsion = 0.0
+        radius = max(self.xmax - self.xmin, self.ymax - self.ymin, 1.0)
+
+        for node in self.master_nodes:
+            ux = ops.nodeEigenvector(node, mode, 1)
+            uy = ops.nodeEigenvector(node, mode, 2)
+            rz = ops.nodeEigenvector(node, mode, 6)
+            trans_x += ux * ux
+            trans_y += uy * uy
+            torsion += (rz * radius) * (rz * radius)
+
+        dominant = max(trans_x, trans_y, torsion)
+        if dominant <= 1e-12:
+            return "UNKNOWN"
+        if dominant == torsion:
+            return "T"
+        if dominant == trans_x:
+            return "X"
+        return "Y"
+
+    def _extract_modal_summary(
+        self, periods: list[float]
+    ) -> tuple[int | None, float | None, int | None, float | None, float | None, bool]:
+        translational_mode_index = None
+        translational_period = None
+        torsional_mode_index = None
+        torsional_period = None
+
+        for mode, period in enumerate(periods, start=1):
+            mode_type = self._classify_mode(mode)
+            if translational_mode_index is None and mode_type in {"X", "Y"}:
+                translational_mode_index = mode
+                translational_period = period
+            if torsional_mode_index is None and mode_type == "T":
+                torsional_mode_index = mode
+                torsional_period = period
+            if translational_mode_index is not None and torsional_mode_index is not None:
+                break
+
+        period_ratio = None
+        is_period_ratio_passed = False
+        if translational_period and torsional_period:
+            period_ratio = torsional_period / translational_period
+            is_period_ratio_passed = period_ratio < 0.9
+
+        return (
+            translational_mode_index,
+            translational_period,
+            torsional_mode_index,
+            torsional_period,
+            period_ratio,
+            is_period_ratio_passed,
+        )
+
+    def run_analysis_and_evaluate(self) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult]]:
+        """执行分析并同时提取所有需要的数据，绝不重复计算"""
+        # 1. 设置求解器(引入UmfPack提速)
+        ops.constraints("Transformation")
+        ops.numberer("RCM")
+        ops.system("UmfPack")
+        ops.test("NormDispIncr", 1.0e-6, 20)
+        ops.algorithm("Linear")
+        ops.integrator("LoadControl", 0.0)
+        ops.analysis("Static")
+
+        nreq = min(self.config.num_modes, self.num_stories * 2)
+        print(f"\n[校核器] 正在提取 {nreq} 阶特征值 (UmfPack)...")
+        eigs = ops.eigen("-genBandArpack", nreq)
+
+        if isinstance(eigs, (int, float)):
+            eigs = [float(eigs)]
+        else:
+            eigs = [float(x) for x in eigs if float(x) > 1e-12]
+
+        ops.modalProperties()
+
+        periods = [2.0 * math.pi / math.sqrt(lam) for lam in eigs]
+        print(f"Modal periods (s): {[round(t, 4) for t in periods]}")
+        (
+            translational_mode_index,
+            translational_period,
+            torsional_mode_index,
+            torsional_period,
+            period_ratio,
+            is_period_ratio_passed,
+        ) = self._extract_modal_summary(periods)
+
+        # 计算各层累计重力 W_i
+        W = [0.0] * self.num_stories
+        cum_mass = 0.0
+        for i in reversed(range(self.num_stories)):
+            cum_mass += self.floor_masses[i]
+            W[i] = cum_mass * self.config.seismic.gravity
+
+        standard_drifts = {}
+        check_results = {}
+
+        # 2. 反应谱核心循环：只跑一次，抓取所有数据
+        for dir_idx, dir_name in ((1, "X"), (2, "Y")):
+            modal_drift_cm = [[] for _ in range(self.num_stories)]
+            modal_drift_corners = [[[] for _ in range(self.num_stories)] for _ in range(4)]
+            modal_V = [[] for _ in range(self.num_stories)]
+
+            for mode in range(1, len(eigs) + 1):
+                omega2 = eigs[mode - 1]
+                ops.responseSpectrumAnalysis(
+                    dir_idx,
+                    "-Tn",
+                    *self.config.seismic.periods,
+                    "-Sa",
+                    *self.config.seismic.sa,
+                    "-mode",
+                    mode,
+                )
+
+                prev_u_cm = 0.0
+                prev_u_corners = [0.0] * 4
+                F_inertial = [0.0] * self.num_stories
+
+                # 提取该模态下的响应
+                for i, master in enumerate(self.master_nodes):
+                    u_cm = ops.nodeDisp(master, dir_idx)
+                    theta_z = ops.nodeDisp(master, 6)
+                    cm_x, cm_y = ops.nodeCoord(master, 1), ops.nodeCoord(master, 2)
+
+                    F_inertial[i] = self.floor_masses[i] * omega2 * u_cm
+
+                    dx = [self.xmin - cm_x, self.xmax - cm_x, self.xmax - cm_x, self.xmin - cm_x]
+                    dy = [self.ymin - cm_y, self.ymin - cm_y, self.ymax - cm_y, self.ymax - cm_y]
+
+                    u_corners = [0.0] * 4
+                    for c in range(4):
+                        if dir_idx == 1:
+                            u_corners[c] = u_cm - theta_z * dy[c]
+                        else:
+                            u_corners[c] = u_cm + theta_z * dx[c]
+                        modal_drift_corners[c][i].append((u_corners[c] - prev_u_corners[c]) / self.h)
+
+                    modal_drift_cm[i].append((u_cm - prev_u_cm) / self.h)
+                    prev_u_cm = u_cm
+                    prev_u_corners = u_corners
+
+                # 累加得到楼层剪力
+                cum_V = 0.0
+                for i in reversed(range(self.num_stories)):
+                    cum_V += F_inertial[i]
+                    modal_V[i].append(cum_V)
+
+            # 3. 数据组合与规范指标计算
+            metrics: list[StoryMetric] = []
+            K_array = [0.0] * self.num_stories
+            combined_cm_drifts = []
+
+            for i in range(self.num_stories):
+                V_i = self._combine(modal_V[i], eigs)
+                d_cm = self._combine(modal_drift_cm[i], eigs)
+                combined_cm_drifts.append(d_cm)
+
+                drifts_c = [self._combine(modal_drift_corners[c][i], eigs) for c in range(4)]
+                d_max, d_min = max(drifts_c), min(drifts_c)
+                d_avg = (d_max + d_min) / 2.0
+
+                t_ratio = d_max / d_avg if d_avg > 1e-9 else 1.0
+                sw_ratio = V_i / W[i] if W[i] > 1e-9 else 0.0
+                k_i = V_i / d_cm if d_cm > 1e-9 else 0.0
+                K_array[i] = k_i
+
+                metrics.append(
+                    StoryMetric(
+                        story=i + 1,
+                        drift_max=d_max,
+                        drift_avg=d_avg,
+                        torsion_ratio=t_ratio,
+                        shear_weight_ratio=sw_ratio,
+                        stiffness_k=k_i,
+                        gamma1=1.0,
+                        gamma2=1.0,
+                    )
+                )
+
+            # 计算刚度比突变
+            for i in range(self.num_stories):
+                k_i = K_array[i]
+                k_next = K_array[i + 1] if i < self.num_stories - 1 else k_i
+
+                upper_sum, count = 0.0, 0
+                for j in range(1, 4):
+                    if i + j < self.num_stories:
+                        upper_sum += K_array[i + j]
+                        count += 1
+                k_avg_upper = (upper_sum / count) if count > 0 else k_i
+
+                metrics[i].gamma1 = k_i / k_next if k_next > 1e-9 else 1.0
+                metrics[i].gamma2 = k_i / k_avg_upper if k_avg_upper > 1e-9 else 1.0
+
+            is_tor_pass = all(m.torsion_ratio <= 1.5 for m in metrics)
+            is_sw_pass = all(m.shear_weight_ratio >= self.min_shear_ratio for m in metrics)
+            is_stiff_pass = all(m.gamma1 >= 0.7 and m.gamma2 >= 0.8 for m in metrics)
+
+            check_results[dir_name] = DirectionCheckResult(
+                direction=dir_name,
+                metrics=metrics,
+                modal_periods=periods.copy(),
+                translational_mode_index=translational_mode_index,
+                translational_period=translational_period,
+                torsional_mode_index=torsional_mode_index,
+                torsional_period=torsional_period,
+                period_ratio=period_ratio,
+                is_torsion_passed=is_tor_pass,
+                is_shear_weight_passed=is_sw_pass,
+                is_stiffness_passed=is_stiff_pass,
+                is_period_ratio_passed=is_period_ratio_passed,
+            )
+            standard_drifts[dir_name] = combined_cm_drifts
+
+        self._print_report(check_results)
+        return standard_drifts, check_results
+
+    def _print_report(self, results: dict[str, DirectionCheckResult]):
+        print("\n" + "=" * 50)
+        print("结构抗震规范核心指标综合校核报告")
+        print("=" * 50)
+
+        first_result = next(iter(results.values()), None)
+        if first_result is not None:
+            print("\n【模态结果】")
+            print(" 前n阶周期:")
+            for idx, period in enumerate(first_result.modal_periods, start=1):
+                print(f"  第{idx}阶: {period:.4f} s")
+
+            if first_result.period_ratio is not None:
+                print(
+                    " 首个平动周期/首个扭转周期: "
+                    f"第{first_result.translational_mode_index}阶 {first_result.translational_period:.4f} s / "
+                    f"第{first_result.torsional_mode_index}阶 {first_result.torsional_period:.4f} s"
+                )
+                print(
+                    " 周期比 T_torsion / T_translation < 0.9: "
+                    f"{first_result.period_ratio:.3f} "
+                    f"({'通过' if first_result.is_period_ratio_passed else '超限'})"
+                )
+            else:
+                print(" 首个平动或扭转主导模态未识别，周期比无法校核。")
+
+        for dir_name, res in results.items():
+            print(f"\n【{dir_name}向校核结果】")
+            print(f" -> 扭转不规则 (限值 1.2/1.5): {'通过' if res.is_torsion_passed else '超限'}")
+            print(
+                f" -> 最小剪重比 (限值 {self.min_shear_ratio}): {'通过' if res.is_shear_weight_passed else '超限'}"
+            )
+            print(f" -> 刚度突变 (限值 0.7/0.8): {'通过' if res.is_stiffness_passed else '超限'}")
+
+            print(f"\n 楼层 | 位移比(Max/Avg) | 剪重比(%) | 刚度比γ1 | 刚度比γ2")
+            print("-" * 55)
+            # 逆序输出，符合结构从上到下的阅读直觉
+            for m in reversed(res.metrics):
+                print(
+                    f"  {m.story:02d}  |     {m.torsion_ratio:.3f}     |   {m.shear_weight_ratio*100:.2f}   |  {m.gamma1:.2f}   |  {m.gamma2:.2f}"
+                )
