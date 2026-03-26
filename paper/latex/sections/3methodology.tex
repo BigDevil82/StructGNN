@@ -5,7 +5,7 @@
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figs/framework.png}
-\caption{The overall framework of the proposed room-level conditional shear wall layout generation method. The pipeline consists of four integrated modules: (1) input representation, transforming architectural plans into room-adjacency graphs with embedded design conditions; (2) model architecture, utilizing a GATv2 backbone with FiLM modulation for feature encoding; (3) dual-stream training, which coordinates supervised learning with counterfactual regularization via a dual-head decoder; and (4) output and evaluation, producing vector-based layouts for engineering validation.}
+\caption{The overall framework of the proposed room-level conditional shear wall layout generation method.}
 \label{fig:framework}
 \end{figure*}
 
@@ -50,37 +50,32 @@ The choice of graph representation is critical for capturing the architectural l
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.8\textwidth]{figs/graph_comparison.png}
-\caption{Comparison of graph representations for the same residential floor plan. (a) The component-level representation yields a dense graph (138 nodes, 141 edges) where architectural semantics are fragmented. (b) The proposed room-level representation significantly reduces complexity (14 nodes, 25 edges) while preserving the high-level spatial topology essential for structural layout.}
+\caption{Comparison of graph representations for the same residential floor plan: (a) component-level representation; (b) the proposed room-level representation.}
 \label{fig:graph_comparison}
 \end{figure*}
 
-As illustrated in Fig.~\ref{fig:graph_comparison}, the limitation of the component-level approach is visually evident: a standard residential plan can generate a graph with over 100 nodes and edges (Fig.~\ref{fig:graph_comparison}a), yet individual wall segments carry little information about the functional spaces they enclose. In contrast, our proposed room-level formulation (Fig.~\ref{fig:graph_comparison}b) elevates the abstraction by modeling functional rooms as nodes and their physical adjacencies as edges.
+As illustrated in Fig.~\ref{fig:graph_comparison}, the limitation of the component-level approach is visually evident: a standard residential plan can generate a dense graph (e.g., 138 nodes and 141 edges in Fig.~\ref{fig:graph_comparison}a) where architectural semantics are fragmented, and individual wall segments carry little information about the functional spaces they enclose. In contrast, our proposed room-level formulation significantly reduces graph complexity (e.g., to 14 nodes and 25 edges in Fig.~\ref{fig:graph_comparison}b) by modeling functional rooms as nodes and their physical adjacencies as edges. Modeling floor plans at the room level therefore allows the learning problem to incorporate architectural semantics and boundary feasibility in a compact representation, while remaining compatible with standard message-passing GNNs.
 
-Modeling floor plans at the room level therefore allows the learning problem to incorporate architectural semantics and boundary feasibility in a compact representation, while remaining compatible with standard message-passing GNNs.
 It should be noted that the current formulation assumes rectangular room geometry; non-rectangular spaces are pre-processed via rectilinear decomposition before graph construction (Section~\ref{subsubsec:graph_construction}), and the resulting virtual partition boundaries are excluded from wall placement through the constraint mask. This choice is consistent with prior zoning- and decomposition-based abstractions used to simplify structural design spaces \cite{Claessens_2020,Liu_2021}.
 
 
 \subsubsection{Graph Construction from Floor Plans}
 \label{subsubsec:graph_construction}
 
-Given an architectural floor plan $\mathcal{P}$ in CAD format, the room adjacency graph $G = (\mathcal{V}, \mathcal{E}, \mathbf{X}, \mathbf{A})$ is constructed through the following procedure:
+Given an architectural floor plan $\mathcal{P}$ in CAD format, the room adjacency graph $G = (\mathcal{V}, \mathcal{E}, \mathbf{X}, \mathbf{A})$ is constructed through the following balanced procedure:
 
-\textbf{Step 1: Room Extraction.} Closed polygonal regions are identified from the CAD drawing through layer-based filtering and contour detection.
-Because real-world floor plans frequently contain L-shaped, T-shaped, or otherwise non-rectangular spaces, a rectilinear decomposition algorithm is applied to partition every non-rectangular region into a set of axis-aligned rectangular sub-regions prior to graph construction.
-Each resulting rectangular sub-region $r_i$ with area exceeding a minimum threshold is then registered as a room node $v_i$.
-Partition boundaries introduced by this decomposition are virtual edges that carry no structural meaning; they are reflected in the constraint mask by setting the corresponding mask entries to zero, so the model cannot predict shear walls along these artificial boundaries.
+\textbf{Step 1: Space Partitioning.} Closed polygonal regions are first identified from the CAD drawing through layer-based filtering and contour detection. To process complex architectural layouts, a rectilinear decomposition algorithm is applied to partition any non-rectangular regions (e.g., L-shaped or T-shaped spaces) into a set of axis-aligned rectangular sub-regions.
 
-\textbf{Step 2: Adjacency Detection.} For each pair of rooms $(r_i, r_j)$, the shared boundary length $l_{ij}$ is computed.
-An edge $e_{ij}$ is added to $\mathcal{E}$ if $l_{ij}$ exceeds a threshold $\tau_{adj}$ (set to 400mm to exclude minor contacts).
+\textbf{Step 2: Room Node Registration.} Each resulting rectangular sub-region $r_i$ with an area exceeding a minimum threshold is registered as a room node $v_i$. Partition boundaries introduced during the decomposition step are treated as virtual edges that carry no structural meaning; consequently, their corresponding entries in the constraint mask are set to zero to strictly prohibit shear wall placement along these artificial lines.
 
-\textbf{Step 3: Feature Extraction.} Node and edge features are computed as described in Sections~\ref{subsubsec:node_features} and~\ref{subsubsec:edge_features}.
+\textbf{Step 3: Adjacency Edge Construction.} For each pair of rooms $(r_i, r_j)$, the shared physical boundary length $l_{ij}$ is computed. An adjacency edge $e_{ij}$ is added to $\mathcal{E}$ only if $l_{ij}$ exceeds a physical threshold $\tau_{adj}$ (set to 400mm), which effectively filters out minor or accidental structural contacts.
 
-\textbf{Step 4: Label Extraction.} For training data, shear wall locations are extracted from structural drawings and mapped to the 16-dimensional output representation (Section~\ref{subsubsec:output_param}).
+\textbf{Step 4: Attribute \& Label Mapping.} Finally, node features $\mathbf{X}$ and edge attributes $\mathbf{A}$ are computed based on the geometry and spatial relationships (detailed in Sections~\ref{subsubsec:node_features} and~\ref{subsubsec:edge_features}). For the training data, ground-truth shear wall locations are extracted from structural engineering drawings and precisely mapped to the 16-dimensional output representation (Section~\ref{subsubsec:output_param}).
 
 \subsubsection{Node Feature Design}
 \label{subsubsec:node_features}
 
-Each room node $v_i$ is associated with a feature vector $\mathbf{x}_i \in \mathbb{R}^{25}$ comprising geometric descriptors and constraint information.
+Each room node $v_i$ is associated with a 25-dimensional feature vector $\mathbf{x}_i \in \mathbb{R}^{25}$, which is formed by concatenating 9 geometric descriptors and 16 constraint indicators.
 The normalized geometric feature vector is 9-dimensional, $\mathbf{x}_i^{geo}\in\mathbb{R}^{9}$, defined as
 $(x_{min}, y_{min}, x_{max}, y_{max}, w, h, a, x_c, y_c)$, where $(x_{min},y_{min},x_{max},y_{max})$ are the bounding-box coordinates, $w$ and $h$ are the bounding-box width and height, $a$ is the room area, and $(x_c,y_c)$ is the room centroid.
 All entries are normalized to $[0,1]$ within a floor plan.
@@ -327,7 +322,7 @@ This formulation allows the classification head to establish wall topology while
 
 \subsubsection{Motivation: Addressing Paired Data Scarcity}
 
-Standard conditional generation requires paired training data: multiple outputs (layouts) for the same input (floor plan) under different conditions.
+Standard conditional generation typically relies on strictly paired training data, meaning that a single input (e.g., an architectural floor plan) must be paired with multiple ground-truth outputs, each representing a valid layout under a different specified condition.
 In structural design, this requirement is impractical---each building is typically designed once for a specific set of requirements (seismic zone, building height), yielding only one ground-truth layout per floor plan.
 Training solely on available pairs risks the model ignoring condition inputs entirely, learning to predict layouts based on geometric features alone.
 This posterior collapse manifests as generated layouts that fail to differentiate across conditions---the model produces similar outputs regardless of specified density requirements.

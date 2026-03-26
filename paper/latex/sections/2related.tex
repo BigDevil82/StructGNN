@@ -18,20 +18,20 @@ Recent diffusion-based methods further improved conditional generation quality i
 \small
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\textwidth}{
->{\raggedright\arraybackslash}p{3.0cm}
+>{\raggedright\arraybackslash}p{2.8cm}
 >{\raggedright\arraybackslash}p{2.35cm}
->{\raggedright\arraybackslash}p{2.25cm}
->{\raggedright\arraybackslash\hsize=0.85\hsize}X
->{\raggedright\arraybackslash\hsize=1.15\hsize}X
+>{\raggedright\arraybackslash}p{2.4cm}
+>{\raggedright\arraybackslash\hsize=0.9\hsize}X
+>{\raggedright\arraybackslash\hsize=1.1\hsize}X
 }
 \toprule
-Method Category & Representative Works & Representation Level & Conditional Strategy & Main Limitation for This Study \\
+Method Category & Representative Works & Representation Level & Conditional Strategy & Main Limitation for This Task \\
 \midrule
-Optimization / Search & \cite{zhouAutomatedStructuralDesign2022b,muellerCombiningStructuralPerformance2015,luoAlphaTrussMonteCarlo2022a} & Parameterized models / graphs & Objective-driven search & Iterative and expensive; limited end-to-end generation speed \\
-Image-based DL (GAN/CNN) & \cite{liaoAutomatedStructuralDesign2021a,liaoIntelligentGenerativeStructural2022a,luIntelligentStructuralDesign2022a,fuDualGenerativeAdversarial2023} & Pixel grid & None / text-image conditions & Sparse key pixels, implicit topology, vectorization gap \\
-Diffusion-based Layout Generation & \cite{guIntelligentDesignShear2024, zhouStructDiffusionEndendIntelligent2024,shabaniHouseDiffusionVectorFloorplan2022} & Pixel/tensor or vector floorplan & Prompt/graph-conditioned diffusion & Limited explicit room-level structural semantics; iterative inference cost \\
-Primitive-based Structural GNN & \cite{zhaoIntelligentDesignShear2023b,zhaoDesignconditioninformedShearWall2023d,IntelligentCodesignShear2025,zhangEndtoendGenerationStructural} & Intersections + wall segments & Feature concatenation / task-specific conditions & Large graph scale and weak room-level semantic alignment \\
-Room-graph based Generation & \cite{nauataHouseGANRelationalGenerative2020} & Room-level graph & Graph-constrained generation & Focuses on architectural layout, not structural wall design \\
+Optimization / Search & \cite{zhouAutomatedStructuralDesign2022b,muellerCombiningStructuralPerformance2015,luoAlphaTrussMonteCarlo2022a} & Params / Graphs & Objective-driven & High computational cost; slow inference \\
+Image-based DL (GAN/CNN) & \cite{liaoAutomatedStructuralDesign2021a,liaoIntelligentGenerativeStructural2022a,luIntelligentStructuralDesign2022a,fuDualGenerativeAdversarial2023} & Pixel grid & None / Text-image & Implicit topology; requires vectorization \\
+Diffusion Models & \cite{guIntelligentDesignShear2024, zhouStructDiffusionEndendIntelligent2024,shabaniHouseDiffusionVectorFloorplan2022} & Pixels / Vectors & Prompt / Graph & Lacks room semantics; iterative latency \\
+Primitive-based GNN & \cite{zhaoIntelligentDesignShear2023b,zhaoDesignconditioninformedShearWall2023d,IntelligentCodesignShear2025,zhangEndtoendGenerationStructural} & Primitives (Segments) & Feature concat. & Large graph scale; weak room-level alignment \\
+Room-graph Gen. & \cite{nauataHouseGANRelationalGenerative2020} & Room-level graph & Graph-constrained & Architectural focus (not structural walls) \\
 \bottomrule
 \end{tabularx}
 \end{table*}
