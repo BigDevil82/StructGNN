@@ -1,5 +1,6 @@
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import openseespy.opensees as ops
 
@@ -70,47 +71,20 @@ class SeismicCodeChecker:
             return cqc(modal_vals, eigs, damping, scale_factors)
         return srss(modal_vals, scale_factors)
 
-    def _classify_mode(self, mode: int) -> str:
-        trans_x = 0.0
-        trans_y = 0.0
-        torsion = 0.0
-        radius = max(self.xmax - self.xmin, self.ymax - self.ymin, 1.0)
-
-        for node in self.master_nodes:
-            ux = ops.nodeEigenvector(node, mode, 1)
-            uy = ops.nodeEigenvector(node, mode, 2)
-            rz = ops.nodeEigenvector(node, mode, 6)
-            trans_x += ux * ux
-            trans_y += uy * uy
-            torsion += (rz * radius) * (rz * radius)
-
-        dominant = max(trans_x, trans_y, torsion)
-        if dominant <= 1e-12:
-            return "UNKNOWN"
-        if dominant == torsion:
-            return "T"
-        if dominant == trans_x:
-            return "X"
-        return "Y"
-
     def _extract_modal_summary(
-        self, periods: list[float]
+        self, periods: list[float], modal_props: dict[str, Any]
     ) -> tuple[int | None, float | None, int | None, float | None, float | None, bool]:
         translational_mode_index = None
         translational_period = None
         torsional_mode_index = None
         torsional_period = None
 
-        for mode, period in enumerate(periods, start=1):
-            mode_type = self._classify_mode(mode)
-            if translational_mode_index is None and mode_type in {"X", "Y"}:
-                translational_mode_index = mode
-                translational_period = period
-            if torsional_mode_index is None and mode_type == "T":
-                torsional_mode_index = mode
-                torsional_period = period
-            if translational_mode_index is not None and torsional_mode_index is not None:
-                break
+        print("\n[校核器] 正在根据模态参与质量比识别主导模态...")
+        translational_mode_index, torsional_mode_index = self._identify_modes_by_participation(modal_props)
+        if translational_mode_index is not None and translational_mode_index - 1 < len(periods):
+            translational_period = periods[translational_mode_index - 1]
+        if torsional_mode_index is not None and torsional_mode_index - 1 < len(periods):
+            torsional_period = periods[torsional_mode_index - 1]
 
         period_ratio = None
         is_period_ratio_passed = False
@@ -126,6 +100,43 @@ class SeismicCodeChecker:
             period_ratio,
             is_period_ratio_passed,
         )
+
+    def _safe_float_list(self, values: Any, max_len: int) -> list[float]:
+        if not isinstance(values, list):
+            return [0.0] * max_len
+        out: list[float] = []
+        for value in values[:max_len]:
+            try:
+                out.append(abs(float(value)))
+            except (TypeError, ValueError):
+                out.append(0.0)
+        if len(out) < max_len:
+            out.extend([0.0] * (max_len - len(out)))
+        return out
+
+    def _identify_modes_by_participation(self, modal_props: dict[str, Any]) -> tuple[int | None, int | None]:
+        num_modes = len(modal_props.get("eigenLambda", []))
+        if num_modes <= 0:
+            return None, None
+
+        mx = self._safe_float_list(modal_props.get("partiMassRatiosMX"), num_modes)
+        my = self._safe_float_list(modal_props.get("partiMassRatiosMY"), num_modes)
+        rmz = self._safe_float_list(modal_props.get("partiMassRatiosRMZ"), num_modes)
+
+        translational_mode_index = None
+        torsional_mode_index = None
+
+        for i in range(num_modes):
+            trans_ratio = max(mx[i], my[i])
+            tors_ratio = rmz[i]
+            if translational_mode_index is None and trans_ratio >= tors_ratio and trans_ratio > 0.0:
+                translational_mode_index = i + 1
+            if torsional_mode_index is None and tors_ratio > trans_ratio and tors_ratio > 0.0:
+                torsional_mode_index = i + 1
+            if translational_mode_index is not None and torsional_mode_index is not None:
+                break
+
+        return translational_mode_index, torsional_mode_index
 
     def run_analysis_and_evaluate(self) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult]]:
         """执行分析并同时提取所有需要的数据，绝不重复计算"""
@@ -147,7 +158,10 @@ class SeismicCodeChecker:
         else:
             eigs = [float(x) for x in eigs if float(x) > 1e-12]
 
-        ops.modalProperties()
+        returned = ops.modalProperties("-return")
+        if not isinstance(returned, dict):
+            raise RuntimeError("modalProperties('-return') 未返回 dict，无法基于质量参与系数识别主导模态")
+        modal_props: dict[str, Any] = returned
 
         periods = [2.0 * math.pi / math.sqrt(lam) for lam in eigs]
         print(f"Modal periods (s): {[round(t, 4) for t in periods]}")
@@ -158,7 +172,7 @@ class SeismicCodeChecker:
             torsional_period,
             period_ratio,
             is_period_ratio_passed,
-        ) = self._extract_modal_summary(periods)
+        ) = self._extract_modal_summary(periods, modal_props)
 
         # 计算各层累计重力 W_i
         W = [0.0] * self.num_stories
