@@ -220,8 +220,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
         print(
             f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
             f"beams={len(input_data.beams)}, shellElems={shell_count}, beamElems={beam_count}, "
-            f"floor_area~{floor_area:.2f} m^2, floor_mass_range=[{min(floor_masses):.2f}, {max(floor_masses):.2f}] kg, "
-            f"load_mass_total={total_load_mass:.2f} kg, self_mass_total={total_self_mass:.2f} kg, "
-            f"total_mass={total_structure_mass:.2f} kg ({total_structure_mass / 1000.0:.3f} t)"
+            f"floor_area~{floor_area:.2f} m², floor_mass_range=[{min(floor_masses/1e3):.2f}, {max(floor_masses/1e3):.2f}] t, "
+            f"load_mass_total={total_load_mass/1e3:.2f} t, self_mass_total={total_self_mass/1e3:.2f} t, "
+            f"total_mass={total_structure_mass/1e3:.2f} t ({total_structure_mass / 1e3:.2f} t)"
         )
         return ModelBuildResult(master_nodes=master_nodes, floor_area=floor_area)
