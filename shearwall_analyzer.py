@@ -1,12 +1,9 @@
 from pathlib import Path
 
-from shearwall_modeling import (
-    ModelConfig,
-    SectionConfig,
-    ShearWallAnalysisEngine,
-    StandardStoryGroupConfig,
-    load_and_scale_input,
-)
+import openseespy.opensees as ops
+
+from shearwall_modeling import ModelConfig, SectionConfig, StandardStoryGroupConfig, load_and_scale_input
+from shearwall_modeling.builders import DEFAULT_REGISTRY
 from shearwall_modeling.evaluation import SeismicCodeChecker
 
 
@@ -14,8 +11,6 @@ def main() -> None:
     # User-configurable inputs for parameterized invocation.
     json_path = Path(r"result\case_study\archi_comp_fem_data.json")
     input_unit_scale_to_m = 0.001  # JSON coordinates are in mm.
-    stories = 18
-    story_height = 3.0
     num_modes = 6
     enable_auto_scale = True
     scale_low = 6.0
@@ -52,16 +47,12 @@ def main() -> None:
     ]
 
     config = ModelConfig(
-        num_stories=stories,
-        story_height=story_height,
         num_modes=num_modes,
         standard_story_groups=standard_story_groups,
     )
     config.seismic.combination_method = combine_method
 
-    engine = ShearWallAnalysisEngine()
-    # 1. 仅使用 Engine 进行物理建模 (跳过其自带的 analyze 分析方法)
-    builder = engine.registry.get(builder_name)
+    builder = DEFAULT_REGISTRY.get(builder_name)
     build_result = builder.build(input_data, config)
 
     # 2. 挂载综合校核器 (它将接管特征值求解和反应谱迭代)
@@ -75,7 +66,7 @@ def main() -> None:
     for direction in ("X", "Y"):
         print(f"  {direction}: {[round(v, 6) for v in drifts[direction]]}")
 
-    engine.cleanup()
+    ops.wipe()
 
 
 if __name__ == "__main__":

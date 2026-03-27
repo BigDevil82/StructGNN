@@ -191,18 +191,17 @@ class ModelConfig:
     standard_story_groups: list["StandardStoryGroupConfig"] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        if self.standard_story_groups:
+            total_group_stories = sum(group.count for group in self.standard_story_groups)
+            if total_group_stories <= 0:
+                raise ValueError("sum(standard_story_groups.count) must be greater than 0.")
+            # Keep config concise: when groups are provided, total stories come from groups.
+            self.num_stories = total_group_stories
+
         if self.num_stories <= 0:
             raise ValueError("num_stories must be greater than 0.")
         if self.story_height <= 0.0:
             raise ValueError("story_height must be greater than 0.")
-
-        if self.standard_story_groups:
-            total_group_stories = sum(group.count for group in self.standard_story_groups)
-            if total_group_stories != self.num_stories:
-                raise ValueError(
-                    "sum(standard_story_groups.count) must equal num_stories. "
-                    f"Got groups={total_group_stories}, num_stories={self.num_stories}."
-                )
 
     def resolve_story_profiles(self) -> list["StoryProfile"]:
         profiles: list[StoryProfile] = []
