@@ -19,7 +19,7 @@ class ShearWallAnalysisEngine:
         self.registry = registry or DEFAULT_REGISTRY
 
     def analyze(
-        self, input_data: FEMInput, config: ModelConfig, builder_name: str = "equivalent_frame"
+        self, input_data: FEMInput, config: ModelConfig, builder_name: str = "detailed_shell"
     ) -> AnalysisResult:
         builder = self.registry.get(builder_name)
         build_result = builder.build(input_data, config)

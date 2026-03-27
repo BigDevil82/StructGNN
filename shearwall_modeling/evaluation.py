@@ -1,5 +1,6 @@
 import math
 from dataclasses import dataclass
+from time import time
 from typing import Any
 
 import openseespy.opensees as ops
@@ -46,7 +47,12 @@ class SeismicCodeChecker:
         self.master_nodes = master_nodes
         self.config = config
         self.num_stories = len(master_nodes)
-        self.h = config.story_height
+        self.story_heights = config.get_story_heights()
+        if len(self.story_heights) != self.num_stories:
+            raise ValueError(
+                "Story profile count must match modeled story count. "
+                f"profiles={len(self.story_heights)}, master_nodes={self.num_stories}"
+            )
 
         self.xmin, self.xmax, self.ymin, self.ymax = self._get_model_bbox()
         self.floor_masses = [ops.nodeMass(n, 1) for n in master_nodes]
@@ -151,7 +157,10 @@ class SeismicCodeChecker:
 
         nreq = min(self.config.num_modes, self.num_stories * 2)
         print(f"\n[校核器] 正在提取 {nreq} 阶特征值 (UmfPack)...")
+        start = time()
         eigs = ops.eigen("-genBandArpack", nreq)
+        end = time()
+        print(f"Eigenvalue extraction completed in {end - start:.2f} seconds.")
 
         if isinstance(eigs, (int, float)):
             eigs = [float(eigs)]
@@ -218,14 +227,15 @@ class SeismicCodeChecker:
                     dy = [self.ymin - cm_y, self.ymin - cm_y, self.ymax - cm_y, self.ymax - cm_y]
 
                     u_corners = [0.0] * 4
+                    h_i = self.story_heights[i]
                     for c in range(4):
                         if dir_idx == 1:
                             u_corners[c] = u_cm - theta_z * dy[c]
                         else:
                             u_corners[c] = u_cm + theta_z * dx[c]
-                        modal_drift_corners[c][i].append((u_corners[c] - prev_u_corners[c]) / self.h)
+                        modal_drift_corners[c][i].append((u_corners[c] - prev_u_corners[c]) / h_i)
 
-                    modal_drift_cm[i].append((u_cm - prev_u_cm) / self.h)
+                    modal_drift_cm[i].append((u_cm - prev_u_cm) / h_i)
                     prev_u_cm = u_cm
                     prev_u_corners = u_corners
 

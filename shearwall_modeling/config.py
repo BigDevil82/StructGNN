@@ -188,3 +188,88 @@ class ModelConfig:
     section: SectionConfig = field(default_factory=SectionConfig)
     seismic: SeismicConfig = field(default_factory=SeismicConfig)
     num_modes: int = 6
+    standard_story_groups: list["StandardStoryGroupConfig"] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.num_stories <= 0:
+            raise ValueError("num_stories must be greater than 0.")
+        if self.story_height <= 0.0:
+            raise ValueError("story_height must be greater than 0.")
+
+        if self.standard_story_groups:
+            total_group_stories = sum(group.count for group in self.standard_story_groups)
+            if total_group_stories != self.num_stories:
+                raise ValueError(
+                    "sum(standard_story_groups.count) must equal num_stories. "
+                    f"Got groups={total_group_stories}, num_stories={self.num_stories}."
+                )
+
+    def resolve_story_profiles(self) -> list["StoryProfile"]:
+        profiles: list[StoryProfile] = []
+
+        if not self.standard_story_groups:
+            z_bottom = 0.0
+            for story_idx in range(1, self.num_stories + 1):
+                z_top = z_bottom + self.story_height
+                profiles.append(
+                    StoryProfile(
+                        story=story_idx,
+                        story_height=self.story_height,
+                        z_bottom=z_bottom,
+                        z_top=z_top,
+                        section=self.section,
+                        mass_source=self.mass_source,
+                    )
+                )
+                z_bottom = z_top
+            return profiles
+
+        z_bottom = 0.0
+        story_idx = 1
+        for group in self.standard_story_groups:
+            if group.count <= 0:
+                raise ValueError("standard_story_groups.count must be greater than 0.")
+
+            section = group.section or self.section
+            mass_source = group.mass_source or self.mass_source
+            story_height = group.story_height if group.story_height is not None else self.story_height
+            if story_height <= 0.0:
+                raise ValueError("story_height in standard_story_groups must be greater than 0.")
+
+            for _ in range(group.count):
+                z_top = z_bottom + story_height
+                profiles.append(
+                    StoryProfile(
+                        story=story_idx,
+                        story_height=story_height,
+                        z_bottom=z_bottom,
+                        z_top=z_top,
+                        section=section,
+                        mass_source=mass_source,
+                    )
+                )
+                z_bottom = z_top
+                story_idx += 1
+
+        return profiles
+
+    def get_story_heights(self) -> list[float]:
+        return [profile.story_height for profile in self.resolve_story_profiles()]
+
+
+@dataclass
+class StandardStoryGroupConfig:
+    count: int
+    story_height: Optional[float] = None
+    section: Optional[SectionConfig] = None
+    mass_source: Optional[MassSourceConfig] = None
+
+
+@dataclass
+class StoryProfile:
+    story: int
+    story_height: float
+    z_bottom: float
+    z_top: float
+    section: SectionConfig
+    mass_source: MassSourceConfig

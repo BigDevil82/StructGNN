@@ -1,6 +1,12 @@
 from pathlib import Path
 
-from shearwall_modeling import ModelConfig, ShearWallAnalysisEngine, load_and_scale_input
+from shearwall_modeling import (
+    ModelConfig,
+    SectionConfig,
+    ShearWallAnalysisEngine,
+    StandardStoryGroupConfig,
+    load_and_scale_input,
+)
 from shearwall_modeling.evaluation import SeismicCodeChecker
 
 
@@ -17,7 +23,7 @@ def main() -> None:
     scale_seed = 42
     manual_scale_factor = 1
     combine_method = "CQC"
-    builder_name = "detailed_shell"  # "equivalent_frame" or "detailed_shell"
+    builder_name = "detailed_shell"
 
     input_data, scale = load_and_scale_input(
         json_path=json_path,
@@ -31,7 +37,26 @@ def main() -> None:
 
     print(f"Geometry scale factor used: {scale:.6f}")
 
-    config = ModelConfig(num_stories=stories, story_height=story_height, num_modes=num_modes)
+    standard_story_groups = [
+        StandardStoryGroupConfig(count=18),
+        # StandardStoryGroupConfig(
+        #     count=6,
+        #     story_height=3.3,
+        #     section=SectionConfig(wall_thickness=0.25, beam_width=0.35, beam_depth=0.6, slab_thickness=0.12),
+        # ),
+        # StandardStoryGroupConfig(
+        #     count=6,
+        #     story_height=3.6,
+        #     section=SectionConfig(wall_thickness=0.30, beam_width=0.40, beam_depth=0.7, slab_thickness=0.14),
+        # ),
+    ]
+
+    config = ModelConfig(
+        num_stories=stories,
+        story_height=story_height,
+        num_modes=num_modes,
+        standard_story_groups=standard_story_groups,
+    )
     config.seismic.combination_method = combine_method
 
     engine = ShearWallAnalysisEngine()

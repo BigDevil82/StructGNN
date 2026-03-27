@@ -8,6 +8,13 @@ from ..modal_combination import combine_story_drifts
 
 
 def run_builtin_rsa(master_nodes: list[int], config: ModelConfig) -> dict[str, list[float]]:
+    story_heights = config.get_story_heights()
+    if len(story_heights) != len(master_nodes):
+        raise ValueError(
+            "Story profile count must match modeled story count. "
+            f"profiles={len(story_heights)}, master_nodes={len(master_nodes)}"
+        )
+
     ops.constraints("Transformation")
     ops.numberer("RCM")
     ops.system("UmfPack")
@@ -58,7 +65,7 @@ def run_builtin_rsa(master_nodes: list[int], config: ModelConfig) -> dict[str, l
             prev = 0.0
             for i, node in enumerate(master_nodes):
                 d = ops.nodeDisp(node, direction)
-                drift = (d - prev) / config.story_height
+                drift = (d - prev) / story_heights[i]
                 modal_drifts[i].append(drift)
                 prev = d
 
