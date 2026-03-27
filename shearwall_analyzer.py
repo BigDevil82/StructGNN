@@ -61,10 +61,10 @@ def main() -> None:
     # 一次性返回：普通的质心层间位移角(兼容原有需求) + 规范校核结果
     drifts, checks = checker.run_analysis_and_evaluate()
 
-    # 打印原来需要的位移角
-    print(f"\n{config.seismic.combination_method} inter-story drift ratios:")
+    # 打印层间位移角(‰)
+    print(f"\n{config.seismic.combination_method} inter-story drift ratios (‰):")
     for direction in ("X", "Y"):
-        print(f"  {direction}: {[round(v, 6) for v in drifts[direction]]}")
+        print(f"  {direction}: {[round(v * 1000.0, 2) for v in drifts[direction]]}")
 
     ops.wipe()
 
