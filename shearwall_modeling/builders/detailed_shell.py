@@ -48,11 +48,6 @@ class DetailedShellBuilder(StructuralModelBuilder):
             nu = min(0.45, max(0.05, nu_from_eg))
 
         story_profiles = config.resolve_story_profiles()
-        if len(story_profiles) != config.num_stories:
-            raise ValueError(
-                "Resolved story profiles must equal num_stories. "
-                f"profiles={len(story_profiles)}, num_stories={config.num_stories}"
-            )
         z_levels = [0.0] + [profile.z_top for profile in story_profiles]
 
         floor_area = estimate_floor_area(input_data)

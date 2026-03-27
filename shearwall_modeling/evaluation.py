@@ -48,11 +48,6 @@ class SeismicCodeChecker:
         self.config = config
         self.num_stories = len(master_nodes)
         self.story_heights = config.get_story_heights()
-        if len(self.story_heights) != self.num_stories:
-            raise ValueError(
-                "Story profile count must match modeled story count. "
-                f"profiles={len(self.story_heights)}, master_nodes={self.num_stories}"
-            )
 
         self.xmin, self.xmax, self.ymin, self.ymax = self._get_model_bbox()
         self.floor_masses = [ops.nodeMass(n, 1) for n in master_nodes]

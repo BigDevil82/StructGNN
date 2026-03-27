@@ -180,60 +180,36 @@ class MassSourceConfig:
 
 @dataclass
 class ModelConfig:
-    num_stories: int = 8
-    story_height: float = 3.0
+    standard_story_groups: list["StandardStoryGroupConfig"]
     mass_per_area: float = 1000.0
     mass_source: MassSourceConfig = field(default_factory=MassSourceConfig)
     material: MaterialConfig = field(default_factory=MaterialConfig)
     section: SectionConfig = field(default_factory=SectionConfig)
     seismic: SeismicConfig = field(default_factory=SeismicConfig)
     num_modes: int = 6
-    standard_story_groups: list["StandardStoryGroupConfig"] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        if self.standard_story_groups:
-            total_group_stories = sum(group.count for group in self.standard_story_groups)
-            if total_group_stories <= 0:
-                raise ValueError("sum(standard_story_groups.count) must be greater than 0.")
-            # Keep config concise: when groups are provided, total stories come from groups.
-            self.num_stories = total_group_stories
+        if not self.standard_story_groups:
+            raise ValueError("standard_story_groups is required and cannot be empty.")
+        for group in self.standard_story_groups:
+            if group.count <= 0:
+                raise ValueError("standard_story_groups.count must be greater than 0.")
+            if group.story_height <= 0.0:
+                raise ValueError("standard_story_groups.story_height must be greater than 0.")
 
-        if self.num_stories <= 0:
-            raise ValueError("num_stories must be greater than 0.")
-        if self.story_height <= 0.0:
-            raise ValueError("story_height must be greater than 0.")
+    @property
+    def num_stories(self) -> int:
+        return sum(group.count for group in self.standard_story_groups)
 
     def resolve_story_profiles(self) -> list["StoryProfile"]:
         profiles: list[StoryProfile] = []
 
-        if not self.standard_story_groups:
-            z_bottom = 0.0
-            for story_idx in range(1, self.num_stories + 1):
-                z_top = z_bottom + self.story_height
-                profiles.append(
-                    StoryProfile(
-                        story=story_idx,
-                        story_height=self.story_height,
-                        z_bottom=z_bottom,
-                        z_top=z_top,
-                        section=self.section,
-                        mass_source=self.mass_source,
-                    )
-                )
-                z_bottom = z_top
-            return profiles
-
         z_bottom = 0.0
         story_idx = 1
         for group in self.standard_story_groups:
-            if group.count <= 0:
-                raise ValueError("standard_story_groups.count must be greater than 0.")
-
             section = group.section or self.section
             mass_source = group.mass_source or self.mass_source
-            story_height = group.story_height if group.story_height is not None else self.story_height
-            if story_height <= 0.0:
-                raise ValueError("story_height in standard_story_groups must be greater than 0.")
+            story_height = group.story_height
 
             for _ in range(group.count):
                 z_top = z_bottom + story_height
@@ -259,7 +235,7 @@ class ModelConfig:
 @dataclass
 class StandardStoryGroupConfig:
     count: int
-    story_height: Optional[float] = None
+    story_height: float
     section: Optional[SectionConfig] = None
     mass_source: Optional[MassSourceConfig] = None
 

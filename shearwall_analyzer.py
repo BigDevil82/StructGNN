@@ -33,7 +33,7 @@ def main() -> None:
     print(f"Geometry scale factor used: {scale:.6f}")
 
     standard_story_groups = [
-        StandardStoryGroupConfig(count=18),
+        StandardStoryGroupConfig(count=18, story_height=3.0),
         # StandardStoryGroupConfig(
         #     count=6,
         #     story_height=3.3,
