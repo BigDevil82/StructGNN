@@ -55,26 +55,61 @@ def _rect_slab_span_depth(slab: list[tuple[float, float]]) -> Union[tuple[float,
     return span, depth
 
 
+def _filter_reasonable_rect_slabs(rect_dims: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    if len(rect_dims) <= 2:
+        return rect_dims
+
+    spans = [d[0] for d in rect_dims]
+    depths = [d[1] for d in rect_dims]
+    areas = [d[0] * d[1] for d in rect_dims]
+    span_med = _median(spans)
+    depth_med = _median(depths)
+    area_med = _median(areas)
+
+    # Remove tiny outliers (typically shafts/void artifacts) while preserving normal rooms.
+    span_min = max(0.8, 0.55 * span_med)
+    depth_min = max(1.0, 0.55 * depth_med)
+    area_min = max(2.0, 0.35 * area_med)
+
+    filtered: list[tuple[float, float]] = []
+    for span, depth in rect_dims:
+        area = span * depth
+        aspect = depth / max(span, 1.0e-9)
+        if span < span_min or depth < depth_min or area < area_min:
+            continue
+        if aspect > 3.5:
+            continue
+        if span < 2.0 or depth < 3.0:
+            continue
+        if span > 8.0 or depth > 12.0:
+            continue
+        filtered.append((span, depth))
+
+    return filtered if filtered else rect_dims
+
+
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def choose_scale_factor(input_data: FEMInput, low: float = 6.0, high: float = 12.0, seed: int = 42) -> float:
+def choose_scale_factor(input_data: FEMInput, low: float = 2.0, high: float = 6.0, seed: int = 42) -> float:
     _ = seed  # keep signature backward compatible; scaling is deterministic now.
 
     if low <= 0.0 or high <= 0.0 or high < low:
         raise ValueError("choose_scale_factor expects 0 < low <= high.")
 
-    spans: list[float] = []
-    depths: list[float] = []
+    rect_dims: list[tuple[float, float]] = []
     for slab in input_data.slabs:
         if not isinstance(slab, list):
             continue
         sd = _rect_slab_span_depth(slab)
         if sd is None:
             continue
-        spans.append(sd[0])
-        depths.append(sd[1])
+        rect_dims.append(sd)
+
+    rect_dims = _filter_reasonable_rect_slabs(rect_dims)
+    spans = [d[0] for d in rect_dims]
+    depths = [d[1] for d in rect_dims]
 
     wall_lengths = [m.length for m in input_data.walls if m.length > 1.0e-9]
     beam_lengths = [m.length for m in input_data.beams if m.length > 1.0e-9]
@@ -92,6 +127,9 @@ def choose_scale_factor(input_data: FEMInput, low: float = 6.0, high: float = 12
     if spans and depths:
         span_med = _median(spans)
         depth_med = _median(depths)
+        print(
+            f"Median rectangular slab span: {span_med:.3f} m, depth: {depth_med:.3f} m (count={len(rect_dims)})"
+        )
         if span_med > 1.0e-9:
             weighted_scales.append((span_target / span_med, 0.45))
             lower_bounds.append(span_min / span_med)
