@@ -1,3 +1,4 @@
+import logging
 import math
 from dataclasses import dataclass
 from time import time
@@ -43,11 +44,12 @@ class SeismicCodeChecker:
     仅需执行一次循环，同时输出常规层间位移角和规范抗震指标。
     """
 
-    def __init__(self, master_nodes: list[int], config: ModelConfig):
+    def __init__(self, master_nodes: list[int], config: ModelConfig, logger: logging.Logger):
         self.master_nodes = master_nodes
         self.config = config
         self.num_stories = len(master_nodes)
         self.story_heights = config.get_story_heights()
+        self.logger = logger
 
         self.xmin, self.xmax, self.ymin, self.ymax = self._get_model_bbox()
         self.floor_masses = [ops.nodeMass(n, 1) for n in master_nodes]
@@ -80,7 +82,7 @@ class SeismicCodeChecker:
         torsional_mode_index = None
         torsional_period = None
 
-        print("\n[校核器] 正在根据模态参与质量比识别主导模态...")
+        self.logger.info("\n[校核器] 正在根据模态参与质量比识别主导模态...")
         translational_mode_index, torsional_mode_index = self._identify_modes_by_participation(modal_props)
         if translational_mode_index is not None and translational_mode_index - 1 < len(periods):
             translational_period = periods[translational_mode_index - 1]
@@ -151,11 +153,11 @@ class SeismicCodeChecker:
         ops.analysis("Static")
 
         nreq = min(self.config.num_modes, self.num_stories * 2)
-        print(f"\n[校核器] 正在提取 {nreq} 阶特征值 (UmfPack)...")
+        self.logger.info(f"\n[校核器] 正在提取 {nreq} 阶特征值 (UmfPack)...")
         start = time()
         eigs = ops.eigen("-genBandArpack", nreq)
         end = time()
-        print(f"Eigenvalue extraction completed in {end - start:.2f} seconds.")
+        self.logger.info(f"Eigenvalue extraction completed in {end - start:.2f} seconds.")
 
         if isinstance(eigs, (int, float)):
             eigs = [float(eigs)]
@@ -168,7 +170,7 @@ class SeismicCodeChecker:
         modal_props: dict[str, Any] = returned
 
         periods = [2.0 * math.pi / math.sqrt(lam) for lam in eigs]
-        print(f"Modal periods (s): {[round(t, 4) for t in periods]}")
+        self.logger.info(f"Modal periods (s): {[round(t, 4) for t in periods]}")
         (
             translational_mode_index,
             translational_period,
@@ -307,47 +309,51 @@ class SeismicCodeChecker:
             )
             standard_drifts[dir_name] = combined_cm_drifts
 
-        self._print_report(check_results)
+        # self._self.logger.info_report(check_results)
         return standard_drifts, check_results
 
     def _print_report(self, results: dict[str, DirectionCheckResult]):
-        print("\n" + "=" * 50)
-        print("结构抗震规范核心指标综合校核报告")
-        print("=" * 50)
+        self.logger.info("\n" + "=" * 50)
+        self.logger.info("结构抗震规范核心指标综合校核报告")
+        self.logger.info("=" * 50)
 
         first_result = next(iter(results.values()), None)
         if first_result is not None:
-            print("\n【模态结果】")
-            print(" 前n阶周期:")
+            self.logger.info("\n【模态结果】")
+            self.logger.info(" 前n阶周期:")
             for idx, period in enumerate(first_result.modal_periods, start=1):
-                print(f"  第{idx}阶: {period:.4f} s")
+                self.logger.info(f"  第{idx}阶: {period:.4f} s")
 
             if first_result.period_ratio is not None:
-                print(
+                self.logger.info(
                     " 首个平动周期/首个扭转周期: "
                     f"第{first_result.translational_mode_index}阶 {first_result.translational_period:.4f} s / "
                     f"第{first_result.torsional_mode_index}阶 {first_result.torsional_period:.4f} s"
                 )
-                print(
+                self.logger.info(
                     " 周期比 T_torsion / T_translation < 0.9: "
                     f"{first_result.period_ratio:.3f} "
-                    f"({'通过' if first_result.is_period_ratio_passed else '超限'})"
+                    f"({'✅通过' if first_result.is_period_ratio_passed else '❌超限'})"
                 )
             else:
-                print(" 首个平动或扭转主导模态未识别，周期比无法校核。")
+                self.logger.info(" 首个平动或扭转主导模态未识别，周期比无法校核。")
 
         for dir_name, res in results.items():
-            print(f"\n【{dir_name}向校核结果】")
-            print(f" -> 扭转不规则 (限值 1.2/1.5): {'通过' if res.is_torsion_passed else '超限'}")
-            print(
-                f" -> 最小剪重比 (限值 {self.min_shear_ratio}): {'通过' if res.is_shear_weight_passed else '超限'}"
+            self.logger.info(f"\n【{dir_name}向校核结果】")
+            self.logger.info(
+                f" -> 扭转不规则 (限值 1.2/1.5): {'✅通过' if res.is_torsion_passed else '❌超限'}"
             )
-            print(f" -> 刚度突变 (限值 0.7/0.8): {'通过' if res.is_stiffness_passed else '超限'}")
+            self.logger.info(
+                f" -> 最小剪重比 (限值 {self.min_shear_ratio}): {'✅通过' if res.is_shear_weight_passed else '❌超限'}"
+            )
+            self.logger.info(
+                f" -> 刚度突变 (限值 0.7/0.8): {'✅通过' if res.is_stiffness_passed else '❌超限'}"
+            )
 
-            print(f"\n 楼层 | 位移比(Max/Avg) | 剪重比(%) | 刚度比γ1 | 刚度比γ2")
-            print("-" * 55)
+            self.logger.info(f"\n 楼层 | 位移比(Max/Avg) | 剪重比(%) | 刚度比γ1 | 刚度比γ2")
+            self.logger.info("-" * 55)
             # 逆序输出，符合结构从上到下的阅读直觉
             for m in reversed(res.metrics):
-                print(
+                self.logger.info(
                     f"  {m.story:02d}  |     {m.torsion_ratio:.3f}     |   {m.shear_weight_ratio*100:.2f}   |  {m.gamma1:.2f}   |  {m.gamma2:.2f}"
                 )

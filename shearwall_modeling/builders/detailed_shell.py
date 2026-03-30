@@ -1,4 +1,5 @@
 import math
+from logging import Logger
 
 import openseespy.opensees as ops
 
@@ -28,12 +29,18 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
     name = "detailed_shell"
 
-    def __init__(self, wall_mesh_size_m: float = 2.5, coord_tol: float = 1.0e-6) -> None:
+    def __init__(
+        self,
+        logger: Logger,
+        wall_mesh_size_m: float = 2.5,
+        coord_tol: float = 1.0e-6,
+    ) -> None:
         self.wall_mesh_size_m = wall_mesh_size_m
         self.coord_tol = coord_tol
+        self.logger = logger
 
     def build(self, input_data: FEMInput, config: ModelConfig) -> ModelBuildResult:
-        print("Building detailed shell model...")
+        self.logger.info("Building detailed shell model...")
         if not input_data.walls:
             raise ValueError("detailed_shell builder requires at least one shear wall.")
 
@@ -217,10 +224,10 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
             master_nodes.append(master)
 
-        print(
+        self.logger.info(
             f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
             f"beams={len(input_data.beams)}, shellElems={shell_count}, beamElems={beam_count}, "
-            f"floor_area~{floor_area:.2f} m², floor_mass_range=[{min(floor_masses/1e3):.2f}, {max(floor_masses/1e3):.2f}] t, "
+            f"floor_area~{floor_area:.2f} m², floor_mass_range=[{min(floor_masses)/1e3:.2f}, {max(floor_masses)/1e3:.2f}] t, "
             f"load_mass_total={total_load_mass/1e3:.2f} t, self_mass_total={total_self_mass/1e3:.2f} t, "
             f"total_mass={total_structure_mass/1e3:.2f} t ({total_structure_mass / 1e3:.2f} t)"
         )

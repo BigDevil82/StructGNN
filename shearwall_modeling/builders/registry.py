@@ -20,4 +20,4 @@ class BuilderRegistry:
 
 
 DEFAULT_REGISTRY = BuilderRegistry()
-DEFAULT_REGISTRY.register(DetailedShellBuilder())
+DEFAULT_REGISTRY.register(DetailedShellBuilder(None))
