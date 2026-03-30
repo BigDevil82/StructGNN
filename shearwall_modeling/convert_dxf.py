@@ -3,6 +3,7 @@ from typing import Optional, Tuple
 
 from experiments.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
 from misc.parallel import run_batch
+from misc.timer import Timer
 from shearwall_pred.utils import build_graph_from_dxf
 
 
@@ -65,7 +66,8 @@ def convert_folder(dxf_folder: str, output_folder: str, max_workers: Optional[in
         print(f"No DXF files found in: {dxf_folder}")
         return
 
-    outcomes = run_batch(tasks, _convert_task, max_workers=max_workers, backend="process")
+    with Timer(prefix="DXF batch conversion time:"):
+        outcomes = run_batch(tasks, _convert_task, max_workers=max_workers, backend="process")
 
     failed = [
         (item[0], outcome.error if outcome.error is not None else (outcome.result or "Unknown error"))

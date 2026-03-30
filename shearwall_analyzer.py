@@ -7,6 +7,7 @@ import openseespy.opensees as ops
 
 from misc.logger import setup_file_logger
 from misc.parallel import run_batch
+from misc.timer import Timer
 from shearwall_modeling import ModelConfig, SectionConfig, StandardStoryGroupConfig, load_and_scale_input
 from shearwall_modeling.builders import DetailedShellBuilder
 from shearwall_modeling.evaluation import SeismicCodeChecker
@@ -98,7 +99,8 @@ def build_folder(dxf_folder: str, max_workers: Optional[int] = None) -> None:
         logger.info(f"No JSON files found in: {dxf_folder}")
         return
 
-    outcomes = run_batch(tasks, _analyze_task, max_workers=max_workers, backend="process")
+    with Timer(prefix="Shearwall batch analysis time:", print_func=logger.info):
+        outcomes = run_batch(tasks, _analyze_task, max_workers=max_workers, backend="process")
 
     failed = []
     for outcome in outcomes:
