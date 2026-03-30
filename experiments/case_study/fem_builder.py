@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -539,6 +539,139 @@ class FEMTopologyBuilder:
                 }
             )
 
+    def validate_topology(self, result: Optional[dict] = None) -> dict:
+        """
+        校核拓扑中是否存在孤立点与悬空构件。
+
+        检查内容：
+        1. 孤立点: 在节点列表中，但没有任何构件连接的点。
+        2. 悬空构件: 至少有一个端点节点度为 1 的构件。
+        3. 非主连通分量: 不在最大连通分量中的节点和构件（常见于漂浮子结构）。
+
+        Args:
+            result: 可选，build() 返回的结果。若不提供则使用当前实例的 self.nodes/self.elements。
+
+        Returns:
+            拓扑校核报告字典。
+        """
+        if result is None:
+            nodes = self.nodes
+            members = self.elements
+        else:
+            nodes = result.get("nodes", [])
+            members = result.get("members", [])
+
+        num_nodes = len(nodes)
+        degree = [0 for _ in range(num_nodes)]
+
+        adjacency: Dict[int, Set[int]] = {i: set() for i in range(num_nodes)}
+        member_ids_in_graph: Set[int] = set()
+
+        for member in members:
+            u = member["start_node"]
+            v = member["end_node"]
+
+            if 0 <= u < num_nodes:
+                degree[u] += 1
+            if 0 <= v < num_nodes:
+                degree[v] += 1
+
+            if 0 <= u < num_nodes and 0 <= v < num_nodes:
+                adjacency[u].add(v)
+                adjacency[v].add(u)
+                member_ids_in_graph.add(member["id"])
+
+        isolated_node_ids = [i for i, d in enumerate(degree) if d == 0]
+
+        dangling_members = []
+        for member in members:
+            u = member["start_node"]
+            v = member["end_node"]
+
+            du = degree[u] if 0 <= u < num_nodes else 0
+            dv = degree[v] if 0 <= v < num_nodes else 0
+
+            if du <= 1 or dv <= 1:
+                dangling_members.append(
+                    {
+                        "id": member["id"],
+                        "start_node": u,
+                        "end_node": v,
+                        "start_degree": du,
+                        "end_degree": dv,
+                        "type": member.get("type"),
+                        "length": member.get("length"),
+                    }
+                )
+
+        visited = set()
+        components = []
+
+        for node_id in range(num_nodes):
+            if node_id in visited:
+                continue
+            if degree[node_id] == 0:
+                visited.add(node_id)
+                continue
+
+            stack = [node_id]
+            comp_nodes = set()
+            while stack:
+                cur = stack.pop()
+                if cur in visited:
+                    continue
+                visited.add(cur)
+                comp_nodes.add(cur)
+                for nxt in adjacency[cur]:
+                    if nxt not in visited:
+                        stack.append(nxt)
+
+            if comp_nodes:
+                components.append(comp_nodes)
+
+        largest_comp_nodes: Set[int] = max(components, key=len) if components else set()
+        floating_node_ids = sorted(
+            [n for n in range(num_nodes) if degree[n] > 0 and n not in largest_comp_nodes]
+        )
+
+        floating_member_ids = []
+        for member in members:
+            if member["start_node"] in floating_node_ids and member["end_node"] in floating_node_ids:
+                floating_member_ids.append(member["id"])
+
+        has_issue = bool(isolated_node_ids or dangling_members or floating_member_ids)
+
+        report = {
+            "ok": not has_issue,
+            "summary": {
+                "num_nodes": num_nodes,
+                "num_members": len(members),
+                "num_isolated_nodes": len(isolated_node_ids),
+                "num_dangling_members": len(dangling_members),
+                "num_connected_components": len(components),
+                "num_floating_nodes": len(floating_node_ids),
+                "num_floating_members": len(floating_member_ids),
+            },
+            "isolated_nodes": [{"id": i, "coord": nodes[i]} for i in isolated_node_ids],
+            "dangling_members": dangling_members,
+            "floating_components": {
+                "node_ids": floating_node_ids,
+                "member_ids": floating_member_ids,
+            },
+        }
+
+        if report["ok"]:
+            print("    拓扑校核通过: 未发现孤立点/悬空构件/漂浮子结构")
+        else:
+            print(
+                "    拓扑校核警告: "
+                f"孤立点={report['summary']['num_isolated_nodes']}, "
+                f"悬空构件={report['summary']['num_dangling_members']}, "
+                f"漂浮构件={report['summary']['num_floating_members']}"
+            )
+
+        return report
+
     def _compute_slabs(self) -> List[List[Tuple]]:
         """
         计算楼板区域，覆盖所有房间及其间的空洞。
@@ -582,10 +715,12 @@ class FEMTopologyBuilder:
 
     def _format_result(self) -> dict:
         slabs = self._compute_slabs()
+        validation = self.validate_topology()
         return {
             "nodes": self.nodes,
             "members": self.elements,
             "slabs": slabs,
+            "validation": validation,
             "statistics": {
                 "num_nodes": len(self.nodes),
                 "min_xy": np.min(self.nodes, axis=0).tolist(),
@@ -644,10 +779,10 @@ def visualize_fem_result(
 
         ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=linewidth, zorder=zorder)
 
-    # # 绘制节点
-    # node_x = [n[0] for n in nodes]
-    # node_y = [n[1] for n in nodes]
-    # ax.scatter(node_x, node_y, color="black", s=20, zorder=4)
+    # 绘制节点
+    node_x = [n[0] for n in nodes]
+    node_y = [n[1] for n in nodes]
+    ax.scatter(node_x, node_y, color="black", s=20, zorder=20)
 
     # # 添加节点编号（可选）
     # if len(nodes) <= 100:
