@@ -541,11 +541,11 @@ class FEMTopologyBuilder:
 
     def validate_topology(self, result: Optional[dict] = None) -> dict:
         """
-        校核拓扑中是否存在孤立点与悬空构件。
+        校核拓扑中是否存在孤立点与异常构件。
 
         检查内容：
         1. 孤立点: 在节点列表中，但没有任何构件连接的点。
-        2. 悬空构件: 至少有一个端点节点度为 1 的构件。
+        2. 悬挑构件: 仅一端节点度为 1 的构件（另一端连接到主结构）。
         3. 非主连通分量: 不在最大连通分量中的节点和构件（常见于漂浮子结构）。
 
         Args:
@@ -591,7 +591,8 @@ class FEMTopologyBuilder:
             du = degree[u] if 0 <= u < num_nodes else 0
             dv = degree[v] if 0 <= v < num_nodes else 0
 
-            if du <= 1 or dv <= 1:
+            # 仅一端悬挑（异或）：恰好一个端点度 <= 1
+            if (du <= 1) != (dv <= 1):
                 dangling_members.append(
                     {
                         "id": member["id"],
@@ -661,12 +662,12 @@ class FEMTopologyBuilder:
         }
 
         if report["ok"]:
-            print("    拓扑校核通过: 未发现孤立点/悬空构件/漂浮子结构")
+            print("    拓扑校核通过: 未发现孤立点/悬挑构件/漂浮子结构")
         else:
             print(
                 "    拓扑校核警告: "
                 f"孤立点={report['summary']['num_isolated_nodes']}, "
-                f"悬空构件={report['summary']['num_dangling_members']}, "
+                f"悬挑构件={report['summary']['num_dangling_members']}, "
                 f"漂浮构件={report['summary']['num_floating_members']}"
             )
 
@@ -756,6 +757,11 @@ def visualize_fem_result(
 
     nodes = result["nodes"]
     members = result["members"]
+    validation = result.get("validation", {})
+
+    dangling_member_map = {m["id"]: m for m in validation.get("dangling_members", [])}
+    dangling_member_ids = set(dangling_member_map.keys())
+    floating_member_ids = set(validation.get("floating_components", {}).get("member_ids", []))
 
     # 绘制房间轮廓（背景）
     if room_polys:
@@ -779,6 +785,49 @@ def visualize_fem_result(
 
         ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=linewidth, zorder=zorder)
 
+    # 叠加绘制异常构件高亮
+    for member in members:
+        mid = member.get("id")
+        if mid in floating_member_ids:
+            start = member["start_coord"]
+            end = member["end_coord"]
+            ax.plot(
+                [start[0], end[0]],
+                [start[1], end[1]],
+                color="orange",
+                linewidth=5,
+                linestyle="--",
+                alpha=0.9,
+                zorder=30,
+            )
+
+    for member in members:
+        mid = member.get("id")
+        if mid in dangling_member_ids:
+            start = member["start_coord"]
+            end = member["end_coord"]
+            ax.plot(
+                [start[0], end[0]],
+                [start[1], end[1]],
+                color="magenta",
+                linewidth=5,
+                linestyle=":",
+                alpha=0.95,
+                zorder=35,
+            )
+
+            # 标记悬挑自由端
+            info = dangling_member_map[mid]
+            if info["start_degree"] <= 1 and info["end_degree"] > 1:
+                free_pt = start
+            elif info["end_degree"] <= 1 and info["start_degree"] > 1:
+                free_pt = end
+            else:
+                free_pt = None
+
+            if free_pt is not None:
+                ax.scatter([free_pt[0]], [free_pt[1]], color="magenta", marker="x", s=70, zorder=40)
+
     # 绘制节点
     node_x = [n[0] for n in nodes]
     node_y = [n[1] for n in nodes]
@@ -795,6 +844,22 @@ def visualize_fem_result(
             [0], [0], color="red", linewidth=4, label=f'Shear Wall ({result["statistics"]["num_shearwalls"]})'
         ),
         Line2D([0], [0], color="blue", linewidth=2, label=f'Beam ({result["statistics"]["num_beams"]})'),
+        Line2D(
+            [0],
+            [0],
+            color="magenta",
+            linewidth=4,
+            linestyle=":",
+            label=f"Cantilever ({len(dangling_member_ids)})",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color="orange",
+            linewidth=4,
+            linestyle="--",
+            label=f"Floating ({len(floating_member_ids)})",
+        ),
         # Line2D(
         #     [0],
         #     [0],
