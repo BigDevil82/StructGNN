@@ -145,7 +145,7 @@ class EnsembleShearWallGNN(torch.nn.Module):
 
             # 2. 加载权重
             # map_location 确保在 CPU/GPU 间正确加载
-            state_dict = torch.load(path, map_location=training_config.DEVICE)
+            state_dict = torch.load(path, map_location=training_config.DEVICE, weights_only=True)
             model.load_state_dict(state_dict)
 
             # 3. 设置为评估模式 (非常重要，关闭 Dropout 等)

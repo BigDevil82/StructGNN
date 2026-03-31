@@ -100,7 +100,8 @@ def build_folder(dxf_folder: str, max_workers: Optional[int] = None) -> None:
 
 
 def main() -> None:
-    build_folder(r"data\data\dxf\cad_json_data\fem_raw")
+    # build_folder(r"data\dxf\cad_json_data\fem_raw")
+    build_single(Path(r"data\dxf\cad_json_data\fem_raw\L1L28_10.json"))
 
 
 if __name__ == "__main__":
