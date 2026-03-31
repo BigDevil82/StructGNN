@@ -1,7 +1,7 @@
 import os
 from typing import Optional, Tuple
 
-from experiments.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
+from experiments.pipelines.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
 from misc.parallel import run_batch
 from misc.timer import Timer
 from shearwall_pred.utils import build_graph_from_dxf
