@@ -7,9 +7,9 @@ import networkx as nx
 import torch
 from torch_geometric.data import Batch
 
+from data_engine.preprocess.beam_ir_builder import StructuralGraphBuilder
 from experiments.research.beam_pred.beam_dataset import builder_to_pyg_data
 from experiments.research.beam_pred.model import BeamPredictorGNN
-from preprocess.beam_ir_builder import StructuralGraphBuilder
 
 
 def load_model(model_path, device):

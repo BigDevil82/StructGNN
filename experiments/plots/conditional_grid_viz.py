@@ -22,7 +22,7 @@ from torch_geometric.data import Batch
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
+from data_engine.preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
 from shearwall_pred.config import data_config, model_config, training_config, viz_config
 from shearwall_pred.cross_validate import EnsembleShearWallGNN
 from shearwall_pred.utils import build_graph_from_dxf

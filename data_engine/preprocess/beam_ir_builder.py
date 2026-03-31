@@ -9,9 +9,9 @@ import numpy as np
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
 from shapely.ops import unary_union
 
-from preprocess.dxf_extractor import DXFExtractor
-from preprocess.room_analyzer import get_room_edges
-from preprocess.room_calibrator import RoomCalibrator
+from data_engine.preprocess.dxf_extractor import DXFExtractor
+from data_engine.preprocess.room_analyzer import get_room_edges
+from data_engine.preprocess.room_calibrator import RoomCalibrator
 
 # ================= 数据结构定义 =================
 

@@ -15,7 +15,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 
-from pngtool.element_extractor import ElementExtractor
+from data_engine.pngtool.element_extractor import ElementExtractor
 
 
 @dataclass

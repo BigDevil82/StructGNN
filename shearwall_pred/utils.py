@@ -69,7 +69,7 @@ def extract_dxf_geometry(dxf_path: str) -> Tuple[List[Polygon], List[Polygon], L
     Returns:
         (raw_rooms, sw_polys, infill_polys): 房间、剪力墙、填充墙的多边形列表
     """
-    from preprocess.dxf_extractor import DXFExtractor
+    from data_engine.preprocess.dxf_extractor import DXFExtractor
 
     extractor = DXFExtractor()
     extractor.extract_from_file(dxf_path)
@@ -98,9 +98,9 @@ def build_graph_from_dxf(dxf_path: str, mode: str = "none"):
             - calibrated_rooms: 校准后的房间列表
             - analysis_results: 剪力墙分析结果列表
     """
-    from preprocess.layout_graph import LayoutGraphBuilder
-    from preprocess.room_analyzer import RoomAnalyzer
-    from preprocess.room_calibrator import calibrate_rooms
+    from data_engine.preprocess.layout_graph import LayoutGraphBuilder
+    from data_engine.preprocess.room_analyzer import RoomAnalyzer
+    from data_engine.preprocess.room_calibrator import calibrate_rooms
 
     # 1. 提取几何数据
     raw_rooms, sw_polys, infill_polys = extract_dxf_geometry(dxf_path)

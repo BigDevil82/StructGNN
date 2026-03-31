@@ -25,14 +25,14 @@ from torch_geometric.data import Batch
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+# Import from ours model
+from data_engine.preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
+
 # Import from baseline model
 from experiments.research.baseline_edge_gnn.config import data_config
 from experiments.research.baseline_edge_gnn.config import model_config as baseline_data_config
 from experiments.research.baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
 from experiments.research.baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
-
-# Import from ours model
-from preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
 from shearwall_pred.config import model_config, training_config, viz_config
 from shearwall_pred.cross_validate import EnsembleShearWallGNN
 from shearwall_pred.utils import build_graph_from_dxf

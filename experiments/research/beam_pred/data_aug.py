@@ -5,7 +5,7 @@ import numpy as np
 from shapely.affinity import rotate, scale, translate
 from shapely.geometry import LineString, Point, Polygon
 
-from preprocess.dxf_extractor import DXFExtractor
+from data_engine.preprocess.dxf_extractor import DXFExtractor
 
 
 class GeometryAugmentor:
@@ -94,7 +94,7 @@ def visualize_augmentations(dxf_path: str, save_path: str = None):
 
     # 确保能找到 preprocess 模块
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from preprocess.room_calibrator import calibrate_rooms
+    from data_engine.preprocess.room_calibrator import calibrate_rooms
 
     print(f"正在加载 DXF 文件: {dxf_path}")
 
@@ -199,7 +199,7 @@ def verify_augmentation_consistency(dxf_path: str):
     import sys
 
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from preprocess.room_calibrator import calibrate_rooms
+    from data_engine.preprocess.room_calibrator import calibrate_rooms
 
     print("=" * 60)
     print("增广一致性验证 (含梁数据)")

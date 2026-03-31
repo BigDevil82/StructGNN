@@ -12,7 +12,7 @@ from pathlib import Path
 
 import ezdxf
 
-from preprocess.dxf_extractor import DXFExtractor
+from data_engine.preprocess.dxf_extractor import DXFExtractor
 
 
 def merge_rooms(room_dxf_dir, beam_dxf_dir, output_dir):

@@ -24,7 +24,11 @@ from torch_geometric.data import Batch
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 # [CHANGE 1] 引入新的 FEMTopologyBuilder，同时保留旧文件中的导出和可视化工具
-from experiments.pipelines.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
+from experiments.pipelines.case_study.fem_builder import (
+    FEMTopologyBuilder,
+    export_to_json,
+    visualize_fem_result,
+)
 from experiments.pipelines.case_study.symmetry_postprocess import (
     detect_left_right_symmetry,
     load_layout_reference_geometries,
@@ -231,7 +235,7 @@ def run_case_study(
 
 def visualize_prediction_comparison(builder, predictions, room_polys, save_path=None):
     """可视化预测结果对比"""
-    from preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
+    from data_engine.preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
 
     # 设置绘图后端避免无头模式报错
     plt.switch_backend("Agg")

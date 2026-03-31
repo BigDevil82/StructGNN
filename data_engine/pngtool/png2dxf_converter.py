@@ -17,8 +17,8 @@ import numpy as np
 from ezdxf import appsettings, units, zoom
 from ezdxf.enums import TextEntityAlignment
 
-from pngtool.element_extractor import ElementExtractor
-from pngtool.img_util import resize_img
+from data_engine.pngtool.element_extractor import ElementExtractor
+from data_engine.pngtool.img_util import resize_img
 
 
 @dataclass
@@ -342,7 +342,7 @@ def turn_on_global_property():
 
 def main():
     """主函数"""
-    from pngtool.image_clustering import ImageClusteringAnalyzer
+    from data_engine.pngtool.image_clustering import ImageClusteringAnalyzer
 
     # # 转换单张做测试
     # axis_info_json = r"E:\Common\Desktop\Research\deepLearning\codes\AxisEngine\data\batch_parsed_axes.json"
@@ -362,7 +362,10 @@ def main():
         scale_map = json.load(f)
 
     convert_batch(
-        image_paths, scale_map=scale_map, axis_info_json=axis_info_json, output_dir="data/dxf/to_process/room_raw"
+        image_paths,
+        scale_map=scale_map,
+        axis_info_json=axis_info_json,
+        output_dir="data/dxf/to_process/room_raw",
     )
 
 
