@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from pipelines.case_study.adapters import export_structural_input_json, fem_result_to_fem_input
 from pipelines.case_study.fem_builder import FEMTopologyBuilder, visualize_fem_result
 from pipelines.case_study.inference import load_ensemble_model, predict_shear_walls, prepare_case_graph
 from pipelines.case_study.symmetry_postprocess import (
@@ -151,6 +152,11 @@ def run_case_study(
             title=f"Symmetrized Shear Wall Layout - {file_name}",
             save_path=os.path.join(output_dir, f"{file_name}_pred_symmetrized.png"),
         )
+
+    structural_json_path = os.path.join(output_dir, f"{file_name}_structural_input.json")
+    export_structural_input_json(result, structural_json_path)
+    result["structural_input"] = fem_result_to_fem_input(result)
+    result["structural_input_json_path"] = structural_json_path
 
     print("\n" + "=" * 60)
     print("案例研究完成！")

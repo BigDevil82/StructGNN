@@ -14,6 +14,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from pipelines.case_study.pipeline_core import run_case_study
 from pipelines.case_study.visualization import export_shearwall_coords, visualize_prediction_comparison, visualize_wall_layout
 from pipelines.case_study.inference import load_ensemble_model, predict_shear_walls
+from pipelines.case_study.adapters import export_structural_input_json, fem_result_to_fem_input
 
 
 def main():
@@ -54,6 +55,8 @@ def main():
 
 __all__ = [
     "export_shearwall_coords",
+    "export_structural_input_json",
+    "fem_result_to_fem_input",
     "load_ensemble_model",
     "main",
     "predict_shear_walls",
