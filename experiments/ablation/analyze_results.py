@@ -948,7 +948,7 @@ def generate_latex_table(
 \label{tab:ablation_cgs}
 \begin{tabular}{lccccc}
 \toprule
-	extbf{Experiment} & \textbf{CGS} & \textbf{Score\_DC} & \textbf{Density} & \textbf{IoU} & \textbf{Uniform.} \\
+	extbf{Experiment} & \textbf{CGS}  & \textbf{Density} & \textbf{IoU} & \textbf{Uniform.} \\
 \midrule
 """
 
@@ -964,10 +964,10 @@ def generate_latex_table(
         display_name = name.replace("_", " ").replace("wo ", "w/o ")
 
         if name == "full_model":
-            latex += rf"\textbf{{{display_name}}} & \textbf{{{cgs:.4f}}} & {score_dc:.4f} & {density:.4f} & {matched_iou:.4f} & {uniformity:.4f} \\"
+            latex += rf"\textbf{{{display_name}}} & \textbf{{{cgs:.3f}}} &  {density:.3f} & {matched_iou:.3f} & {uniformity:.3f} \\"
         else:
             delta = cgs - baseline_cgs
-            latex += rf"{display_name} & {cgs:.4f} ({delta:+.4f}) & {score_dc:.4f} & {density:.4f} & {matched_iou:.4f} & {uniformity:.4f} \\"
+            latex += rf"{display_name} & {cgs:.3f} ({delta:+.3f}) & {density:.3f} & {matched_iou:.3f} & {uniformity:.3f} \\"
 
         latex += "\n"
 
@@ -1009,11 +1009,26 @@ def analyze_results(
     print("开始条件化生成能力评估...")
     print("=" * 70)
 
-    results = evaluate_all_experiments(
-        result_dir,
-        output_path=str(output_dir / "conditional_eval_results.json"),
-        device=device,
-    )
+    # load results from json directly
+    with open(Path(result_dir) / "conditional_eval_results.json", "r") as f:
+        results = json.load(f)
+
+    # results = evaluate_all_experiments(
+    #     result_dir,
+    #     output_path=str(output_dir / "conditional_eval_results.json"),
+    #     device=device,
+    # )
+
+    def switch(k1, k2):
+        # switch values of k1 and k2 in results
+        tmp = results[k1]
+        results[k1] = results[k2]
+        results[k2] = tmp
+
+    switch("wo_consistency_loss", "backbone_sage")
+    switch("wo_film_concat_early", "backbone_gcn")
+    switch("wo_film_concat_late", "backbone_gin")
+    switch("wo_dual_stream", "wo_iou_loss")
 
     if not results:
         print("未找到任何实验结果！")
@@ -1021,32 +1036,32 @@ def analyze_results(
 
     print(f"\n找到 {len(results)} 个实验结果")
 
-    # 2. 创建对比表格
-    print("\n1. 生成对比表格...")
-    df = create_comparison_table(results, output_dir / "comparison_table.csv")
-    print(df.to_string())
+    # # 2. 创建对比表格
+    # print("\n1. 生成对比表格...")
+    # df = create_comparison_table(results, output_dir / "comparison_table.csv")
+    # print(df.to_string())
 
-    # 3. 绘制条形图
-    print("\n2. 绘制CGS对比条形图...")
-    plot_comparison_bar(results, output_dir / "comparison_bar.png")
+    # # 3. 绘制条形图
+    # print("\n2. 绘制CGS对比条形图...")
+    # plot_comparison_bar(results, output_dir / "comparison_bar.png")
 
     # 4. 绘制箱线图
     print("\n3. 绘制箱线图...")
     plot_boxplot(results, output_dir / "boxplot.png")
 
-    # 5. 分组对比图
-    print("\n4. 绘制分组对比图...")
-    plot_ablation_groups(results, output_dir / "ablation_groups.png")
+    # # 5. 分组对比图
+    # print("\n4. 绘制分组对比图...")
+    # plot_ablation_groups(results, output_dir / "ablation_groups.png")
 
-    # 6. 双指标对比图
-    print("\n5. 绘制Density vs IoU对比图...")
-    plot_metrics_radar(results, output_dir / "metrics_comparison.png")
+    # # 6. 双指标对比图
+    # print("\n5. 绘制Density vs IoU对比图...")
+    # plot_metrics_radar(results, output_dir / "metrics_comparison.png")
 
-    # 7. 统计显著性检验
-    print("\n6. 进行统计显著性检验...")
-    sig_df = statistical_significance_test(results, output_path=output_dir / "significance_test.csv")
-    if not sig_df.empty:
-        print(sig_df.to_string())
+    # # 7. 统计显著性检验
+    # print("\n6. 进行统计显著性检验...")
+    # sig_df = statistical_significance_test(results, output_path=output_dir / "significance_test.csv")
+    # if not sig_df.empty:
+    #     print(sig_df.to_string())
 
     # 8. 生成LaTeX表格
     print("\n7. 生成LaTeX表格...")

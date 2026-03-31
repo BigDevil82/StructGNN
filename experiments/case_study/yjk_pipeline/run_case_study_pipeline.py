@@ -38,7 +38,7 @@ def _append_lines(file_path: Path, lines: list[str]) -> None:
 
 def pyyjks():
     """YJK 脚本入口：读取 JSON 完成建模、分析和结果提取。"""
-    force_reload = _to_bool_env("YJK_PIPELINE_FORCE_RELOAD", default=False)
+    force_reload = _to_bool_env("YJK_PIPELINE_FORCE_RELOAD", default=True)
     enable_diag = _to_bool_env("YJK_PIPELINE_DIAG", default=True)
 
     PipelineConfig, run_pipeline_from_json, config_mod, pipeline_mod = _load_runtime_symbols(
@@ -52,16 +52,10 @@ def pyyjks():
     if output_override:
         config.output.output_dir = Path(output_override)
 
-    default_json_path = (
-        Path(__file__).resolve().parents[3] / "result" / "case_study" / "archi_comp_fem_data.json"
-    )
-    json_path = Path(os.getenv("YJK_PIPELINE_JSON", str(default_json_path))).resolve()
+    json_path = Path(os.getenv("YJK_PIPELINE_JSON", str(config.model.json_path))).resolve()
 
     diag_file = Path(
-        os.getenv(
-            "YJK_PIPELINE_DIAG_FILE",
-            str(Path(__file__).resolve().parent / "run_case_study_pipeline.diag.log"),
-        )
+        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\result\case_study\debug\yjk_pipeline_diag.log"
     ).resolve()
 
     diag_lines = [

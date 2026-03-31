@@ -309,7 +309,7 @@ class SeismicCodeChecker:
             )
             standard_drifts[dir_name] = combined_cm_drifts
 
-        # self._self.logger.info_report(check_results)
+        # self._print_report(check_results)
         return standard_drifts, check_results
 
     def _print_report(self, results: dict[str, DirectionCheckResult]):

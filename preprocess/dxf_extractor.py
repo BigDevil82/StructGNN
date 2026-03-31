@@ -471,23 +471,23 @@ def main():
 
     extractor = DXFExtractor()
 
-    # # 示例：提取单个DXF文件
-    # f_path = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finished_extracted\L1L28_232.dxf"
-    # data = extractor.extract_from_file(f_path)
-    # extractor.plot_structure(data)
+    # 示例：提取单个DXF文件
+    f_path = r"dxf\cad_json_data\building_components.dxf"
+    data = extractor.extract_from_file(f_path)
+    extractor.plot_structure(data)
 
     # 批量处理DXF文件，使用多进程加速
 
-    dxf_files = []
-    for root, dirs, files in os.walk(
-        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished\final"
-    ):
-        dxf_files.extend([os.path.join(root, f) for f in files if f.lower().endswith(".dxf")])
+    # dxf_files = []
+    # for root, dirs, files in os.walk(
+    #     r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished\final"
+    # ):
+    #     dxf_files.extend([os.path.join(root, f) for f in files if f.lower().endswith(".dxf")])
 
-    if dxf_files:
-        with Pool(processes=cpu_count()) as pool:
-            results = pool.map(process_dxf, dxf_files)
-        print(f"✅ 完成处理 {len(results)} 个DXF文件")
+    # if dxf_files:
+    #     with Pool(processes=cpu_count()) as pool:
+    #         results = pool.map(process_dxf, dxf_files)
+    #     print(f"✅ 完成处理 {len(results)} 个DXF文件")
 
 
 if __name__ == "__main__":

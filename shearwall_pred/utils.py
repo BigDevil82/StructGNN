@@ -75,9 +75,9 @@ def extract_dxf_geometry(dxf_path: str) -> Tuple[List[Polygon], List[Polygon], L
     extractor.extract_from_file(dxf_path)
 
     # 转换为Shapely几何体
-    raw_rooms = [Polygon([(p.x, p.y) for p in r.polygon]) for r in extractor.rooms]
-    sw_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.shear_walls]
-    infill_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.infill_walls]
+    raw_rooms = [Polygon([(p.x, p.y) for p in r.polygon if len(r.polygon) >= 4]) for r in extractor.rooms]
+    sw_polys = [Polygon([(p.x, p.y) for p in w if len(w) >= 4]) for w in extractor.shear_walls]
+    infill_polys = [Polygon([(p.x, p.y) for p in w if len(w) >= 4]) for w in extractor.infill_walls]
 
     return raw_rooms, sw_polys, infill_polys
 

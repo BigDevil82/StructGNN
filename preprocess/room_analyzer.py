@@ -395,13 +395,14 @@ if __name__ == "__main__":
     from preprocess.room_calibrator import calibrate_rooms
 
     # 提取DXF数据
-    dxf_path = r"dxf/to_process/room_finished/L1L28_232.dxf"
+    dxf_path = r"dxf\cad_json_data\building_components.dxf"
+    # dxf_path = r"dxf\shearwall_split_8_2\test\L1L28_66.dxf"
     extractor = DXFExtractor()
     extractor.extract_from_file(dxf_path)
 
     # 转换为Shapely几何体
     sw_polys = [Polygon([(p.x, p.y) for p in poly]) for poly in extractor.shear_walls]
-    infill_polys = [Polygon([(p.x, p.y) for p in poly]) for poly in extractor.infill_walls]
+    infill_polys = [Polygon([(p.x, p.y) for p in poly if len(poly) >= 4]) for poly in extractor.infill_walls]
     room_polys = [Polygon([(p.x, p.y) for p in room.polygon]) for room in extractor.rooms]
     calibrated_room_polys = calibrate_rooms(room_polys, 200)
 

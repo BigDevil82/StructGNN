@@ -416,7 +416,7 @@ class CADLayoutProcessor:
                 self.all_segments.append(seg)
 
         # 2. 初始化校准器
-        calibrator = LineNetworkCalibrator(structural_thickness_threshold=180.0)
+        calibrator = LineNetworkCalibrator(structural_thickness_threshold=300.0)
 
         # 3. 执行校准与缝合
         # 这一步会返回一个完全连通的 MultiLineString (包含墙门窗)
@@ -425,7 +425,9 @@ class CADLayoutProcessor:
         # 4. 生成房间多边形 (Polygonize)
         # polygonize 会寻找所有最小闭合环
         polys = list(polygonize(self.unified_network))
-        # visualize_wall_extraction(MultiPolygon(polys), None, title="Initial Polygons from Unified Network") # for debug
+        visualize_wall_extraction(
+            MultiPolygon(polys), None, title="Initial Polygons from Unified Network"
+        )  # for debug
 
         # 5. 过滤无效区域 (如面积过小的碎块)
         valid_rooms = []
@@ -574,7 +576,8 @@ class CADLayoutProcessor:
 
 if __name__ == "__main__":
     # 替换为你的 JSON 文件路径
-    json_file = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\cad_json_data\archi_comp.json"
+    json_file = r"E:/Common/Desktop/building_components.json"
+    # json_file = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\cad_json_data\archi_comp.json"
 
     # 实例化处理流程
     processor = CADLayoutProcessor(json_file)

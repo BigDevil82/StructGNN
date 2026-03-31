@@ -11,7 +11,7 @@ class ModelConfig:
     """YJK 建模参数"""
 
     story_height: int = 3000
-    story_num: int = 12
+    story_num: int = 20
 
     slab_thickness: int = 120
     slab_dead_load: float = 5.0
@@ -26,6 +26,10 @@ class ModelConfig:
     coord_scale: float = 1.0
     normalize_to_origin: bool = True
     with_beam: bool = True
+
+    json_path: Optional[Path] = (
+        "E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/result/case_study/building_components_fem_data.json"
+    )
 
 
 @dataclass
@@ -48,7 +52,7 @@ class ExtractionConfig:
 class OutputConfig:
     """输出控制参数"""
 
-    output_dir: Optional[Path] = None
+    output_dir: Optional[Path] = "yjk_pipeline_output"
     clean_old_files: bool = True
     refresh_to_yjk: bool = True
     ydb_dir: Optional[Path] = None
