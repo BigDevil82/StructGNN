@@ -63,6 +63,71 @@ def build_fem_result(
     return result, fem_builder, symmetry_applied
 
 
+def predict_structural_result(
+    dxf_path: str,
+    model_dir: str,
+    category: int = None,
+    device: str = "cuda",
+    symmetry_mode: str = "none",
+    symmetry_threshold: float = 0.85,
+    use_gt: bool = False,
+    symmetry_debug_path: str | None = None,
+):
+    """从 DXF 直接生成结构构件结果，供结构后端复用。"""
+    layout_geometries = load_layout_reference_geometries(dxf_path)
+    symmetry_info = detect_left_right_symmetry(
+        layout_geometries["infill_geometries"],
+        layout_geometries["room_geometries"],
+        threshold=symmetry_threshold,
+    )
+    builder_graph, data_batch, room_polys, masks_list = prepare_case_graph(dxf_path, category, device)
+
+    if symmetry_info["axis_x"] is None:
+        print("  左右对称检测: 无有效几何，跳过")
+    else:
+        print(
+            "  左右对称检测: "
+            f"source={symmetry_info['source']}, axis_x={symmetry_info['axis_x']:.2f}, "
+            f"confidence={symmetry_info['confidence']:.3f}, "
+            f"is_symmetric={symmetry_info['is_symmetric']}"
+        )
+
+    if use_gt:
+        print("  使用 Ground Truth 标注")
+        node_ids = list(builder_graph.graph.nodes())
+        predictions = []
+        for node_id in node_ids:
+            sw_vector = builder_graph.graph.nodes[node_id].get("sw_vector")
+            if sw_vector is None:
+                raise ValueError(f"节点 {node_id} 缺少 sw_vector，该DXF可能没有GT标注")
+            predictions.append(sw_vector)
+    else:
+        print("  使用模型预测")
+        model = load_ensemble_model(model_dir, device)
+        predictions = predict_shear_walls(model, data_batch)
+
+    result, fem_builder, symmetry_applied = build_fem_result(
+        room_polys=room_polys,
+        masks_list=masks_list,
+        predictions=predictions,
+        symmetry_info=symmetry_info,
+        symmetry_mode=symmetry_mode,
+        symmetry_threshold=symmetry_threshold,
+        symmetry_debug_path=symmetry_debug_path,
+    )
+
+    return {
+        "result": result,
+        "builder_graph": builder_graph,
+        "room_polys": room_polys,
+        "predictions": predictions,
+        "fem_builder": fem_builder,
+        "symmetry_applied": symmetry_applied,
+        "symmetry_info": symmetry_info,
+        "layout_geometries": layout_geometries,
+    }
+
+
 def run_case_study(
     dxf_path: str,
     model_dir: str,
@@ -84,27 +149,27 @@ def run_case_study(
     print(f"Output: {output_dir}")
 
     print("\n[1/5] 加载模型...")
-    model = load_ensemble_model(model_dir, device)
-
     print("\n[2/5] 读取DXF并构建图...")
-    layout_geometries = load_layout_reference_geometries(dxf_path)
-    symmetry_info = detect_left_right_symmetry(
-        layout_geometries["infill_geometries"],
-        layout_geometries["room_geometries"],
-        threshold=symmetry_threshold,
+    print("\n[3/5] 模型预测...")
+    print("\n[4/5] 解析为FEM构件 (Shapely Topology)...")
+    prediction_bundle = predict_structural_result(
+        dxf_path=dxf_path,
+        model_dir=model_dir,
+        category=category,
+        device=device,
+        symmetry_mode=symmetry_mode,
+        symmetry_threshold=symmetry_threshold,
+        symmetry_debug_path=os.path.join(debug_dir, f"{file_name}_symmetry_postprocess.png"),
+        use_gt=False,
     )
-    builder_graph, data_batch, room_polys, masks_list = prepare_case_graph(dxf_path, category, device)
-
-    if symmetry_info["axis_x"] is None:
-        print("  左右对称检测: 无有效几何，跳过")
-    else:
-        print(
-            "  左右对称检测: "
-            f"source={symmetry_info['source']}, axis_x={symmetry_info['axis_x']:.2f}, "
-            f"confidence={symmetry_info['confidence']:.3f}, "
-            f"is_symmetric={symmetry_info['is_symmetric']}"
-        )
-
+    layout_geometries = prediction_bundle["layout_geometries"]
+    symmetry_info = prediction_bundle["symmetry_info"]
+    builder_graph = prediction_bundle["builder_graph"]
+    room_polys = prediction_bundle["room_polys"]
+    result = prediction_bundle["result"]
+    predictions = prediction_bundle["predictions"]
+    fem_builder = prediction_bundle["fem_builder"]
+    symmetry_applied = prediction_bundle["symmetry_applied"]
     save_symmetry_detection_debug_plot(
         layout_geometries["infill_geometries"],
         layout_geometries["room_geometries"],
@@ -112,20 +177,6 @@ def run_case_study(
         os.path.join(debug_dir, f"{file_name}_symmetry_detection.png"),
     )
     print(f"  房间数量: {len(room_polys)}")
-
-    print("\n[3/5] 模型预测...")
-    predictions = predict_shear_walls(model, data_batch)
-
-    print("\n[4/5] 解析为FEM构件 (Shapely Topology)...")
-    result, fem_builder, symmetry_applied = build_fem_result(
-        room_polys=room_polys,
-        masks_list=masks_list,
-        predictions=predictions,
-        symmetry_info=symmetry_info,
-        symmetry_mode=symmetry_mode,
-        symmetry_threshold=symmetry_threshold,
-        symmetry_debug_path=os.path.join(debug_dir, f"{file_name}_symmetry_postprocess.png"),
-    )
 
     print(f"  节点数量: {result['statistics']['num_nodes']}")
     print(f"  构件总数: {result['statistics']['num_members']}")

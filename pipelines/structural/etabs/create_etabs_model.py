@@ -16,19 +16,13 @@ from pathlib import Path
 from typing import Any
 
 import comtypes
-import numpy as np
 import torch
-from torch_geometric.data import Batch
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pipelines.case_study.symmetry_postprocess import (
-    detect_left_right_symmetry,
-    load_layout_reference_geometries,
-    symmetrize_raw_walls,
-)
 from pipelines.case_study.adapters import fem_result_to_fem_input
+from pipelines.case_study.pipeline_core import predict_structural_result
 from pipelines.structural.etabs.etabs_util import (
     ShellType,
     SlabType,
@@ -40,9 +34,6 @@ from pipelines.structural.etabs.etabs_util import (
 )
 from pipelines.structural.etabs.unit import GPa, M, kN, mm
 from src.shearwall_modeling.domain import FEMInput
-from src.shearwall_pred.config import model_config, viz_config
-from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
-from src.shearwall_pred.utils import build_graph_from_dxf
 
 # 初始化COM
 comtypes.CoInitialize()
@@ -85,20 +76,6 @@ DIAPHRAGM_Z_TOL = 1e-4  # 节点归层容差（m）
 ##############################################################################
 
 
-def load_ensemble_model(model_dir: str, device: str) -> EnsembleShearWallGNN:
-    """加载K-Fold Ensemble预测模型"""
-    cv_path = Path(model_dir)
-    model_paths = sorted(list(cv_path.glob("fold_*/best_model.pth")))
-    if not model_paths:
-        raise FileNotFoundError(f"在 {cv_path} 下未找到fold模型")
-
-    print(f"  加载 {len(model_paths)} 个fold模型...")
-    model = EnsembleShearWallGNN(model_paths, model_config)
-    model.to(device)
-    model.eval()
-    return model
-
-
 def predict_fem_members(
     dxf_path: str,
     model_dir: str,
@@ -108,106 +85,17 @@ def predict_fem_members(
     symmetry_mode: str = "none",
     symmetry_threshold: float = 0.85,
 ) -> dict:
-    """
-    从DXF图纸获取剪力墙和梁的布置，返回FEM构件结果。
-
-    Args:
-        use_gt: True 使用Ground Truth标注，False 使用模型预测
-
-    Returns:
-        result dict，包含 'members' 列表，每项含 'type', 'start_coord', 'end_coord'
-        坐标单位为毫米（mm）
-    """
-    from pipelines.case_study.fem_builder import FEMTopologyBuilder
-
-    # 1. 读取DXF并构建图
-    builder_graph = build_graph_from_dxf(dxf_path, mode="none")
-    layout_geometries = load_layout_reference_geometries(dxf_path)
-    symmetry_info = detect_left_right_symmetry(
-        layout_geometries["infill_geometries"],
-        layout_geometries["room_geometries"],
-        threshold=symmetry_threshold,
+    """兼容旧接口；内部委托给 case_study 流程层。"""
+    prediction_bundle = predict_structural_result(
+        dxf_path=dxf_path,
+        model_dir=model_dir,
+        category=category,
+        device=device,
+        symmetry_mode=symmetry_mode,
+        symmetry_threshold=symmetry_threshold,
+        use_gt=use_gt,
     )
-
-    if symmetry_info["axis_x"] is None:
-        print("  左右对称检测: 无有效几何，跳过")
-    else:
-        print(
-            "  左右对称检测: "
-            f"source={symmetry_info['source']}, axis_x={symmetry_info['axis_x']:.2f}, "
-            f"confidence={symmetry_info['confidence']:.3f}, "
-            f"is_symmetric={symmetry_info['is_symmetric']}"
-        )
-
-    # 提取房间信息
-    node_ids = list(builder_graph.graph.nodes())
-    room_polys = [builder_graph.graph.nodes[n]["poly"] for n in node_ids]
-    masks_list = [builder_graph.graph.nodes[n].get("masks", []) for n in node_ids]
-
-    # 2. 获取剪力墙向量
-    if use_gt:
-        print("  使用 Ground Truth 标注")
-        sw_vectors = []
-        for n in node_ids:
-            sv = builder_graph.graph.nodes[n].get("sw_vector")
-            if sv is None:
-                raise ValueError(f"节点 {n} 缺少 sw_vector，该DXF可能没有GT标注")
-            sw_vectors.append(sv)
-    else:
-        print("  使用模型预测")
-        data = builder_graph.to_pyg_data()
-        if category is not None:
-            cate_one_hot = np.zeros((1, 3))
-            cate_one_hot[:, category] = 1.0
-            data.condition = torch.tensor(cate_one_hot, dtype=torch.float)
-        data_batch = Batch.from_data_list([data]).to(device)
-
-        model = load_ensemble_model(model_dir, device)
-        model.eval()
-        with torch.no_grad():
-            pred_prob, pred_ratio = model(data_batch)
-            pred_combined = (pred_prob > viz_config.PRED_PROB_THRESHOLD) * pred_ratio
-            predictions = pred_combined.cpu().numpy()
-            predictions = np.where(predictions < viz_config.PRED_RATIO_THRESHOLD, 0.0, predictions)
-        sw_vectors = [predictions[i] for i in range(len(node_ids))]
-
-    # 3. 构建FEM拓扑
-    fem_builder = FEMTopologyBuilder(gap_tolerance=200.0, min_length=100.0)
-    for i, room_poly in enumerate(room_polys):
-        fem_builder.add_room(room_poly, sw_vectors[i], masks_list[i])
-
-    raw_wall_count_before = len(fem_builder.raw_walls)
-    symmetry_applied = False
-    if symmetry_mode != "none":
-        if symmetry_info["is_symmetric"] and symmetry_info["axis_x"] is not None:
-            fem_builder.raw_walls = symmetrize_raw_walls(
-                fem_builder.raw_walls,
-                fem_builder.room_edges,
-                axis_x=symmetry_info["axis_x"],
-                mode=symmetry_mode,
-                min_length=fem_builder.min_length,
-            )
-            symmetry_applied = True
-            print(
-                "  对称化后处理: "
-                f"mode={symmetry_mode}, raw_walls {raw_wall_count_before} -> {len(fem_builder.raw_walls)}"
-            )
-        else:
-            print(
-                "  对称化后处理: 跳过, "
-                f"mode={symmetry_mode}, confidence={symmetry_info['confidence']:.3f} < {symmetry_threshold:.3f}"
-            )
-
-    result = fem_builder.build()
-    result["symmetry"] = {
-        **symmetry_info,
-        "mode": symmetry_mode,
-        "threshold": symmetry_threshold,
-        "applied": symmetry_applied,
-        "raw_wall_count_before": raw_wall_count_before,
-        "raw_wall_count_after": len(fem_builder.raw_walls),
-    }
-
+    result = prediction_bundle["result"]
     source = "GT" if use_gt else "预测"
     stats = result["statistics"]
     print(
