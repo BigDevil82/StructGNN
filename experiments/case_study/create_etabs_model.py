@@ -1,4 +1,4 @@
-from experiments.pipelines.case_study.create_etabs_model import (
+from pipelines.case_study.create_etabs_model import (
     APPLY_RIGID_DIAPHRAGM,
     ATTACH_TO_INSTANCE,
     CATEGORY,

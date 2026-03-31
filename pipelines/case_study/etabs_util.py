@@ -4,7 +4,7 @@ from typing import Iterable
 
 import comtypes.client
 
-from experiments.pipelines.case_study.unit import *
+from pipelines.case_study.unit import *
 
 
 class MatType(enum.Enum):
@@ -101,7 +101,9 @@ def create_ETABS_instance(attach_mode=False, program_path=""):
             print("Attached to running instance of ETABS.")
             create_new_instance = False
         except (OSError, comtypes.COMError):
-            print("No running instance of the program found or failed to attach, try to create a new instance.")
+            print(
+                "No running instance of the program found or failed to attach, try to create a new instance."
+            )
             myETABSObject = create_new()
             create_new_instance = True
     SapModel = myETABSObject.SapModel
@@ -120,7 +122,9 @@ def define_Conc_Mat(etabs, material_name, E, miu, themal_exp, conc_level="C30"):
             print(f"Material '{material_name}' already exists, skip redefining.")
             return 0
 
-    ret = etabs.PropMaterial.AddMaterial(material_name, MatType.Concrete.value, "China", "GB", f"GB50010 {conc_level}")
+    ret = etabs.PropMaterial.AddMaterial(
+        material_name, MatType.Concrete.value, "China", "GB", f"GB50010 {conc_level}"
+    )
     ret = etabs.PropMaterial.SetMPIsotropic(material_name, E, miu, themal_exp)
     ret = etabs.PropMaterial.SetWeightAndMass(material_name, 2, 2550 * kg / M**3)
     return ret

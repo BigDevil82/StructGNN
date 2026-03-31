@@ -23,16 +23,21 @@ from torch_geometric.data import Batch
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from experiments.pipelines.case_study.etabs_util import (ShellType, SlabType,
-                                               create_ETABS_instance,
-                                               define_beam_sec,
-                                               define_Conc_Mat,
-                                               define_slab_sec,
-                                               define_wall_sec)
-from experiments.pipelines.case_study.symmetry_postprocess import (
-    detect_left_right_symmetry, load_layout_reference_geometries,
-    symmetrize_raw_walls)
-from experiments.pipelines.case_study.unit import GPa, M, kN, mm
+from pipelines.case_study.etabs_util import (
+    ShellType,
+    SlabType,
+    create_ETABS_instance,
+    define_beam_sec,
+    define_Conc_Mat,
+    define_slab_sec,
+    define_wall_sec,
+)
+from pipelines.case_study.symmetry_postprocess import (
+    detect_left_right_symmetry,
+    load_layout_reference_geometries,
+    symmetrize_raw_walls,
+)
+from pipelines.case_study.unit import GPa, M, kN, mm
 from shearwall_pred.config import model_config, viz_config
 from shearwall_pred.cross_validate import EnsembleShearWallGNN
 from shearwall_pred.utils import build_graph_from_dxf
@@ -111,7 +116,7 @@ def predict_fem_members(
         result dict，包含 'members' 列表，每项含 'type', 'start_coord', 'end_coord'
         坐标单位为毫米（mm）
     """
-    from experiments.pipelines.case_study.fem_builder import FEMTopologyBuilder
+    from pipelines.case_study.fem_builder import FEMTopologyBuilder
 
     # 1. 读取DXF并构建图
     builder_graph = build_graph_from_dxf(dxf_path, mode="none")
@@ -212,7 +217,7 @@ def predict_fem_members(
 
 def print_model_diagnostics(fem_result: dict):
     """打印模型几何尺寸诊断信息，用于检查建模是否合理"""
-    from experiments.pipelines.case_study.unit import mm
+    from pipelines.case_study.unit import mm
 
     members = fem_result["members"]
     walls = [m for m in members if m["type"] == "shearwall"]

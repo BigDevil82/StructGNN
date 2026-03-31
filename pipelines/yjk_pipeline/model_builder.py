@@ -9,9 +9,9 @@ try:
     from .config import ModelConfig, OutputConfig
     from .json_loader import Segment
 except ImportError:
-    from common import setup_file_logger
-    from config import ModelConfig, OutputConfig
-    from json_loader import Segment
+    from pipelines.yjk_pipeline.common import setup_file_logger
+    from pipelines.yjk_pipeline.config import ModelConfig, OutputConfig
+    from pipelines.yjk_pipeline.json_loader import Segment
 
 
 class YJKJsonModelBuilder:

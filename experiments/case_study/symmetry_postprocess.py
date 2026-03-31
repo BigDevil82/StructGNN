@@ -1,4 +1,4 @@
-from experiments.pipelines.case_study.symmetry_postprocess import (
+from pipelines.case_study.symmetry_postprocess import (
     DEFAULT_LAYOUT_LINE_BUFFER,
     DEFAULT_WALL_THICKNESS,
     detect_left_right_symmetry,

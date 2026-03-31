@@ -8,8 +8,8 @@ try:
     from .common import setup_file_logger
     from .config import OutputConfig
 except ImportError:
-    from common import setup_file_logger
-    from config import OutputConfig
+    from pipelines.yjk_pipeline.common import setup_file_logger
+    from pipelines.yjk_pipeline.config import OutputConfig
 
 
 class YJKAnalysisRunner:

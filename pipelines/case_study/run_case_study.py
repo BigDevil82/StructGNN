@@ -24,12 +24,8 @@ from torch_geometric.data import Batch
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 # [CHANGE 1] 引入新的 FEMTopologyBuilder，同时保留旧文件中的导出和可视化工具
-from experiments.pipelines.case_study.fem_builder import (
-    FEMTopologyBuilder,
-    export_to_json,
-    visualize_fem_result,
-)
-from experiments.pipelines.case_study.symmetry_postprocess import (
+from pipelines.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
+from pipelines.case_study.symmetry_postprocess import (
     detect_left_right_symmetry,
     load_layout_reference_geometries,
     save_symmetry_detection_debug_plot,
