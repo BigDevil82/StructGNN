@@ -13,13 +13,13 @@ def main() -> None:
     torch.manual_seed(42)
     random.seed(42)
 
-    dxf_path = r"dxf/to_process/room_finished"
+    dxf_path = r"data/dxf/to_process/room_finished"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    save_dir = "result/ckpt_1217"
+    save_dir = "outputs/result/ckpt_1217"
     model_path = f"{save_dir}/shear_wall_predictor.pth"
 
     print("正在准备数据集...")
-    dataset = ShearWallDataset(root="data_cache", dxf_dir=dxf_path)
+    dataset = ShearWallDataset(root="data/cache", dxf_dir=dxf_path)
 
     train_size = int(len(dataset) * 0.7)
     val_size = int(len(dataset) * 0.2)

@@ -328,7 +328,7 @@ def convert_batch(
 
 
 def turn_on_global_property():
-    dxf_dir = "dxf/to_process/room_raw"
+    dxf_dir = "data/dxf/to_process/room_raw"
     for root, _, files in os.walk(dxf_dir):
         for file in files:
             if file.lower().endswith(".dxf"):
@@ -362,7 +362,7 @@ def main():
         scale_map = json.load(f)
 
     convert_batch(
-        image_paths, scale_map=scale_map, axis_info_json=axis_info_json, output_dir="dxf/to_process/room_raw"
+        image_paths, scale_map=scale_map, axis_info_json=axis_info_json, output_dir="data/dxf/to_process/room_raw"
     )
 
 

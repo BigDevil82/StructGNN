@@ -5,8 +5,8 @@
 计算IoU、Precision/Recall/F1、MAE/RMSE等指标。
 
 使用方法:
-    python experiments/metrics/run_comprehensive_eval.py --result_dir result/shearwall_pred/0126_cond_kfold
-    python experiments/metrics/run_comprehensive_eval.py --result_dir result/shearwall_pred/0126_cond_kfold --detailed
+    python experiments/metrics/run_comprehensive_eval.py --result_dir outputs/result/shearwall_pred/0126_cond_kfold
+    python experiments/metrics/run_comprehensive_eval.py --result_dir outputs/result/shearwall_pred/0126_cond_kfold --detailed
 """
 
 import argparse
@@ -33,7 +33,7 @@ def main():
     parser.add_argument(
         "--result_dir",
         type=str,
-        default="result/shearwall_pred/0126_cond_kfold",
+        default="outputs/result/shearwall_pred/0126_cond_kfold",
         help="K-Fold训练结果目录",
     )
     parser.add_argument(

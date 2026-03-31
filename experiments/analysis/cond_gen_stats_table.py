@@ -172,19 +172,19 @@ def main():
     parser.add_argument(
         "--json_path",
         type=str,
-        default="result/conditional_eval/conditional_eval.json",
+        default="outputs/result/conditional_eval/conditional_eval.json",
         help="Path to conditional_eval.json",
     )
     parser.add_argument(
         "--output_density",
         type=str,
-        default="result/conditional_eval/density_table.tex",
+        default="outputs/result/conditional_eval/density_table.tex",
         help="Output path for density statistics table",
     )
     parser.add_argument(
         "--output_full",
         type=str,
-        default="result/conditional_eval/full_stats_table.tex",
+        default="outputs/result/conditional_eval/full_stats_table.tex",
         help="Output path for full statistics table",
     )
     parser.add_argument(

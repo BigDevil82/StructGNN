@@ -423,13 +423,13 @@ def convert_to_graph(dxf_path: str, save_path: str = None):
 # ==========================================
 if __name__ == "__main__":
     # test single file
-    # dxf_path = r"dxf/to_process/room_finished/L1L28_232.dxf"
+    # dxf_path = r"data/dxf/to_process/room_finished/L1L28_232.dxf"
     # convert_to_graph(dxf_path)
 
     # convert batch files
     from tqdm import tqdm
 
-    dxf_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished\final"
+    dxf_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\data\dxf\to_process\room_finished\final"
     save_dir = Path(dxf_dir).parent / "room_graph"
     os.makedirs(save_dir, exist_ok=True)
     dxf_files = [f for f in os.listdir(dxf_dir) if f.endswith(".dxf")]

@@ -577,7 +577,7 @@ class CADLayoutProcessor:
 if __name__ == "__main__":
     # 替换为你的 JSON 文件路径
     json_file = r"E:/Common/Desktop/building_components.json"
-    # json_file = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\cad_json_data\archi_comp.json"
+    # json_file = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\dxf\cad_json_data\archi_comp.json"
 
     # 实例化处理流程
     processor = CADLayoutProcessor(json_file)

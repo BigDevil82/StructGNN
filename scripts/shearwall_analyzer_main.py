@@ -12,7 +12,7 @@ from shearwall_modeling import ModelConfig, StandardStoryGroupConfig, load_and_s
 from shearwall_modeling.builders import DetailedShellBuilder
 from shearwall_modeling.evaluation import SeismicCodeChecker
 
-logger = setup_file_logger("ShearwallAnalyzer", Path("result/logs/shearwall_analyzer.log"), logging.INFO)
+logger = setup_file_logger("ShearwallAnalyzer", Path("outputs/result/logs/shearwall_analyzer.log"), logging.INFO)
 logger.info("\n\n\n\nSHEARWALL ANALYZER STARTED\n")
 
 
@@ -98,7 +98,7 @@ def build_folder(dxf_folder: str, max_workers: Optional[int] = None) -> None:
 
 
 def main() -> None:
-    build_folder(r"dxf\cad_json_data\fem_raw")
+    build_folder(r"data\data\dxf\cad_json_data\fem_raw")
 
 
 if __name__ == "__main__":

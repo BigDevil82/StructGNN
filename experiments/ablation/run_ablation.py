@@ -78,7 +78,7 @@ class AblationDataManager:
         metadata = torch.load(metadata_path)
 
         file_indices = metadata["file_indices"]
-        dxf_files = metadata["dxf_files"]
+        dxf_files = metadata["data/dxf_files"]
         aug_modes = metadata["aug_modes"]
 
         # 获取唯一文件及其类别
@@ -135,7 +135,7 @@ class AblationDataManager:
         # 加权采样
         if self.config.use_weighted_sampling:
             train_cats = []
-            dxf_files = metadata["dxf_files"]
+            dxf_files = metadata["data/dxf_files"]
             for idx in train_indices:
                 f_idx = file_indices[idx]
                 train_cats.append(get_file_category(dxf_files[f_idx]))
@@ -489,7 +489,7 @@ def main():
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="result/ablation_study",
+        default="outputs/result/ablation_study",
         help="结果保存目录",
     )
     parser.add_argument(

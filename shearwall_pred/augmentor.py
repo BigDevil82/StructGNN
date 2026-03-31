@@ -273,10 +273,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="验证数据增广模块")
     parser.add_argument(
-        "--dxf", type=str, default="dxf/to_process/room_finished/L1L28_232.dxf", help="DXF文件路径"
+        "--dxf", type=str, default="data/dxf/to_process/room_finished/L1L28_232.dxf", help="DXF文件路径"
     )
     parser.add_argument(
-        "--output", type=str, default="result/augmentation_visualization.png", help="可视化结果保存路径"
+        "--output", type=str, default="outputs/result/augmentation_visualization.png", help="可视化结果保存路径"
     )
     parser.add_argument("--no-viz", action="store_true", help="不生成可视化图片，只进行一致性验证")
 
@@ -286,7 +286,7 @@ if __name__ == "__main__":
     if not os.path.exists(args.dxf):
         print(f"❌ 错误：DXF文件不存在: {args.dxf}")
         print("\n可用的示例文件:")
-        dxf_dir = "dxf/to_process/room_finished"
+        dxf_dir = "data/dxf/to_process/room_finished"
         if os.path.exists(dxf_dir):
             files = [f for f in os.listdir(dxf_dir) if f.endswith(".dxf")][:5]
             for f in files:

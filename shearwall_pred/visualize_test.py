@@ -198,7 +198,7 @@ def conditional_pred_on_testset():
     ensemble_model = EnsembleShearWallGNN(model_paths, model_config)
     ensemble_model.to(training_config.DEVICE)
 
-    # dxf = r"dxf\dataset_split_8_2\test\L17_115.dxf"
+    # dxf = r"data\data\dxf\dataset_split_8_2\test\L17_115.dxf"
     cate_ious = {0: [], 1: [], 2: []}
     for fname in os.listdir(data_config.DXF_DIR + "/test"):
         if fname.endswith(".dxf"):

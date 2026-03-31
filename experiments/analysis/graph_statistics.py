@@ -19,8 +19,8 @@ import numpy as np
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from baseline_edge_gnn.config import data_config
-from baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
+from experiments.research.baseline_edge_gnn.config import data_config
+from experiments.research.baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
 from shearwall_pred.utils import build_graph_from_dxf
 
 
@@ -231,7 +231,7 @@ def main():
     parser.add_argument(
         "--test_dir",
         type=str,
-        default="dxf/shearwall_split_8_2/train",
+        default="data/dxf/shearwall_split_8_2/train",
         help="Test DXF files directory",
     )
     parser.add_argument(
@@ -243,7 +243,7 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="result/metrics/graph_statistics.json",
+        default="outputs/result/metrics/graph_statistics.json",
         help="Output JSON file for detailed statistics",
     )
 

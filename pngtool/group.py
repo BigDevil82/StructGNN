@@ -11,9 +11,9 @@ def split_dxf_into_groups(src_dir=None, dst_base=None, per_group=14, ext_filter=
     将每组文件复制到 dst_base/group_i 子文件夹中，返回每组文件数量的字典。
     """
     if src_dir is None:
-        src_dir = os.path.join(os.path.dirname(__file__), "dxf", "to_process", "raw_dynamic_scale")
+        src_dir = os.path.join(os.path.dirname(__file__), "data/dxf", "to_process", "raw_dynamic_scale")
     if dst_base is None:
-        dst_base = os.path.join(os.path.dirname(__file__), "dxf", "to_process", "group")
+        dst_base = os.path.join(os.path.dirname(__file__), "data/dxf", "to_process", "group")
 
     if not os.path.isdir(src_dir):
         raise FileNotFoundError(f"source directory not found: {src_dir}")
@@ -76,8 +76,8 @@ def split_dxf_into_groups(src_dir=None, dst_base=None, per_group=14, ext_filter=
 
 
 if __name__ == "__main__":
-    src_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_raw"
-    dst_base = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_group"
+    src_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\dxf\to_process\room_raw"
+    dst_base = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\dxf\to_process\room_group"
 
     summary = split_dxf_into_groups(src_dir, dst_base, 46)
     for k, v in summary.items():

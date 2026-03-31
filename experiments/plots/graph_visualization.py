@@ -11,9 +11,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from baseline_edge_gnn.config import data_config as edge_data_config
-from baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
-from baseline_edge_gnn.utils import visualize_edge_graph
+from experiments.research.baseline_edge_gnn.config import data_config as edge_data_config
+from experiments.research.baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
+from experiments.research.baseline_edge_gnn.utils import visualize_edge_graph
 from preprocess.layout_graph import convert_to_graph
 
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
         default=None,
         help="JSON file path (defaults to baseline_edge_gnn.config.data_config.JSON_PATH)",
     )
-    parser.add_argument("--output_dir", default="result/paper_plots", help="Output directory for images")
+    parser.add_argument("--output_dir", default="outputs/result/paper_plots", help="Output directory for images")
 
     args = parser.parse_args()
 

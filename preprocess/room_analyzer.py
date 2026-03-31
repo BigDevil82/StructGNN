@@ -395,8 +395,8 @@ if __name__ == "__main__":
     from preprocess.room_calibrator import calibrate_rooms
 
     # 提取DXF数据
-    dxf_path = r"dxf\cad_json_data\building_components.dxf"
-    # dxf_path = r"dxf\shearwall_split_8_2\test\L1L28_66.dxf"
+    dxf_path = r"data\data\dxf\cad_json_data\building_components.dxf"
+    # dxf_path = r"data\data\dxf\shearwall_split_8_2\test\L1L28_66.dxf"
     extractor = DXFExtractor()
     extractor.extract_from_file(dxf_path)
 

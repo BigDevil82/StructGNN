@@ -40,7 +40,7 @@ class KFoldDataManager:
         执行分层 K-Fold 划分 (基于文件 ID)
         """
         file_indices = self.metadata["file_indices"]
-        dxf_files = self.metadata["dxf_files"]
+        dxf_files = self.metadata["data/dxf_files"]
 
         # 1. 整理去重的文件列表和对应的类别
         # 我们只关心 unique files，不关心样本数量（样本包含增广）
@@ -97,7 +97,7 @@ class KFoldDataManager:
         train_cats = []
         for idx in train_indices:
             f_idx = self.metadata["file_indices"][idx]
-            fname = self.metadata["dxf_files"][f_idx]
+            fname = self.metadata["data/dxf_files"][f_idx]
             train_cats.append(get_file_category(fname))
 
         cat_counts = Counter(train_cats)

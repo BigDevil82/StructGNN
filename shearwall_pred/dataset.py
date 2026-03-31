@@ -41,7 +41,7 @@ class ShearWallDataset(InMemoryDataset):
             metadata = torch.load(metadata_path)
             self.file_indices = metadata["file_indices"]
             self.aug_modes = metadata["aug_modes"]
-            self.dxf_files = metadata["dxf_files"]
+            self.dxf_files = metadata["data/dxf_files"]
         else:
             # 兼容旧版本缓存
             self.file_indices = None
@@ -99,7 +99,7 @@ class ShearWallDataset(InMemoryDataset):
         torch.save((data, slices), self.processed_paths[0])
 
         # 保存元数据
-        metadata = {"file_indices": file_indices_list, "aug_modes": aug_modes_list, "dxf_files": dxf_files}
+        metadata = {"file_indices": file_indices_list, "aug_modes": aug_modes_list, "data/dxf_files": dxf_files}
         metadata_path = self.processed_paths[0].replace(".pt", "_metadata.pt")
         torch.save(metadata, metadata_path)
         print(f"元数据已保存: {len(file_indices_list)} 个样本来自 {len(dxf_files)} 个文件")

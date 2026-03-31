@@ -49,7 +49,7 @@ class YJKJsonPipeline:
                     "pipeline.log",
                     "model_builder.log",
                     "analysis_runner.log",
-                    "result_extractor.log",
+                    "outputs/result_extractor.log",
                     "faulthandler.log",
                     "story_drift_report.txt",
                     "story_drift_summary.csv",

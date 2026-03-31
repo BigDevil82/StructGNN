@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Merge room information from one set of DXF files to another.
-Source: dxf/to_process/room_finished (Has ROOM layer)
-Target: dxf/to_process/beam_finish_modified (Missing ROOM layer)
-Output: dxf/to_process/beam_finish_modified (Overwrites or new folder)
+Source: data/dxf/to_process/room_finished (Has ROOM layer)
+Target: data/dxf/to_process/beam_finish_modified (Missing ROOM layer)
+Output: data/dxf/to_process/beam_finish_modified (Overwrites or new folder)
 """
 
 import os
@@ -106,13 +106,13 @@ if __name__ == "__main__":
     # If run as script, parent is preprocess, parent.parent is root
     project_root = current_file.parent.parent
 
-    src_dir = project_root / "dxf" / "to_process" / "room_finished"
-    tgt_dir = project_root / "dxf" / "to_process" / "beam_finish_modified"
+    src_dir = project_root / "data/dxf" / "to_process" / "room_finished"
+    tgt_dir = project_root / "data/dxf" / "to_process" / "beam_finish_modified"
 
     # We output to a new folder to preserve the original inputs by default
     # But user asked to "draw them in the latter folder corresponding drawings".
     # To be safe, we create a new folder "beam_finish_modified_with_rooms"
-    out_dir = project_root / "dxf" / "to_process" / "beam_finish_modified_with_rooms"
+    out_dir = project_root / "data/dxf" / "to_process" / "beam_finish_modified_with_rooms"
 
     if not src_dir.exists():
         print(f"Error: Source directory does not exist: {src_dir}")

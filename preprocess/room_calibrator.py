@@ -138,7 +138,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # 提取DXF数据
-    dxf_path = r"dxf/to_process/room_finished/L1L28_232.dxf"
+    dxf_path = r"data/dxf/to_process/room_finished/L1L28_232.dxf"
     extractor = DXFExtractor()
     extractor.extract_from_file(dxf_path)
 

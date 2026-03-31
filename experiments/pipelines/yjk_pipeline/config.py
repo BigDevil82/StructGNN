@@ -28,7 +28,7 @@ class ModelConfig:
     with_beam: bool = True
 
     json_path: Optional[Path] = (
-        "E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/result/case_study/building_components_fem_data.json"
+        "E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/outputs/result/case_study/building_components_fem_data.json"
     )
 
 

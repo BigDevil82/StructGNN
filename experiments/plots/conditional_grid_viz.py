@@ -212,19 +212,19 @@ def main():
     parser.add_argument(
         "--cv_dir",
         type=str,
-        default="result/shearwall_pred/0126_cond_kfold",
+        default="outputs/result/shearwall_pred/0126_cond_kfold",
         help="Cross-validation models directory",
     )
     parser.add_argument(
         "--test_dir",
         type=str,
-        default="dxf/shearwall_split_8_2/test",
+        default="data/dxf/shearwall_split_8_2/test",
         help="Test DXF files directory",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="result/shearwall_pred/conditional_grid_plots",
+        default="outputs/result/shearwall_pred/conditional_grid_plots",
         help="Output directory for grid visualizations",
     )
     parser.add_argument(

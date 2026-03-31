@@ -82,11 +82,11 @@ def convert_folder(dxf_folder: str, output_folder: str, max_workers: Optional[in
 
 
 if __name__ == "__main__":
-    dxf_folder = r"dxf/fem_raw"
-    output_folder = r"dxf/cad_json_data/fem_raw"
+    dxf_folder = r"data/dxf/fem_raw"
+    output_folder = r"data/dxf/cad_json_data/fem_raw"
     os.makedirs(output_folder, exist_ok=True)
     convert_folder(dxf_folder, output_folder)
 
-    # dxf = r"dxf/fem_raw/L1L28_190.dxf"
-    # output = r"dxf\cad_json_data\shearwall_split_8_2\L1L28_10.json"
+    # dxf = r"data/dxf/fem_raw/L1L28_190.dxf"
+    # output = r"data\data\dxf\cad_json_data\shearwall_split_8_2\L1L28_10.json"
     # convert_dxf_to_fem_topology(dxf, output)

@@ -1091,7 +1091,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--result_dir",
         type=str,
-        default="result/ablation_study",
+        default="outputs/result/ablation_study",
         help="实验结果目录",
     )
     parser.add_argument(

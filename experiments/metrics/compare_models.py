@@ -6,7 +6,7 @@
 
 使用方法:
     python experiments/metrics/compare_models.py
-    python experiments/metrics/compare_models.py --ours_dir result/shearwall_pred/0126_cond_kfold --baseline_dir result/shearwall_pred/baseline-GNN-EP4/cv_models
+    python experiments/metrics/compare_models.py --ours_dir outputs/result/shearwall_pred/0126_cond_kfold --baseline_dir outputs/result/shearwall_pred/baseline-GNN-EP4/cv_models
 """
 
 import argparse
@@ -23,11 +23,11 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # ============== Baseline模型相关导入 ==============
-from baseline_edge_gnn.config import data_config as baseline_data_config
-from baseline_edge_gnn.config import model_config as baseline_model_config
-from baseline_edge_gnn.config import train_config as baseline_train_config
-from baseline_edge_gnn.dataset import EdgeShearWallDataset
-from baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
+from experiments.research.baseline_edge_gnn.config import data_config as baseline_data_config
+from experiments.research.baseline_edge_gnn.config import model_config as baseline_model_config
+from experiments.research.baseline_edge_gnn.config import train_config as baseline_train_config
+from experiments.research.baseline_edge_gnn.dataset import EdgeShearWallDataset
+from experiments.research.baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
 
 # ============== 本研究模型相关导入 ==============
 from shearwall_pred.config import data_config as ours_data_config
@@ -250,19 +250,19 @@ def main():
     parser.add_argument(
         "--ours_dir",
         type=str,
-        default="result/shearwall_pred/0126_cond_kfold",
+        default="outputs/result/shearwall_pred/0126_cond_kfold",
         help="本研究模型的K-Fold结果目录",
     )
     parser.add_argument(
         "--baseline_dir",
         type=str,
-        default="result/shearwall_pred/baseline-GNN-EP4-CV",
+        default="outputs/result/shearwall_pred/baseline-GNN-EP4-CV",
         help="Baseline模型的K-Fold结果目录",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="result/metrics/comparison_results",
+        default="outputs/result/metrics/comparison_results",
         help="结果输出目录",
     )
 
@@ -320,7 +320,7 @@ def main():
     print(f"   测试文件数: {len(test_keys)}")
 
     baseline_test_set = EdgeShearWallDataset(
-        root="data_cache/baseline_comparison_test",
+        root="data/cache/baseline_comparison_test",
         json_path=baseline_data_config.JSON_PATH,
         file_keys=test_keys,
         is_test=True,

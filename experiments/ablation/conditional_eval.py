@@ -533,7 +533,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="result/conditional_eval",
+        default="outputs/result/conditional_eval",
         help="输出目录",
     )
     parser.add_argument(

@@ -43,15 +43,15 @@ comtypes.CoInitialize()
 
 ################################## 用户配置 ##################################
 
-DXF_PATH = "dxf/shearwall_split_8_2/test/L27_136.dxf"  # 输入DXF文件路径
-MODEL_DIR = "result/shearwall_pred/0126_cond_kfold"  # 训练好的模型目录
+DXF_PATH = "data/dxf/shearwall_split_8_2/test/L27_136.dxf"  # 输入DXF文件路径
+MODEL_DIR = "outputs/result/shearwall_pred/0126_cond_kfold"  # 训练好的模型目录
 CATEGORY = None  # 建筑类别 (0/1/2/None)
 DEVICE = "cuda"  # 推理设备
 SYMMETRY_MODE = "none"  # 对称后处理模式: none/union/intersection
 SYMMETRY_THRESHOLD = 0.85  # 对称检测阈值
 
 
-MODEL_SAVE_DIR = "result/case_study/etabs_file"  # ETABS模型保存目录
+MODEL_SAVE_DIR = "outputs/result/case_study/etabs_file"  # ETABS模型保存目录
 MODEL_NAME = "model_001"  # 模型文件名（不含扩展名）
 
 # ETABS程序路径；设为空字符串则使用COM注册路径

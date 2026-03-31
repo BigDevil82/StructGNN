@@ -203,7 +203,7 @@ def main():
     validator = ImageValidator(shear_wall_threshold=0.1)
 
     # 设置plots文件夹路径
-    plots_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\plots"
+    plots_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\data\dxf\plots"
 
     # 先运行dry_run模式查看统计信息
     print("🔍 运行DRY RUN模式，查看统计信息...")

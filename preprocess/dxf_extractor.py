@@ -448,7 +448,7 @@ def process_dxf(dxf_file: str):
     """处理单个DXF文件（顶层函数，便于多进程 pickling）"""
     extractor = DXFExtractor()
     data = extractor.extract_from_file(dxf_file)
-    save_path = os.path.join("dxf/plots/raw", Path(dxf_file).stem + ".png")
+    save_path = os.path.join("data/dxf/plots/raw", Path(dxf_file).stem + ".png")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     extractor.plot_structure(data, save_path=str(save_path))
     return Path(dxf_file).stem
@@ -459,9 +459,9 @@ def main():
     # import shutil
 
     # # 复制所有文件到新文件夹
-    # src_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finished"
+    # src_dir = r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\data\dxf\to_process\beam_finished"
     # target_dir = (
-    #     r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\beam_finished_extracted"
+    #     r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\data\dxf\to_process\beam_finished_extracted"
     # )
     # for root, dirs, files in os.walk(src_dir):
     #     for fname in files:
@@ -472,7 +472,7 @@ def main():
     extractor = DXFExtractor()
 
     # 示例：提取单个DXF文件
-    f_path = r"dxf\cad_json_data\building_components.dxf"
+    f_path = r"data\data\dxf\cad_json_data\building_components.dxf"
     data = extractor.extract_from_file(f_path)
     extractor.plot_structure(data)
 
@@ -480,7 +480,7 @@ def main():
 
     # dxf_files = []
     # for root, dirs, files in os.walk(
-    #     r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\dxf\to_process\room_finished\final"
+    #     r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\data\dxf\to_process\room_finished\final"
     # ):
     #     dxf_files.extend([os.path.join(root, f) for f in files if f.lower().endswith(".dxf")])
 

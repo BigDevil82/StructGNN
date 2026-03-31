@@ -38,7 +38,7 @@ class DataManager:
         self.test_dxf_dir = str(Path(root) / "test")
 
         # 缓存路径建议分开，以免元数据冲突
-        # 例如: data_cache/train 和 data_cache/test
+        # 例如: data/cache/train 和 data/cache/test
         self.train_cache_root = str(Path(data_config.CACHE_DIR) / "train")
         self.test_cache_root = str(Path(data_config.CACHE_DIR) / "test")
 
@@ -61,7 +61,7 @@ class DataManager:
         metadata = torch.load(metadata_path)
 
         file_indices = metadata["file_indices"]
-        dxf_files = metadata["dxf_files"]
+        dxf_files = metadata["data/dxf_files"]
 
         # 计算样本类别及权重
         sample_categories = []
@@ -310,7 +310,7 @@ class Evaluator:
         for sample_idx in test_set.indices:
             file_idx = metadata["file_indices"][sample_idx]
             mode = metadata["aug_modes"][sample_idx]
-            dxf_file = metadata["dxf_files"][file_idx]
+            dxf_file = metadata["data/dxf_files"][file_idx]
             dxf_path = os.path.join(dataset.dxf_dir, dxf_file)
 
             # 1. 准备数据
@@ -363,7 +363,7 @@ class Evaluator:
         for sample_idx in test_set.indices:
             file_idx = metadata["file_indices"][sample_idx]
             mode = metadata["aug_modes"][sample_idx]
-            dxf_file = metadata["dxf_files"][file_idx]
+            dxf_file = metadata["data/dxf_files"][file_idx]
             dxf_path = os.path.join(dataset.dxf_dir, dxf_file)
 
             avg_iou = visualize_single_case(

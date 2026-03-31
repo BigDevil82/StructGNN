@@ -9,7 +9,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-OUTPUT_PATH = "result/paper_plots/etabs_colorbar_2.pdf"
+OUTPUT_PATH = "outputs/result/paper_plots/etabs_colorbar_2.pdf"
 
 # 指定左右端数值，边界数量 = 色块数 + 1，由 linspace 自动生成
 VMIN = -6.68  # 左端数值

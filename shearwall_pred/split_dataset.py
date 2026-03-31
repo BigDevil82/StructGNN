@@ -13,7 +13,7 @@ from shearwall_pred.utils import get_file_category
 SOURCE_DIR = data_config.DXF_DIR
 
 # 输出的目标文件夹路径 (会自动创建)
-TARGET_DIR = r"dxf/dataset_split_8_2"
+TARGET_DIR = r"data/dxf/dataset_split_8_2"
 
 # 划分比例 (训练集占比)
 TRAIN_RATIO = 0.8

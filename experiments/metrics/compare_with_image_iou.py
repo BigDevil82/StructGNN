@@ -5,7 +5,7 @@
 
 使用方法:
     python experiments/metrics/compare_with_image_iou.py
-    python experiments/metrics/compare_with_image_iou.py --ours_dir result/shearwall_pred/0126_cond_kfold --baseline_dir result/shearwall_pred/baseline-GNN-EP4-CV
+    python experiments/metrics/compare_with_image_iou.py --ours_dir outputs/result/shearwall_pred/0126_cond_kfold --baseline_dir outputs/result/shearwall_pred/baseline-GNN-EP4-CV
 """
 
 import argparse
@@ -34,11 +34,11 @@ from shearwall_pred.dataset import ShearWallDataset
 from shearwall_pred.utils import build_graph_from_dxf
 
 # ============== Baseline模型相关导入 ==============
-from baseline_edge_gnn.config import data_config as baseline_data_config
-from baseline_edge_gnn.config import model_config as baseline_model_config
-from baseline_edge_gnn.config import train_config as baseline_train_config
-from baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
-from baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
+from experiments.research.baseline_edge_gnn.config import data_config as baseline_data_config
+from experiments.research.baseline_edge_gnn.config import model_config as baseline_model_config
+from experiments.research.baseline_edge_gnn.config import train_config as baseline_train_config
+from experiments.research.baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
+from experiments.research.baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
 
 # ============== 图像IoU计算 ==============
 from experiments.metrics.image_iou import (
@@ -504,19 +504,19 @@ def main():
     parser.add_argument(
         "--ours_dir",
         type=str,
-        default="result/shearwall_pred/0126_cond_kfold",
+        default="outputs/result/shearwall_pred/0126_cond_kfold",
         help="本研究模型的K-Fold结果目录",
     )
     parser.add_argument(
         "--baseline_dir",
         type=str,
-        default="result/shearwall_pred/baseline-GNN-EP4-CV",
+        default="outputs/result/shearwall_pred/baseline-GNN-EP4-CV",
         help="Baseline模型的K-Fold结果目录",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="result/metrics/image_iou_comparison",
+        default="outputs/result/metrics/image_iou_comparison",
         help="结果输出目录",
     )
     parser.add_argument(

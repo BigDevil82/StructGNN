@@ -577,9 +577,9 @@ def process_single(dxf_path: str, output_image_path: Optional[str] = None):
 if __name__ == "__main__":
 
     # 输入目录
-    input_dir = r"dxf/to_process/beam_finish_modified_with_rooms"
+    input_dir = r"data/dxf/to_process/beam_finish_modified_with_rooms"
     # 输出目录
-    output_dir = r"dxf/plots/all_beam_pred"
+    output_dir = r"data/dxf/plots/all_beam_pred"
     os.makedirs(output_dir, exist_ok=True)
 
     # 获取所有dxf文件

@@ -61,9 +61,9 @@ class DataConfig:
     """数据处理配置"""
 
     # 路径
-    DXF_DIR: str = r"dxf/shearwall_split_8_2"
-    CACHE_DIR: str = "data_cache/shearwall_dataset"
-    SAVE_DIR: str = "result/shearwall_pred/0126_cond_kfold"
+    DXF_DIR: str = r"data/dxf/shearwall_split_8_2"
+    CACHE_DIR: str = "data/cache/shearwall_dataset"
+    SAVE_DIR: str = "outputs/result/shearwall_pred/0126_cond_kfold"
 
     # 数据增广
     AUGMENTATIONS: List[str] = (

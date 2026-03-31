@@ -55,7 +55,7 @@ def pyyjks():
     json_path = Path(os.getenv("YJK_PIPELINE_JSON", str(config.model.json_path))).resolve()
 
     diag_file = Path(
-        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\result\case_study\debug\yjk_pipeline_diag.log"
+        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\outputs\outputs\result\case_study\debug\yjk_pipeline_diag.log"
     ).resolve()
 
     diag_lines = [

@@ -193,19 +193,19 @@ def main():
     parser.add_argument(
         "--ours_metrics",
         type=str,
-        default="result/metrics/image_iou_comparison/ours_per_sample.json",
+        default="outputs/result/metrics/image_iou_comparison/ours_per_sample.json",
         help="Ours model per-sample metrics JSON",
     )
     parser.add_argument(
         "--baseline_metrics",
         type=str,
-        default="result/metrics/image_iou_comparison/baseline_per_sample.json",
+        default="outputs/result/metrics/image_iou_comparison/baseline_per_sample.json",
         help="Baseline model per-sample metrics JSON",
     )
     parser.add_argument(
         "--output",
         type=str,
-        default="result/metrics/category_statistics.json",
+        default="outputs/result/metrics/category_statistics.json",
         help="Output JSON file for category statistics",
     )
 

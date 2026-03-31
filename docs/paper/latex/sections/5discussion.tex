@@ -1,0 +1,26 @@
+% !TeX root = ../main.tex
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Mechanism Analysis of Performance Gains}
+\label{subsec:mechanism}
+
+The experimental results demonstrate that the proposed room-level representation significantly outperforms the edge-based baseline, particularly in terms of precision (+17.5 pp). This performance gain can be primarily attributed to the topological constraints inherent in the room-based graph structure. Unlike edge-based models that predict wall segments as independent entities---often resulting in fragmented or ``floating'' walls that violate architectural logic---the room-based formulation enforces strict boundary adherence. By treating the room as the atomic unit of prediction, the model effectively incorporates a structural prior: shear walls must coincide with room boundaries. This prior acts as a filter against spurious predictions in non-boundary regions, directly reducing false positives.
+
+Furthermore, the ablation study highlights the critical role of the FiLM conditioning mechanism. The sharp decline in density compliance ($S_{den}$) when removing conditioning suggests that geometric features alone are insufficient to drive density-aware generation. In deep GNNs, global condition signals (e.g., a simple density scalar) often fade during recursive message passing if only concatenated with high-dimensional node features. The effectiveness of FiLM lies in its multiplicative modulation, which forces the network to recalibrate feature activations at each layer according to the target design condition \cite{perezFiLMVisualReasoning2018}. This ensures that the generated layouts remain sensitive to the specified seismic intensity or height requirements throughout the inference process.
+
+\subsection{Practical Implications and Scope}
+\label{subsec:implications}
+
+Beyond numerical metrics, the proposed framework offers tangible value for the structural design workflow. In current practice, the preliminary layout phase is characterized by iterative, manual coordination between architects and engineers, which is often slow and experience-dependent \cite{Steiner_2016,heGenerativeAIBIMAutomatic2025}. This method is not intended to replace detailed engineering design but to serve as a decision-support tool for early-stage exploration. By generating multiple feasible layouts under varying density conditions within seconds, the model allows engineers to rapidly assess the trade-offs between architectural function and structural material consumption before committing to a specific scheme.
+
+Regarding the scope of application, this study focuses on high-rise residential buildings in seismic regions, a typology where shear wall layouts are strictly governed by room partitions. While the underlying graph formulation is generic, the learned patterns are specific to this domain. Extending this approach to public buildings (e.g., offices or malls) with large open spaces would require adapting the room definition---potentially using virtual partitions or grid-based subdivisions---and retraining the model on domain-specific datasets \cite{Claessens_2020,Langenhan_2013}. Nevertheless, the core premise of aligning structural predictions with functional spaces remains applicable.
+
+\subsection{Limitations}
+\label{subsec:limitations}
+
+Despite the promising results, several limitations warrant attention. First, the current geometric parameterization assumes rectangular or near-rectangular rooms. While the 16-dimensional boundary vector efficiently encodes walls for orthogonal spaces, it does not naturally accommodate L-shaped or irregular polygonal rooms without pre-processing decomposition. This geometric simplification may introduce artifacts when handling complex architectural forms.
+
+Second, the generation process is driven by learning from existing engineering drawings rather than direct physical optimization. Although the dual-stream training incorporates density constraints, the model does not explicitly minimize structural objectives such as inter-story drift or period ratios during training. Consequently, while the generated layouts are statistically similar to engineered designs, they are not guaranteed to be physically optimal.
+
+Finally, the scale of the dataset (143 floor plans), while comparable to related studies, remains limited relative to the vast diversity of architectural styles \cite{liaoAutomatedStructuralDesign2021a,zhaoIntelligentDesignShear2023b,guIntelligentDesignShear2024}. Future work could address these limitations by exploring graph representations that support arbitrary polygon boundaries and integrating differentiable structural physics into the loss function to guide performance-oriented generation.

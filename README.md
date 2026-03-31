@@ -93,9 +93,9 @@ Png2Dxf/
 ├── shearwall_pred/       # 房间级剪力墙预测模型
 ├── shearwall_modeling/   # OpenSees 建模、分析与校核
 ├── experiments/          # 论文实验、评估、案例分析
-├── dxf/                  # 原始或处理中 DXF / CAD 数据
-├── result/               # 模型、图表、案例输出结果
-├── data_cache/           # 训练缓存数据
+├── data/dxf/                  # 原始或处理中 DXF / CAD 数据
+├── outputs/result/               # 模型、图表、案例输出结果
+├── data/cache/           # 训练缓存数据
 ├── misc/                 # 通用辅助工具
 ├── baseline_edge_gnn/    # 既有墙段级方法复现
 └── beam_pred/            # 历史探索模块，当前不是主线
@@ -141,13 +141,13 @@ python -m shearwall_pred.trainer --mode train
 测试：
 
 ```bash
-python -m shearwall_pred.trainer --mode test --ckpt result\...\best_model.pth
+python -m shearwall_pred.trainer --mode test --ckpt outputs\result\...\best_model.pth
 ```
 
 可视化：
 
 ```bash
-python -m shearwall_pred.trainer --mode visualize --ckpt result\...\final_model.pth
+python -m shearwall_pred.trainer --mode visualize --ckpt outputs\result\...\final_model.pth
 ```
 
 ### CAD JSON 转 DXF / 推理图输入
@@ -161,8 +161,8 @@ python -m preprocess.cad_inference --cad-json input.json --dxf-out output.dxf
 ```bash
 python -m experiments.pipelines.case_study.run_case_study ^
   --dxf_path path\to\layout.dxf ^
-  --model_dir result\shearwall_pred\...\ ^
-  --output_dir result\case_study
+  --model_dir outputs\result\shearwall_pred\...\ ^
+  --output_dir outputs\result\case_study
 ```
 
 兼容说明：
@@ -227,7 +227,7 @@ pipelines/
 
 - 主干代码目录：`axis_engine`、`preprocess`、`shearwall_pred`、`shearwall_modeling`
 - 研究或历史目录：`experiments`、`baseline_edge_gnn`、`beam_pred`
-- 数据与结果目录：`dxf`、`data_cache`、`result`
+- 数据与结果目录：`dxf`、`data/cache`、`result`
 
 也就是说，今后应该避免再新增语义模糊的顶层目录。
 
@@ -261,7 +261,7 @@ scripts/
 - 结果输出：`outputs/`
 - 论文图表：`outputs/paper/`
 
-你现在的 `dxf/`、`data_cache/`、`result/` 都分别承担了这些角色，但边界不够严格。可以不立刻重命名，先在 README 和新代码里把约定写清楚。
+你现在的 `data/dxf/`、`data/cache/`、`outputs/result/` 都分别承担了这些角色，但边界不够严格。可以不立刻重命名，先在 README 和新代码里把约定写清楚。
 
 ### 建议 6：把“可复用算法”和“项目特定脚本”分开
 

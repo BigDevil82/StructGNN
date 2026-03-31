@@ -14,7 +14,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # ======================== 配置 ========================
-RESULT_DIR = "result/case_study/etabs_file"
+RESULT_DIR = "outputs/result/case_study/etabs_file"
 
 CASES = [
     {"name": "Case 1", "folder": "L27_136"},
@@ -23,7 +23,7 @@ CASES = [
 
 LIMIT = 1 / 1000  # 剪力墙结构层间位移角限值
 
-OUTPUT_PATH = "result/paper_plots/drift_comparison_green.pdf"
+OUTPUT_PATH = "outputs/result/paper_plots/drift_comparison_green.pdf"
 # ======================================================
 
 

@@ -26,10 +26,10 @@ from torch_geometric.data import Batch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Import from baseline model
-from baseline_edge_gnn.config import data_config
-from baseline_edge_gnn.config import model_config as baseline_data_config
-from baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
-from baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
+from experiments.research.baseline_edge_gnn.config import data_config
+from experiments.research.baseline_edge_gnn.config import model_config as baseline_data_config
+from experiments.research.baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
+from experiments.research.baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
 
 # Import from ours model
 from preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
@@ -258,19 +258,19 @@ def main():
     parser.add_argument(
         "--ours_cv_dir",
         type=str,
-        default="result/shearwall_pred/0126_cond_kfold",
+        default="outputs/result/shearwall_pred/0126_cond_kfold",
         help="Path to Ours CV models directory",
     )
     parser.add_argument(
         "--baseline_cv_dir",
         type=str,
-        default="result/shearwall_pred/baseline-GNN-EP4-CV",
+        default="outputs/result/shearwall_pred/baseline-GNN-EP4-CV",
         help="Path to Baseline CV models directory",
     )
     parser.add_argument(
         "--test_dir",
         type=str,
-        default="dxf/shearwall_split_8_2/test",
+        default="data/dxf/shearwall_split_8_2/test",
         help="Test DXF files directory",
     )
     parser.add_argument(
@@ -282,19 +282,19 @@ def main():
     parser.add_argument(
         "--ours_metrics",
         type=str,
-        default="result/metrics/image_iou_comparison/ours_per_sample.json",
+        default="outputs/result/metrics/image_iou_comparison/ours_per_sample.json",
         help="Ours model metrics JSON",
     )
     parser.add_argument(
         "--baseline_metrics",
         type=str,
-        default="result/metrics/image_iou_comparison/baseline_per_sample.json",
+        default="outputs/result/metrics/image_iou_comparison/baseline_per_sample.json",
         help="Baseline model metrics JSON",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="result/shearwall_pred/comparison_plots",
+        default="outputs/result/shearwall_pred/comparison_plots",
         help="Output directory",
     )
     parser.add_argument(

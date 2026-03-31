@@ -318,8 +318,8 @@ def export_shearwall_coords(result: dict, output_path: str):
 def main():
     parser = argparse.ArgumentParser(description="Engineering Case Study")
     parser.add_argument("--dxf_path", type=str, required=True, help="输入DXF文件路径")
-    parser.add_argument("--model_dir", type=str, default="result/shearwall_pred/0126_cond_kfold")
-    parser.add_argument("--output_dir", type=str, default="result/case_study")
+    parser.add_argument("--model_dir", type=str, default="outputs/result/shearwall_pred/0126_cond_kfold")
+    parser.add_argument("--output_dir", type=str, default="outputs/result/case_study")
     parser.add_argument("--category", type=int, default=None, choices=[0, 1, 2])
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument(

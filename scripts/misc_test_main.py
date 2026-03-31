@@ -83,12 +83,12 @@ def test_axis_engine_import():
     print("=" * 70)
 
     archi_output = archi_graph.to_dict()
-    with open("./result/architectural_graph.json", "w", encoding="utf-8") as f:
+    with open("./outputs/result/architectural_graph.json", "w", encoding="utf-8") as f:
         json.dump(archi_output, f, indent=2, ensure_ascii=False)
-    print("✓ 建筑图已保存: result/architectural_graph.json")
+    print("✓ 建筑图已保存: outputs/result/architectural_graph.json")
     visualize_graph(
         archi_output,
-        output_path="result/archi_graph.png",
+        output_path="outputs/result/archi_graph.png",
         show_node_ids=True,
         edge_types_to_draw=["shear_wall", "beam"],
     )
@@ -164,7 +164,7 @@ def main() -> None:
     print("正在读取结果数据并生成箱线图...")
     from experiments.ablation.analyze_results import plot_boxplot
 
-    results_path = r"result\ablation_study\analysis\conditional_eval_results.json"
+    results_path = r"outputs\outputs\result\ablation_study\analysis\conditional_eval_results.json"
     with open(results_path, "r", encoding="utf-8") as f:
         results_data = json.load(f)
     plot_boxplot(results_data, r"cgs_boxplot.png")
