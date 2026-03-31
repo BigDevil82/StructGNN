@@ -1,20 +1,18 @@
 StructGAN_v1
 imgs
-dxf
 *.dxf
 processed_data
-data_cache
 **/__pycache__/*
 *.pyc
 .vscode
 *.pth
-result
-test.py
 .venv
 .cursor
 *.docx
 **/output/*
 data/*
+outputs/*
+docs/paper/latex/build/*
 
 ## Core latex/pdflatex auxiliary files:
 *.aux

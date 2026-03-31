@@ -93,9 +93,9 @@ Png2Dxf/
 ├── shearwall_pred/       # 房间级剪力墙预测模型
 ├── shearwall_modeling/   # OpenSees 建模、分析与校核
 ├── experiments/          # 论文实验、评估、案例分析
-├── data/dxf/                  # 原始或处理中 DXF / CAD 数据
-├── outputs/result/               # 模型、图表、案例输出结果
-├── data/cache/           # 训练缓存数据
+├── data/                  # 原始数据、DXF、缓存
+├── outputs/               # 模型、图表、案例输出结果
+├── docs/                  # 结构说明、论文材料、项目笔记
 ├── misc/                 # 通用辅助工具
 ├── baseline_edge_gnn/    # 既有墙段级方法复现
 └── beam_pred/            # 历史探索模块，当前不是主线
@@ -106,12 +106,13 @@ Png2Dxf/
 - `experiments/` 中很多脚本是论文期临时代码，不适合继续无限扩张
 - `experiments/case_study/` 已经承载了部分“准正式流程”，后续更适合独立抽离
 - `experiments/pipelines/` 是当前整理阶段建立的流程命名空间骨架
-- `beam_pred/` 当前不是项目主线，可视为保留分支
+- `experiments/research/beam_pred/` 当前不是项目主线，可视为保留分支
 - `%TEMP%/`、`paper/` 等目录更多是辅助性质，不建议继续承载核心逻辑
 
 结构整理约束可参考：
 
 - [`docs/PROJECT_STRUCTURE.md`](/E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/docs/PROJECT_STRUCTURE.md)
+- [`docs/notes/项目梳理.md`](/E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/docs/notes/项目梳理.md)
 
 ## 环境
 
@@ -227,7 +228,7 @@ pipelines/
 
 - 主干代码目录：`axis_engine`、`preprocess`、`shearwall_pred`、`shearwall_modeling`
 - 研究或历史目录：`experiments`、`baseline_edge_gnn`、`beam_pred`
-- 数据与结果目录：`dxf`、`data/cache`、`result`
+- 数据与结果目录：`data/`、`outputs/`
 
 也就是说，今后应该避免再新增语义模糊的顶层目录。
 
