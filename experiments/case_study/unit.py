@@ -1,25 +1,3 @@
-###################### this file defines units used across the program ###################
-# when define a parameter with unit, append unit symbol to the parameter name
-# so you will not care about the conversion between units
-# e.g. when define elastic modulus of concrete, set E = 30 * GPa
+from experiments.pipelines.case_study.unit import GPa, M, MPa, N, Pa, kN, kg, mm, s, ton
 
-
-#################################### some basic units ####################################
-# ********(remember all quantities are defined with the following basic units)************
-M = 1  # length unit, meter
-s = 1  # time unit, second
-kg = 1  # mass unit, kilogram
-
-
-#################################### derived units ####################################
-# with this conversion, you can easily denote a quantity with your familiar unit
-
-mm = 1e-3 * M  # length unit
-
-N = kg * M / s**2  # force unit
-kN = 1e3 * N  # force unit
-Pa = N / M**2  # pressure unit
-MPa = 1e6 * Pa  # pressure unit
-GPa = 1e3 * MPa  # pressure unit
-
-ton = 1e3 * kg  # mass unit
+__all__ = ["M", "s", "kg", "mm", "N", "kN", "Pa", "MPa", "GPa", "ton"]
