@@ -37,9 +37,9 @@ from experiments.ablation.config import (
 )
 from experiments.ablation.losses import AblationHybridLoss
 from experiments.ablation.models import create_model_from_config
-from shearwall_pred.config import data_config, model_config, training_config
-from shearwall_pred.dataset import ShearWallDataset
-from shearwall_pred.utils import get_file_category
+from src.shearwall_pred.config import data_config, model_config, training_config
+from src.shearwall_pred.dataset import ShearWallDataset
+from src.shearwall_pred.utils import get_file_category
 
 
 def set_seed(seed: int):
@@ -121,16 +121,12 @@ class AblationDataManager:
                 train_indices.extend(file_to_samples[fid])
             else:
                 # 仅保留无增广样本
-                train_indices.extend(
-                    [s for s in file_to_samples[fid] if aug_modes[s] == "none"]
-                )
+                train_indices.extend([s for s in file_to_samples[fid] if aug_modes[s] == "none"])
 
         # 验证集：不包含增广
         val_indices = []
         for fid in val_files:
-            val_indices.extend(
-                [s for s in file_to_samples[fid] if aug_modes[s] == "none"]
-            )
+            val_indices.extend([s for s in file_to_samples[fid] if aug_modes[s] == "none"])
 
         # 加权采样
         if self.config.use_weighted_sampling:
@@ -237,7 +233,9 @@ class AblationTrainer:
                 density_weight = 0.0
             elif self.config.use_warmup:
                 progress = (epoch - self.config.warmup_epochs) / max(1, epochs - self.config.warmup_epochs)
-                density_weight = min(self.config.density_weight_fake_max, progress * self.config.density_weight_fake_max)
+                density_weight = min(
+                    self.config.density_weight_fake_max, progress * self.config.density_weight_fake_max
+                )
             else:
                 density_weight = self.config.density_weight_fake_max
 
@@ -258,8 +256,7 @@ class AblationTrainer:
             # 日志输出
             if (epoch + 1) % 10 == 0 or epoch == 0:
                 print(
-                    f"    Epoch [{epoch+1:3d}/{epochs}] "
-                    f"Loss: {train_loss:.4f} | Val IoU: {val_iou:.4f}"
+                    f"    Epoch [{epoch+1:3d}/{epochs}] " f"Loss: {train_loss:.4f} | Val IoU: {val_iou:.4f}"
                 )
 
         # 保存最终模型
@@ -272,9 +269,7 @@ class AblationTrainer:
             "final_val_iou": self.history["val_iou"][-1],
         }
 
-    def _train_epoch(
-        self, loader: DataLoader, density_weight: float
-    ) -> Tuple[float, dict]:
+    def _train_epoch(self, loader: DataLoader, density_weight: float) -> Tuple[float, dict]:
         """训练一个epoch"""
         self.model.train()
         total_loss = 0.0

@@ -70,8 +70,8 @@ class ConditionalGenerationEvaluator:
     """
 
     def __init__(self, device: str = "cuda"):
-        from shearwall_pred.config import data_config, model_config, training_config
-        from shearwall_pred.dataset import ShearWallDataset
+        from src.shearwall_pred.config import data_config, model_config, training_config
+        from src.shearwall_pred.dataset import ShearWallDataset
 
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.data_config = data_config
@@ -104,8 +104,8 @@ class ConditionalGenerationEvaluator:
 
     def _compute_training_stats(self) -> Dict[int, ConditionStats]:
         """从训练集计算各条件的密度统计"""
-        from shearwall_pred.config import data_config
-        from shearwall_pred.trainer import DataManager
+        from src.shearwall_pred.config import data_config
+        from src.shearwall_pred.trainer import DataManager
 
         # 按条件分组统计密度
         condition_densities = {0: [], 1: [], 2: []}
@@ -449,8 +449,8 @@ def evaluate_conditional_generation(
         output_dir: 输出目录
         device: 计算设备
     """
-    from shearwall_pred.config import model_config
-    from shearwall_pred.model import ShearWallGNN
+    from src.shearwall_pred.config import model_config
+    from src.shearwall_pred.model import ShearWallGNN
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -490,8 +490,8 @@ def evaluate_ensemble_conditional_generation(
         output_dir: 输出目录
         device: 计算设备
     """
-    from shearwall_pred.config import model_config
-    from shearwall_pred.cross_validate import EnsembleShearWallGNN
+    from src.shearwall_pred.config import model_config
+    from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -567,7 +567,7 @@ if __name__ == "__main__":
         evaluate_conditional_generation(args.model_path, args.output_dir, args.device)
     else:
         # 使用默认路径
-        from shearwall_pred.config import data_config
+        from src.shearwall_pred.config import data_config
 
         model_dir = Path(data_config.SAVE_DIR)
         model_paths = sorted(list(model_dir.glob("fold_*/best_model.pth")))

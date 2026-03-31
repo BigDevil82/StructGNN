@@ -7,7 +7,7 @@ from shapely.geometry import GeometryCollection, LineString, MultiLineString, Po
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
-from data_engine.preprocess.dxf_extractor import DXFExtractor
+from src.data_engine.preprocess.dxf_extractor import DXFExtractor
 
 DEFAULT_LAYOUT_LINE_BUFFER = 20.0
 DEFAULT_WALL_THICKNESS = 200.0

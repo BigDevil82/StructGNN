@@ -25,10 +25,10 @@ import torch
 from shapely.geometry import Point, Polygon
 from torch_geometric.data import Data
 
-from data_engine.preprocess.dxf_extractor import DXFExtractor
-from data_engine.preprocess.room_analyzer import RoomAnalyzer, plot_room_analysis
-from data_engine.preprocess.room_calibrator import calibrate_rooms
-from shearwall_pred.utils import get_file_category, mask_to_constraint_vector
+from src.data_engine.preprocess.dxf_extractor import DXFExtractor
+from src.data_engine.preprocess.room_analyzer import RoomAnalyzer, plot_room_analysis
+from src.data_engine.preprocess.room_calibrator import calibrate_rooms
+from src.shearwall_pred.utils import get_file_category, mask_to_constraint_vector
 
 
 class LayoutGraphBuilder:

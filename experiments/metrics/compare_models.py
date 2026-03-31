@@ -30,12 +30,12 @@ from experiments.research.baseline_edge_gnn.dataset import EdgeShearWallDataset
 from experiments.research.baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
 
 # ============== 本研究模型相关导入 ==============
-from shearwall_pred.config import data_config as ours_data_config
-from shearwall_pred.config import model_config as ours_model_config
-from shearwall_pred.config import training_config as ours_training_config
-from shearwall_pred.cross_validate import EnsembleShearWallGNN
-from shearwall_pred.dataset import ShearWallDataset
-from shearwall_pred.utils import calculate_vector_iou
+from src.shearwall_pred.config import data_config as ours_data_config
+from src.shearwall_pred.config import model_config as ours_model_config
+from src.shearwall_pred.config import training_config as ours_training_config
+from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
+from src.shearwall_pred.dataset import ShearWallDataset
+from src.shearwall_pred.utils import calculate_vector_iou
 
 
 def get_file_keys_from_dir(dir_path: str):

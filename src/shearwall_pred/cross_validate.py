@@ -12,12 +12,12 @@ from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import Subset, WeightedRandomSampler
 from torch_geometric.loader import DataLoader
 
-from shearwall_pred.config import ModelConfig, data_config, model_config, training_config
-from shearwall_pred.dataset import ShearWallDataset
-from shearwall_pred.losses import HybridLoss
-from shearwall_pred.model import ShearWallGNN
-from shearwall_pred.trainer import Evaluator, Trainer
-from shearwall_pred.utils import get_file_category  # 假设你已经把 Trainer 类封装好了
+from src.shearwall_pred.config import ModelConfig, data_config, model_config, training_config
+from src.shearwall_pred.dataset import ShearWallDataset
+from src.shearwall_pred.losses import HybridLoss
+from src.shearwall_pred.model import ShearWallGNN
+from src.shearwall_pred.trainer import Evaluator, Trainer
+from src.shearwall_pred.utils import get_file_category  # 假设你已经把 Trainer 类封装好了
 
 
 class KFoldDataManager:

@@ -5,8 +5,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, List
 
-from shearwall_pred.config import data_config, training_config
-from shearwall_pred.utils import get_file_category
+from src.shearwall_pred.config import data_config, training_config
+from src.shearwall_pred.utils import get_file_category
 
 # ================= 配置区域 =================
 # 原始 DXF 文件夹路径

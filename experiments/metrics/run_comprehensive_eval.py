@@ -23,9 +23,9 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from experiments.metrics.test_evaluator import ComprehensiveTestEvaluator
-from shearwall_pred.config import data_config, model_config, training_config
-from shearwall_pred.cross_validate import EnsembleShearWallGNN
-from shearwall_pred.dataset import ShearWallDataset
+from src.shearwall_pred.config import data_config, model_config, training_config
+from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
+from src.shearwall_pred.dataset import ShearWallDataset
 
 
 def main():
@@ -131,7 +131,7 @@ def main():
     print(f"  RMSE:          {results['rmse']:.4f}")
 
     print(f"\n📊 混淆矩阵:")
-    cm = results['confusion_matrix']
+    cm = results["confusion_matrix"]
     print(f"  TP (True Pos):  {cm['tp']}")
     print(f"  FP (False Pos): {cm['fp']}")
     print(f"  FN (False Neg): {cm['fn']}")
@@ -139,11 +139,13 @@ def main():
 
     if args.detailed:
         print(f"\n📊 每条边的分类性能:")
-        for edge_name, metrics in results['per_edge_classification'].items():
-            print(f"  {edge_name.capitalize():8s}: P={metrics['precision']:.3f}, R={metrics['recall']:.3f}, F1={metrics['f1']:.3f}")
+        for edge_name, metrics in results["per_edge_classification"].items():
+            print(
+                f"  {edge_name.capitalize():8s}: P={metrics['precision']:.3f}, R={metrics['recall']:.3f}, F1={metrics['f1']:.3f}"
+            )
 
         print(f"\n📊 每条边的回归性能:")
-        for edge_name, metrics in results['per_edge_regression'].items():
+        for edge_name, metrics in results["per_edge_regression"].items():
             print(f"  {edge_name.capitalize():8s}: MAE={metrics['mae']:.4f}, RMSE={metrics['rmse']:.4f}")
 
     print(f"\n📁 结果已保存至: {output_file}")

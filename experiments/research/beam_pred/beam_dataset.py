@@ -8,9 +8,9 @@ from shapely.geometry import LineString, Point, Polygon
 from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
 
-from data_engine.preprocess.beam_ir_builder import Node, StructuralGraphBuilder
-from data_engine.preprocess.dxf_extractor import LineSegment, Room
 from experiments.research.beam_pred.data_aug import GeometryAugmentor
+from src.data_engine.preprocess.beam_ir_builder import Node, StructuralGraphBuilder
+from src.data_engine.preprocess.dxf_extractor import LineSegment, Room
 
 
 def get_node_type(node: Node) -> int:

@@ -7,7 +7,7 @@ from matplotlib.lines import Line2D
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, Polygon
 from shapely.ops import snap, unary_union
 
-from data_engine.preprocess.room_analyzer import _walls_from_vector, get_room_edges
+from src.data_engine.preprocess.room_analyzer import _walls_from_vector, get_room_edges
 
 
 class FEMTopologyBuilder:

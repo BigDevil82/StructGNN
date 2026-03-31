@@ -15,8 +15,8 @@ import torch
 from torch_geometric.data import InMemoryDataset
 from tqdm import tqdm
 
-from shearwall_pred.config import data_config
-from shearwall_pred.utils import build_graph_from_dxf
+from src.shearwall_pred.config import data_config
+from src.shearwall_pred.utils import build_graph_from_dxf
 
 
 class ShearWallDataset(InMemoryDataset):
@@ -99,7 +99,11 @@ class ShearWallDataset(InMemoryDataset):
         torch.save((data, slices), self.processed_paths[0])
 
         # 保存元数据
-        metadata = {"file_indices": file_indices_list, "aug_modes": aug_modes_list, "data/dxf_files": dxf_files}
+        metadata = {
+            "file_indices": file_indices_list,
+            "aug_modes": aug_modes_list,
+            "data/dxf_files": dxf_files,
+        }
         metadata_path = self.processed_paths[0].replace(".pt", "_metadata.pt")
         torch.save(metadata, metadata_path)
         print(f"元数据已保存: {len(file_indices_list)} 个样本来自 {len(dxf_files)} 个文件")

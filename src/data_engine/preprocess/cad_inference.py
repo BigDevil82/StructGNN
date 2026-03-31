@@ -16,10 +16,10 @@ import numpy as np
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
 from shapely.ops import unary_union
 
-from axis_engine.cad_processor import CADLayoutProcessor
-from data_engine.preprocess.layout_graph import LayoutGraphBuilder
-from data_engine.preprocess.room_analyzer import RoomAnalyzer
-from data_engine.preprocess.room_calibrator import calibrate_rooms
+from src.axis_engine.cad_processor import CADLayoutProcessor
+from src.data_engine.preprocess.layout_graph import LayoutGraphBuilder
+from src.data_engine.preprocess.room_analyzer import RoomAnalyzer
+from src.data_engine.preprocess.room_calibrator import calibrate_rooms
 
 
 def _ensure_layer(doc, name: str, color: int) -> None:
@@ -190,8 +190,8 @@ def build_graph_from_dxf_inference(
     opening_buffer: float = 100.0,
     mode: str = "none",
 ):
-    from data_engine.preprocess.dxf_extractor import DXFExtractor
-    from shearwall_pred.augmentor import GeometryAugmentor
+    from src.data_engine.preprocess.dxf_extractor import DXFExtractor
+    from src.shearwall_pred.augmentor import GeometryAugmentor
 
     extractor = DXFExtractor()
     extractor.extract_from_file(dxf_path)

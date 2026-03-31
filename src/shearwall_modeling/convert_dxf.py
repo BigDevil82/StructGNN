@@ -1,10 +1,10 @@
 import os
 from typing import Optional, Tuple
 
-from misc.parallel import run_batch
-from misc.timer import Timer
 from pipelines.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
-from shearwall_pred.utils import build_graph_from_dxf
+from src.misc.parallel import run_batch
+from src.misc.timer import Timer
+from src.shearwall_pred.utils import build_graph_from_dxf
 
 
 def convert_dxf_to_fem_topology(dxf_path: str, output_path: str) -> FEMTopologyBuilder:

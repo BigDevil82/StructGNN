@@ -4,9 +4,9 @@ import random
 import torch
 from torch.utils.data import random_split
 
-from shearwall_pred.dataset import ShearWallDataset
-from shearwall_pred.model import ShearWallGNN
-from shearwall_pred.trainer import visualize_test_set
+from src.shearwall_pred.dataset import ShearWallDataset
+from src.shearwall_pred.model import ShearWallGNN
+from src.shearwall_pred.trainer import visualize_test_set
 
 
 def main() -> None:

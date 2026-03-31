@@ -11,10 +11,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from data_engine.preprocess.layout_graph import convert_to_graph
 from experiments.research.baseline_edge_gnn.config import data_config as edge_data_config
 from experiments.research.baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
 from experiments.research.baseline_edge_gnn.utils import visualize_edge_graph
+from src.data_engine.preprocess.layout_graph import convert_to_graph
 
 
 def _layout_style() -> dict:

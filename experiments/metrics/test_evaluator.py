@@ -10,7 +10,7 @@ from torch_geometric.loader import DataLoader
 
 from experiments.metrics.classification_metrics import compute_classification_metrics
 from experiments.metrics.regression_metrics import compute_regression_metrics
-from shearwall_pred.utils import calculate_vector_iou
+from src.shearwall_pred.utils import calculate_vector_iou
 
 
 class ComprehensiveTestEvaluator:

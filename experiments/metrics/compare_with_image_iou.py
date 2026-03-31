@@ -25,13 +25,8 @@ from tqdm import tqdm
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# ============== 本研究模型相关导入 ==============
-from shearwall_pred.config import data_config as ours_data_config
-from shearwall_pred.config import model_config as ours_model_config
-from shearwall_pred.config import training_config as ours_training_config
-from shearwall_pred.cross_validate import EnsembleShearWallGNN
-from shearwall_pred.dataset import ShearWallDataset
-from shearwall_pred.utils import build_graph_from_dxf
+# ============== 图像IoU计算 ==============
+from experiments.metrics.image_iou import ImageIoUCalculator, edge_pred_to_walls, vector_to_walls
 
 # ============== Baseline模型相关导入 ==============
 from experiments.research.baseline_edge_gnn.config import data_config as baseline_data_config
@@ -40,12 +35,13 @@ from experiments.research.baseline_edge_gnn.config import train_config as baseli
 from experiments.research.baseline_edge_gnn.ensemble_model import EnsembleGNNEP4
 from experiments.research.baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
 
-# ============== 图像IoU计算 ==============
-from experiments.metrics.image_iou import (
-    ImageIoUCalculator,
-    edge_pred_to_walls,
-    vector_to_walls,
-)
+# ============== 本研究模型相关导入 ==============
+from src.shearwall_pred.config import data_config as ours_data_config
+from src.shearwall_pred.config import model_config as ours_model_config
+from src.shearwall_pred.config import training_config as ours_training_config
+from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
+from src.shearwall_pred.dataset import ShearWallDataset
+from src.shearwall_pred.utils import build_graph_from_dxf
 
 
 def get_file_keys_from_dir(dir_path: str) -> List[str]:
@@ -147,7 +143,7 @@ def evaluate_ours_with_image_iou(
             if valid_mask.sum() > 0:
                 diff = pred_combined[valid_mask] - gt[valid_mask]
                 mae_sum = np.abs(diff).sum()
-                se_sum = (diff ** 2).sum()
+                se_sum = (diff**2).sum()
                 mae_count = valid_mask.sum()
                 total_mae_sum += mae_sum
                 total_se_sum += se_sum
@@ -166,16 +162,18 @@ def evaluate_ours_with_image_iou(
             sample_f1 = 2 * sample_prec * sample_rec / (sample_prec + sample_rec + 1e-8)
             sample_acc = (tp + tn) / (tp + fp + fn + tn + 1e-8)
 
-            per_sample_results.append({
-                "file_key": file_key,
-                "image_iou": float(iou),
-                "precision": float(sample_prec),
-                "recall": float(sample_rec),
-                "f1": float(sample_f1),
-                "accuracy": float(sample_acc),
-                "mae": float(sample_mae),
-                "rmse": float(sample_rmse),
-            })
+            per_sample_results.append(
+                {
+                    "file_key": file_key,
+                    "image_iou": float(iou),
+                    "precision": float(sample_prec),
+                    "recall": float(sample_rec),
+                    "f1": float(sample_f1),
+                    "accuracy": float(sample_acc),
+                    "mae": float(sample_mae),
+                    "rmse": float(sample_rmse),
+                }
+            )
 
         except Exception as e:
             print(f"Error processing {fname}: {e}")
@@ -302,7 +300,7 @@ def evaluate_baseline_with_image_iou(
             # MAE/RMSE - 累加到全局统计
             diff = pred_masked - gt_masked
             mae_sum = np.abs(diff).sum()
-            se_sum = (diff ** 2).sum()
+            se_sum = (diff**2).sum()
             mae_count = pred_masked.size
             total_mae_sum += mae_sum
             total_se_sum += se_sum
@@ -318,16 +316,18 @@ def evaluate_baseline_with_image_iou(
             sample_f1 = 2 * sample_prec * sample_rec / (sample_prec + sample_rec + 1e-8)
             sample_acc = (tp + tn) / (tp + fp + fn + tn + 1e-8)
 
-            per_sample_results.append({
-                "file_key": file_key,
-                "image_iou": float(iou),
-                "precision": float(sample_prec),
-                "recall": float(sample_rec),
-                "f1": float(sample_f1),
-                "accuracy": float(sample_acc),
-                "mae": float(sample_mae),
-                "rmse": float(sample_rmse),
-            })
+            per_sample_results.append(
+                {
+                    "file_key": file_key,
+                    "image_iou": float(iou),
+                    "precision": float(sample_prec),
+                    "recall": float(sample_rec),
+                    "f1": float(sample_f1),
+                    "accuracy": float(sample_acc),
+                    "mae": float(sample_mae),
+                    "rmse": float(sample_rmse),
+                }
+            )
 
         except Exception as e:
             print(f"Error processing {file_key}: {e}")

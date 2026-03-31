@@ -9,9 +9,9 @@ import requests
 
 
 def test_conditional_predict():
-    from shearwall_pred.config import data_config, model_config, training_config
-    from shearwall_pred.cross_validate import EnsembleShearWallGNN
-    from shearwall_pred.visualize_test import test_conditional_predict
+    from src.shearwall_pred.config import data_config, model_config, training_config
+    from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
+    from src.shearwall_pred.visualize_test import test_conditional_predict
 
     cv_path = Path(data_config.SAVE_DIR)
     model_paths = sorted(list(cv_path.glob("fold_*/best_model.pth")))
@@ -33,8 +33,8 @@ def test_conditional_predict():
 
 
 def get_density_stats():
-    from shearwall_pred.config import data_config
-    from shearwall_pred.trainer import DataManager
+    from src.shearwall_pred.config import data_config
+    from src.shearwall_pred.trainer import DataManager
 
     stats = {0: [], 1: [], 2: []}
 

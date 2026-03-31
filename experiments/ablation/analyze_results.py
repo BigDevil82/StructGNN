@@ -149,7 +149,7 @@ class ScoreDCEvaluator:
 
     def _get_room_polys(self, dxf_path: str):
         """加载并缓存 dxf 对应的房间多边形（节点顺序与图构建保持一致）"""
-        from shearwall_pred.utils import build_graph_from_dxf
+        from src.shearwall_pred.utils import build_graph_from_dxf
 
         if dxf_path not in self._room_polys_cache:
             builder = build_graph_from_dxf(dxf_path, mode="none")
@@ -255,8 +255,8 @@ class ConditionalEvaluator:
     """
 
     def __init__(self, device: str = "cuda"):
-        from shearwall_pred.config import data_config, model_config
-        from shearwall_pred.trainer import DataManager
+        from src.shearwall_pred.config import data_config, model_config
+        from src.shearwall_pred.trainer import DataManager
 
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.data_config = data_config
@@ -279,8 +279,8 @@ class ConditionalEvaluator:
 
     def _compute_training_stats(self) -> Dict[int, ConditionStats]:
         """从训练集计算各条件的密度统计"""
-        from shearwall_pred.config import data_config
-        from shearwall_pred.trainer import DataManager
+        from src.shearwall_pred.config import data_config
+        from src.shearwall_pred.trainer import DataManager
 
         condition_densities = {0: [], 1: [], 2: []}
 
@@ -500,7 +500,7 @@ def evaluate_experiment_conditional(
     """
     from experiments.ablation.config import get_ablation_config
     from experiments.ablation.models import create_model_from_config
-    from shearwall_pred.config import model_config
+    from src.shearwall_pred.config import model_config
 
     exp_path = Path(experiment_dir)
     config_name = exp_path.name

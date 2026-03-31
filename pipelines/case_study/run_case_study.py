@@ -31,9 +31,9 @@ from pipelines.case_study.symmetry_postprocess import (
     save_symmetry_detection_debug_plot,
     symmetrize_raw_walls,
 )
-from shearwall_pred.config import model_config, viz_config
-from shearwall_pred.cross_validate import EnsembleShearWallGNN
-from shearwall_pred.utils import build_graph_from_dxf
+from src.shearwall_pred.config import model_config, viz_config
+from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
+from src.shearwall_pred.utils import build_graph_from_dxf
 
 
 def load_ensemble_model(cv_dir: str, device: str = "cuda") -> EnsembleShearWallGNN:
@@ -231,7 +231,7 @@ def run_case_study(
 
 def visualize_prediction_comparison(builder, predictions, room_polys, save_path=None):
     """可视化预测结果对比"""
-    from data_engine.preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
+    from src.data_engine.preprocess.room_analyzer import plot_room_analysis, reconstruct_walls
 
     # 设置绘图后端避免无头模式报错
     plt.switch_backend("Agg")

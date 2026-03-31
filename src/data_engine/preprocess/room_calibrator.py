@@ -10,7 +10,7 @@ from typing import List, Tuple
 
 from shapely.geometry import Polygon
 
-from data_engine.preprocess.dxf_extractor import DXFExtractor
+from src.data_engine.preprocess.dxf_extractor import DXFExtractor
 
 
 class RoomCalibrator:

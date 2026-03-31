@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from experiments.research.baseline_edge_gnn.config import data_config
 from experiments.research.baseline_edge_gnn.graph_builder import build_graph_from_json, load_json_data
-from shearwall_pred.utils import build_graph_from_dxf
+from src.shearwall_pred.utils import build_graph_from_dxf
 
 
 def compute_ours_graph_stats(dxf_path: str) -> Tuple[int, int]:

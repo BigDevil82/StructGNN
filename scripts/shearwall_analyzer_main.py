@@ -5,14 +5,16 @@ from typing import Optional
 
 import openseespy.opensees as ops
 
-from misc.logger import setup_file_logger
-from misc.parallel import run_batch
-from misc.timer import Timer
-from shearwall_modeling import ModelConfig, StandardStoryGroupConfig, load_and_scale_input
-from shearwall_modeling.builders import DetailedShellBuilder
-from shearwall_modeling.evaluation import SeismicCodeChecker
+from src.misc.logger import setup_file_logger
+from src.misc.parallel import run_batch
+from src.misc.timer import Timer
+from src.shearwall_modeling import ModelConfig, StandardStoryGroupConfig, load_and_scale_input
+from src.shearwall_modeling.builders import DetailedShellBuilder
+from src.shearwall_modeling.evaluation import SeismicCodeChecker
 
-logger = setup_file_logger("ShearwallAnalyzer", Path("outputs/result/logs/shearwall_analyzer.log"), logging.INFO)
+logger = setup_file_logger(
+    "ShearwallAnalyzer", Path("outputs/result/logs/shearwall_analyzer.log"), logging.INFO
+)
 logger.info("\n\n\n\nSHEARWALL ANALYZER STARTED\n")
 
 

@@ -38,9 +38,9 @@ from pipelines.case_study.symmetry_postprocess import (
     symmetrize_raw_walls,
 )
 from pipelines.case_study.unit import GPa, M, kN, mm
-from shearwall_pred.config import model_config, viz_config
-from shearwall_pred.cross_validate import EnsembleShearWallGNN
-from shearwall_pred.utils import build_graph_from_dxf
+from src.shearwall_pred.config import model_config, viz_config
+from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
+from src.shearwall_pred.utils import build_graph_from_dxf
 
 # 初始化COM
 comtypes.CoInitialize()

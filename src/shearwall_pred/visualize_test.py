@@ -17,10 +17,10 @@ import numpy as np
 import torch
 from shapely.geometry import Polygon
 
-from data_engine.preprocess.room_analyzer import calculate_wall_iou, plot_room_analysis, reconstruct_walls
-from shearwall_pred.config import training_config, viz_config
-from shearwall_pred.model import ShearWallGNN
-from shearwall_pred.utils import build_graph_from_dxf, mask_to_constraint_vector
+from src.data_engine.preprocess.room_analyzer import calculate_wall_iou, plot_room_analysis, reconstruct_walls
+from src.shearwall_pred.config import training_config, viz_config
+from src.shearwall_pred.model import ShearWallGNN
+from src.shearwall_pred.utils import build_graph_from_dxf, mask_to_constraint_vector
 
 
 def prepare_graph_data_for_inference(dxf_path: str, mode: str = "none", category: Optional[int] = None):
@@ -190,8 +190,8 @@ def test_conditional_predict(
 
 
 def conditional_pred_on_testset():
-    from shearwall_pred.config import data_config, model_config, training_config
-    from shearwall_pred.cross_validate import EnsembleShearWallGNN
+    from src.shearwall_pred.config import data_config, model_config, training_config
+    from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
 
     cv_path = Path(data_config.SAVE_DIR)
     model_paths = sorted(list(cv_path.glob("fold_*/best_model.pth")))

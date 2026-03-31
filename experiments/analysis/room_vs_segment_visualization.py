@@ -21,9 +21,9 @@ from torch_geometric.data import Batch
 # 添加项目路径
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from shearwall_pred.config import data_config, model_config
-from shearwall_pred.cross_validate import EnsembleShearWallGNN
-from shearwall_pred.dataset import ShearWallDataset
+from src.shearwall_pred.config import data_config, model_config
+from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
+from src.shearwall_pred.dataset import ShearWallDataset
 
 
 def visualize_room_coherence(

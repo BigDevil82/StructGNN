@@ -3,7 +3,7 @@ import os
 import cv2
 import numpy as np
 
-from data_engine.pngtool.img_util import segment_by_hsv, segment_gray, segment_red
+from src.data_engine.pngtool.img_util import segment_by_hsv, segment_gray, segment_red
 
 
 class WallRect:

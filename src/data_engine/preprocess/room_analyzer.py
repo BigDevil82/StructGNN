@@ -391,8 +391,8 @@ def plot_all_rooms(room_polys: List[Polygon], analysis_results: List[dict], save
 # 测试代码
 # ==========================================
 if __name__ == "__main__":
-    from data_engine.preprocess.dxf_extractor import DXFExtractor
-    from data_engine.preprocess.room_calibrator import calibrate_rooms
+    from src.data_engine.preprocess.dxf_extractor import DXFExtractor
+    from src.data_engine.preprocess.room_calibrator import calibrate_rooms
 
     # 提取DXF数据
     dxf_path = r"data\data\dxf\cad_json_data\building_components.dxf"
