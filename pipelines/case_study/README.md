@@ -1,29 +1,20 @@
-# Case Study Pipeline Wrapper
+# Case Study Pipeline
 
-本目录是 `experiments.case_study` 的目标迁移位置。
+本目录负责案例级正式流程：
 
-当前阶段仍然采用兼容包装策略：
+- DXF 布局读取
+- 剪力墙推理
+- 对称后处理
+- FEM 拓扑构建
+- 可视化
+- 导出共享结构输入 `*_structural_input.json`
 
-- 旧实现继续保留在 `experiments/case_study/`
-- 新位置先提供统一入口与说明
-- 外部若希望开始使用新路径，可逐步切换到：
-  - `experiments.pipelines.case_study`
-  - `experiments.pipelines.case_study.run_case_study`
+主要入口：
 
-这样做的目的：
+- `run_case_study.py`
+- `pipeline_core.predict_structural_result`
 
-- 不立即修改大面积 import
-- 先建立正式流程命名空间
-- 为后续真正迁移实现文件提供稳定落点
+边界约定：
 
-## 当前状态
-
-当前仅包装以下入口：
-
-- `run_case_study`
-- `main`
-- `fem_builder`
-- `symmetry_postprocess`
-- `unit`
-
-后续如继续整理，可逐步把 `fem_builder.py`、`symmetry_postprocess.py`、`create_etabs_model.py` 等实现迁入此目录，并保留旧路径兼容层。
+- `pipelines.case_study` 负责生成结构结果与共享输入
+- `pipelines.structural.*` 负责消费共享输入并调用具体结构建模后端

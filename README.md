@@ -68,18 +68,17 @@
 
 对应目录：
 
-- `axis_engine/`
-- `experiments/case_study/`
-- `shearwall_modeling/`
+- `src/data_engine/`
+- `pipelines/case_study/`
+- `pipelines/structural/`
+- `src/shearwall_modeling/`
 
 典型内容：
 
-- `axis_engine/wall_centerline.py`: 墙体中轴线提取
-- `axis_engine/line_network_calibrator.py`: 线网校准
-- `axis_engine/rect_decomposer.py`: 矩形分解
-- `preprocess/cad_inference.py`: 将 CAD 前处理结果桥接为推理输入
-- `experiments/case_study/run_case_study.py`: 案例级预测与构件解析
-- `shearwall_modeling/`: OpenSees 建模与规范校核相关代码
+- `src/data_engine/...`: CAD / DXF 前处理与推理输入桥接
+- `pipelines/case_study/run_case_study.py`: 案例级预测与构件解析
+- `pipelines/structural/etabs/`: ETABS 结构建模后端
+- `src/shearwall_modeling/`: OpenSees 建模与规范校核相关代码
 
 ## 顶层目录说明
 
@@ -87,25 +86,20 @@
 
 ```text
 Png2Dxf/
-├── axis_engine/          # CAD 几何解析与中轴线/矩形分解
-├── pngtool/              # PNG 数据清洗与 DXF 转换
-├── preprocess/           # 标注 DXF 到训练图数据
-├── shearwall_pred/       # 房间级剪力墙预测模型
-├── shearwall_modeling/   # OpenSees 建模、分析与校核
-├── experiments/          # 论文实验、评估、案例分析
-├── data/                  # 原始数据、DXF、缓存
-├── outputs/               # 模型、图表、案例输出结果
-├── docs/                  # 结构说明、论文材料、项目笔记
-├── misc/                 # 通用辅助工具
-├── baseline_edge_gnn/    # 既有墙段级方法复现
-└── beam_pred/            # 历史探索模块，当前不是主线
+├── src/                  # 核心实现
+├── pipelines/            # 正式流程与结构后端
+├── experiments/          # 论文实验与研究代码
+├── scripts/              # 可执行脚本入口
+├── data/                 # 原始数据、DXF、缓存
+├── outputs/              # 模型、图表、案例输出结果
+├── docs/                 # 结构说明、论文材料、项目笔记
+└── README.md
 ```
 
 其他说明：
 
 - `experiments/` 中很多脚本是论文期临时代码，不适合继续无限扩张
-- `experiments/case_study/` 已经承载了部分“准正式流程”，后续更适合独立抽离
-- `experiments/pipelines/` 是当前整理阶段建立的流程命名空间骨架
+- `pipelines/case_study/` 已经是正式案例流程目录
 - `experiments/research/beam_pred/` 当前不是项目主线，可视为保留分支
 - `%TEMP%/`、`paper/` 等目录更多是辅助性质，不建议继续承载核心逻辑
 
@@ -154,28 +148,23 @@ python -m shearwall_pred.trainer --mode visualize --ckpt outputs\result\...\fina
 ### CAD JSON 转 DXF / 推理图输入
 
 ```bash
-python -m preprocess.cad_inference --cad-json input.json --dxf-out output.dxf
+python -m src.data_engine.preprocess.cad_inference --cad-json input.json --dxf-out output.dxf
 ```
 
 ### 案例级推理与 FEM 构件解析
 
 ```bash
-python -m experiments.pipelines.case_study.run_case_study ^
+python pipelines/case_study/run_case_study.py ^
   --dxf_path path\to\layout.dxf ^
   --model_dir outputs\result\shearwall_pred\...\ ^
   --output_dir outputs\result\case_study
 ```
 
-兼容说明：
-
-- 旧路径 `experiments.case_study.run_case_study` 仍可使用
-- 新代码应优先使用 `experiments.pipelines.case_study.*`
-
 ### OpenSees 建模分析
 
 可参考：
 
-- [`shearwall_analyzer.py`](/E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/shearwall_analyzer.py)
+- [`shearwall_analyzer_main.py`](/E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/scripts/shearwall_analyzer_main.py)
 
 ## 当前代码组织上的问题
 
