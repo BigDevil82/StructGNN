@@ -105,8 +105,13 @@ Png2Dxf/
 
 - `experiments/` 中很多脚本是论文期临时代码，不适合继续无限扩张
 - `experiments/case_study/` 已经承载了部分“准正式流程”，后续更适合独立抽离
+- `experiments/pipelines/` 是当前整理阶段建立的流程命名空间骨架
 - `beam_pred/` 当前不是项目主线，可视为保留分支
 - `%TEMP%/`、`paper/` 等目录更多是辅助性质，不建议继续承载核心逻辑
+
+结构整理约束可参考：
+
+- [`docs/PROJECT_STRUCTURE.md`](/E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/docs/PROJECT_STRUCTURE.md)
 
 ## 环境
 
@@ -154,11 +159,16 @@ python -m preprocess.cad_inference --cad-json input.json --dxf-out output.dxf
 ### 案例级推理与 FEM 构件解析
 
 ```bash
-python -m experiments.case_study.run_case_study ^
+python -m experiments.pipelines.case_study.run_case_study ^
   --dxf_path path\to\layout.dxf ^
   --model_dir result\shearwall_pred\...\ ^
   --output_dir result\case_study
 ```
+
+兼容说明：
+
+- 旧路径 `experiments.case_study.run_case_study` 仍可使用
+- 新代码应优先使用 `experiments.pipelines.case_study.*`
 
 ### OpenSees 建模分析
 
