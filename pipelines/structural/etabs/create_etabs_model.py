@@ -13,6 +13,7 @@ ETABS自动建模脚本
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import comtypes
 import numpy as np
@@ -27,6 +28,7 @@ from pipelines.case_study.symmetry_postprocess import (
     load_layout_reference_geometries,
     symmetrize_raw_walls,
 )
+from pipelines.case_study.adapters import fem_result_to_fem_input
 from pipelines.structural.etabs.etabs_util import (
     ShellType,
     SlabType,
@@ -37,6 +39,7 @@ from pipelines.structural.etabs.etabs_util import (
     define_wall_sec,
 )
 from pipelines.structural.etabs.unit import GPa, M, kN, mm
+from src.shearwall_modeling.domain import FEMInput
 from src.shearwall_pred.config import model_config, viz_config
 from src.shearwall_pred.cross_validate import EnsembleShearWallGNN
 from src.shearwall_pred.utils import build_graph_from_dxf
@@ -214,6 +217,106 @@ def predict_fem_members(
     return result
 
 
+def load_structural_input(input_path: str, xy_scale_to_m: float = 0.001) -> FEMInput:
+    """从共享结构输入 JSON 加载结构建模输入。"""
+    return FEMInput.from_json(Path(input_path), xy_scale_to_m=xy_scale_to_m)
+
+
+def _normalize_structural_input(
+    fem_result: dict | None = None,
+    structural_input: FEMInput | None = None,
+    structural_input_path: str | None = None,
+    use_gt: bool = False,
+) -> tuple[FEMInput, dict | None]:
+    """统一 ETABS 后端的结构输入来源。"""
+    if structural_input is not None:
+        return structural_input, fem_result
+
+    if structural_input_path is not None:
+        return load_structural_input(structural_input_path), fem_result
+
+    if fem_result is None:
+        source = "GT标注" if use_gt else "模型预测"
+        print(f"\n[{'GT' if use_gt else '预测'}] 从DXF获取FEM构件（{source}）...")
+        device = DEVICE if torch.cuda.is_available() else "cpu"
+        fem_result = predict_fem_members(
+            DXF_PATH,
+            MODEL_DIR,
+            CATEGORY,
+            device,
+            use_gt=use_gt,
+            symmetry_mode=SYMMETRY_MODE,
+            symmetry_threshold=SYMMETRY_THRESHOLD,
+        )
+
+    return fem_result_to_fem_input(fem_result), fem_result
+
+
+def print_structural_input_diagnostics(structural_input: FEMInput):
+    """打印标准结构输入的几何诊断信息。"""
+    members = structural_input.all_members()
+    walls = structural_input.walls
+    beams = structural_input.beams
+
+    all_coords = []
+    for member in members:
+        all_coords.append(member.start)
+        all_coords.append(member.end)
+
+    if not all_coords:
+        print("[诊断] 无构件数据")
+        return
+
+    xs = [coord[0] for coord in all_coords]
+    ys = [coord[1] for coord in all_coords]
+    x_range = max(xs) - min(xs)
+    y_range = max(ys) - min(ys)
+
+    print("\n" + "=" * 60)
+    print("[诊断] 模型几何信息")
+    print("=" * 60)
+    print(f"  平面范围: {x_range / mm:.0f} x {y_range / mm:.0f} mm  ({x_range:.1f} x {y_range:.1f} m)")
+    print(f"  构件数量: {len(walls)} 剪力墙, {len(beams)} 梁")
+
+    if walls:
+        wall_lens = [member.length for member in walls]
+        print(
+            f"  剪力墙长度: min={min(wall_lens)/mm:.0f}mm, max={max(wall_lens)/mm:.0f}mm, "
+            f"avg={sum(wall_lens)/len(wall_lens)/mm:.0f}mm"
+        )
+        print(f"             ({min(wall_lens):.2f}m ~ {max(wall_lens):.2f}m)")
+
+    if beams:
+        beam_lens = [member.length for member in beams]
+        print(
+            f"  梁跨度:     min={min(beam_lens)/mm:.0f}mm, max={max(beam_lens)/mm:.0f}mm, "
+            f"avg={sum(beam_lens)/len(beam_lens)/mm:.0f}mm"
+        )
+        print(f"             ({min(beam_lens):.2f}m ~ {max(beam_lens):.2f}m)")
+
+    slabs = structural_input.slabs
+    print(f"  楼板数量: {len(slabs)}")
+
+    print("\n[诊断] 合理性检查:")
+    if x_range > 60 or y_range > 60:
+        print(f"  平面尺寸偏大（>{60}m），可能缩放比例有误")
+    elif x_range < 10 or y_range < 10:
+        print("  平面尺寸偏小（<10m），可能缩放比例有误")
+    else:
+        print("  平面尺寸在合理范围内")
+
+    if beams:
+        max_span = max(beam_lens)
+        if max_span > 12:
+            print(f"  最大梁跨 {max_span:.1f}m 偏大（住宅一般 3-6m）")
+        else:
+            print("  梁跨在合理范围内")
+
+    if len(slabs) == 0:
+        print("  无楼板！模型缺少质量和面荷载")
+    print("=" * 60)
+
+
 def print_model_diagnostics(fem_result: dict):
     """打印模型几何尺寸诊断信息，用于检查建模是否合理"""
     from pipelines.structural.etabs.unit import mm
@@ -281,6 +384,25 @@ def print_model_diagnostics(fem_result: dict):
     if len(slabs) == 0:
         print(f"  ⚠ 无楼板！模型缺少质量和面荷载")
     print("=" * 60)
+
+
+def _fem_input_to_etabs_geometry(structural_input: FEMInput) -> dict[str, Any]:
+    all_coords = []
+    for member in structural_input.all_members():
+        all_coords.append(member.start)
+        all_coords.append(member.end)
+
+    min_x = min((coord[0] for coord in all_coords), default=0.0)
+    min_y = min((coord[1] for coord in all_coords), default=0.0)
+
+    wall_members = [{"start_coord": member.start, "end_coord": member.end} for member in structural_input.walls]
+    beam_members = [{"start_coord": member.start, "end_coord": member.end} for member in structural_input.beams]
+    return {
+        "wall_members": wall_members,
+        "beam_members": beam_members,
+        "slab_polys": structural_input.slabs,
+        "min_xy": (min_x, min_y),
+    }
 
 
 def check_ret(ret, msg: str = ""):
@@ -425,40 +547,39 @@ def run_analysis_and_extract(etabs):
     return ret
 
 
-def create_etabs_model(fem_result: dict = None, run_analysis: bool = False, use_gt: bool = False):
+def create_etabs_model(
+    fem_result: dict = None,
+    structural_input: FEMInput | None = None,
+    structural_input_path: str | None = None,
+    run_analysis: bool = False,
+    use_gt: bool = False,
+):
     """
     根据FEM预测结果在ETABS中创建结构模型。
 
     Args:
-        fem_result: predict_fem_members() 的返回值。
-                    为 None 时自动调用预测流程（使用顶部配置）。
+        fem_result: predict_fem_members() 的返回值。兼容旧接口。
+        structural_input: 标准化结构输入，推荐优先使用。
+        structural_input_path: 标准化结构输入 JSON 路径。
         run_analysis: 是否在建模后运行分析并提取结果。
                       设为True前需确保已在ETABS中手动设置好时程函数、荷载工况、质量源。
         use_gt: True 使用Ground Truth标注建模，False 使用模型预测建模。
     """
 
-    if fem_result is None:
-        source = "GT标注" if use_gt else "模型预测"
-        print(f"\n[{'GT' if use_gt else '预测'}] 从DXF获取FEM构件（{source}）...")
-        device = DEVICE if torch.cuda.is_available() else "cpu"
-        fem_result = predict_fem_members(
-            DXF_PATH,
-            MODEL_DIR,
-            CATEGORY,
-            device,
-            use_gt=use_gt,
-            symmetry_mode=SYMMETRY_MODE,
-            symmetry_threshold=SYMMETRY_THRESHOLD,
-        )
+    structural_input, fem_result = _normalize_structural_input(
+        fem_result=fem_result,
+        structural_input=structural_input,
+        structural_input_path=structural_input_path,
+        use_gt=use_gt,
+    )
 
-    # 打印诊断信息
-    print_model_diagnostics(fem_result)
+    print_structural_input_diagnostics(structural_input)
 
-    members = fem_result["members"]
-    wall_members = [m for m in members if m["type"] == "shearwall"]
-    beam_members = [m for m in members if m["type"] == "beam"]
-    slab_polys = fem_result.get("slabs", [])
-    min_x, min_y = fem_result["statistics"].get("min_xy", (0.0, 0.0))
+    geometry_data = _fem_input_to_etabs_geometry(structural_input)
+    wall_members = geometry_data["wall_members"]
+    beam_members = geometry_data["beam_members"]
+    slab_polys = geometry_data["slab_polys"]
+    min_x, min_y = geometry_data["min_xy"]
 
     N_m_C = 10  # ETABS单位系统：N, m, C
 
@@ -469,7 +590,7 @@ def create_etabs_model(fem_result: dict = None, run_analysis: bool = False, use_
     ######################## 坐标换算 ########################
     # 预测坐标单位为毫米，转换至米
     def to_meters(coord):
-        return ((coord[0] - min_x) * mm * SCALE_FACTOR, (coord[1] - min_y) * mm * SCALE_FACTOR)
+        return ((coord[0] - min_x) * SCALE_FACTOR, (coord[1] - min_y) * SCALE_FACTOR)
 
     ######################## 启动ETABS ########################
     os.makedirs(MODEL_SAVE_DIR, exist_ok=True)
@@ -629,6 +750,12 @@ def main():
 
     parser = argparse.ArgumentParser(description="从DXF预测结果自动创建ETABS有限元模型")
     parser.add_argument("--dxf_path", type=str, default=DXF_PATH)
+    parser.add_argument(
+        "--structural_input_path",
+        type=str,
+        default=None,
+        help="共享结构输入 JSON 路径；提供后优先使用，不再依赖 DXF 推理流程",
+    )
     parser.add_argument("--model_dir", type=str, default=MODEL_DIR)
     parser.add_argument(
         "--scale_factor", type=float, default=SCALE_FACTOR, help="坐标缩放比例（默认1.0，单位转换时调整）"
@@ -690,7 +817,11 @@ def main():
     if args.use_gt:
         MODEL_NAME += "_GT"
 
-    model_path = create_etabs_model(run_analysis=args.run_analysis, use_gt=args.use_gt)
+    model_path = create_etabs_model(
+        structural_input_path=args.structural_input_path,
+        run_analysis=args.run_analysis,
+        use_gt=args.use_gt,
+    )
     if model_path:
         print(f"建模成功：{model_path}")
     else:
