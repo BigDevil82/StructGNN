@@ -12,7 +12,7 @@
 - 继续通过旧的 `fem_result` 字典
 - 或由本模块内部临时执行 DXF -> 预测 -> FEM 拓扑流程
 
-推荐逐步迁移到：
+当前职责边界：
 
 - `pipelines.case_study` 负责生成标准结构输入
 - `pipelines.structural.etabs` 只消费标准结构输入并建模

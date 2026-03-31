@@ -1,21 +1,15 @@
-# Pipelines Skeleton
+# Pipelines
 
-本目录是 `experiments/` 中“正式流程候选”部分的目标落点。
+本目录承载项目中的正式流程与结构后端。
 
-当前仅作为骨架存在，暂不承载实际实现代码，原因是：
+当前已包含：
 
-- `case_study/` 仍有较多旧 import 依赖
-- 直接移动文件会带来较高的遗漏风险
-- 当前阶段优先建立迁移目标，而不是立即改物理路径
+- `case_study/`: DXF -> 推理 -> 后处理 -> FEM 拓扑 -> 结构输入导出
+- `structural/etabs/`: ETABS 结构建模后端
+- `yjk_pipeline/`: 独立的盈建科流程
 
-计划迁入的内容：
+放置原则：
 
-- `case_study/` 相关案例推理流程
-- FEM 拓扑解析
-- 外部建模软件桥接流程
-
-当前已建立兼容包装目录：
-
-- `case_study/`
-
-在正式迁移前，新增的流程型代码应优先考虑是否直接放到这里，而不是继续堆到旧的 `case_study/` 中。
+- 端到端流程放在 `pipelines/`
+- 具体结构软件后端放在 `pipelines/structural/`
+- 不再将正式流程放回 `experiments/`
