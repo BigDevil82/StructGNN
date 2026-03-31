@@ -134,7 +134,7 @@ class EnsembleShearWallGNN(torch.nn.Module):
         super().__init__()
         self.models = torch.nn.ModuleList()
 
-        print(f"🔄 正在初始化集成模型，共 {len(model_paths)} 个子模型...")
+        print(f"[Ensemble] Initializing {len(model_paths)} sub-models...")
 
         for path in model_paths:
             # 1. 初始化子模型结构
@@ -154,7 +154,7 @@ class EnsembleShearWallGNN(torch.nn.Module):
 
             self.models.append(model)
 
-        print("✅ 集成模型初始化完成")
+        print("[Ensemble] Initialization complete")
 
     def forward(self, data, condition: torch.Tensor = None) -> tuple[torch.Tensor, torch.Tensor]:
         """

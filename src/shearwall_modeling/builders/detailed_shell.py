@@ -227,7 +227,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
         self.logger.info(
             f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
             f"beams={len(input_data.beams)}, shellElems={shell_count}, beamElems={beam_count}, "
-            f"floor_area~{floor_area:.2f} m², floor_mass_range=[{min(floor_masses)/1e3:.2f}, {max(floor_masses)/1e3:.2f}] t, "
+            f"floor_area~{floor_area:.2f} m^2, floor_mass_range=[{min(floor_masses)/1e3:.2f}, {max(floor_masses)/1e3:.2f}] t, "
             f"load_mass_total={total_load_mass/1e3:.2f} t, self_mass_total={total_self_mass/1e3:.2f} t, "
             f"total_mass={total_structure_mass/1e3:.2f} t ({total_structure_mass / 1e3:.2f} t)"
         )

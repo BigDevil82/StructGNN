@@ -178,7 +178,7 @@ def estimate_floor_area(input_data: FEMInput) -> float:
     slab_areas = [_polygon_area(slab) for slab in input_data.slabs if len(slab) >= 3]
     slab_area = sum(a for a in slab_areas if a > 0.0)
     if slab_area > 1.0e-9:
-        print(f"Floor area from slabs: {slab_area:.3f} m² (count={len(slab_areas)})")
+        print(f"Floor area from slabs: {slab_area:.3f} m^2 (count={len(slab_areas)})")
         return max(slab_area, 16.0)
 
     points = []
