@@ -22,5 +22,8 @@
 
 - `run_case_study`
 - `main`
+- `fem_builder`
+- `symmetry_postprocess`
+- `unit`
 
 后续如继续整理，可逐步把 `fem_builder.py`、`symmetry_postprocess.py`、`create_etabs_model.py` 等实现迁入此目录，并保留旧路径兼容层。
