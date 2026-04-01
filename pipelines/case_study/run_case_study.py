@@ -11,10 +11,14 @@ import torch
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pipelines.case_study.pipeline_core import run_case_study
-from pipelines.case_study.visualization import export_shearwall_coords, visualize_prediction_comparison, visualize_wall_layout
-from pipelines.case_study.inference import load_ensemble_model, predict_shear_walls
 from pipelines.case_study.adapters import export_structural_input_json, fem_result_to_fem_input
+from pipelines.case_study.pipeline_core import run_case_study
+from pipelines.case_study.visualization import (
+    export_shearwall_coords,
+    visualize_prediction_comparison,
+    visualize_wall_layout,
+)
+from shearwall_pred.inference import load_ensemble_model, predict_shear_walls
 
 
 def main():
