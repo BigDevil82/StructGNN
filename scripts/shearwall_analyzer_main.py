@@ -54,7 +54,8 @@ def build_single(json_path: Path) -> None:
     build_result = builder.build(input_data, config)
 
     checker = SeismicCodeChecker(build_result.master_nodes, config, logger)
-    checker.run_analysis_and_evaluate()
+    _, res = checker.run_analysis_and_evaluate()
+    checker._print_report(res)
 
     ops.wipe()
 

@@ -28,19 +28,19 @@ def _gb50011_alpha(T: float, alpha_max: float, Tg: float, damping_ratio: float) 
 
 
 def _resolve_gb50011_design_params(
-    design_acc_g: float,
+    intensity: float,
     site_class: str,
     seismic_group: int,
     alpha_max_override: Optional[float],
     Tg_override: Optional[float],
 ) -> tuple[float, float]:
     alpha_max_map = {
-        0.05: 0.04,
-        0.10: 0.08,
-        0.15: 0.12,
-        0.20: 0.16,
-        0.30: 0.24,
-        0.40: 0.32,
+        6.0: 0.04,
+        7.0: 0.08,
+        7.5: 0.12,
+        8.0: 0.16,
+        8.5: 0.24,
+        9.0: 0.32,
     }
 
     tg_map = {
@@ -51,15 +51,13 @@ def _resolve_gb50011_design_params(
         "IV": {1: 0.65, 2: 0.75, 3: 0.90},
     }
 
-    acc_key = round(float(design_acc_g), 2)
+    acc_key = round(float(intensity), 2)
     site_key = str(site_class).upper()
     group_key = int(seismic_group)
 
     if alpha_max_override is None:
         if acc_key not in alpha_max_map:
-            raise ValueError(
-                f"Unsupported design_acc_g={design_acc_g}. " "Set alpha_max_override to continue."
-            )
+            raise ValueError(f"Unsupported intensity={intensity}. " "Set alpha_max_override to continue.")
         alpha_max = alpha_max_map[acc_key]
     else:
         alpha_max = float(alpha_max_override)
@@ -125,7 +123,6 @@ class SeismicConfig:
     combination_method: str = "CQC"
     design_code: str = "GB50011"
     intensity: int = 7
-    design_acc_g: float = 0.10
     site_class: str = "II"
     seismic_group: int = 1
     alpha_max_override: Optional[float] = None
@@ -146,7 +143,7 @@ class SeismicConfig:
             )
 
         alpha_max, tg = _resolve_gb50011_design_params(
-            design_acc_g=self.design_acc_g,
+            intensity=self.intensity,
             site_class=self.site_class,
             seismic_group=self.seismic_group,
             alpha_max_override=self.alpha_max_override,

@@ -53,7 +53,7 @@ class SeismicCodeChecker:
 
         self.xmin, self.xmax, self.ymin, self.ymax = self._get_model_bbox()
         self.floor_masses = [ops.nodeMass(n, 1) for n in master_nodes]
-        self.min_shear_ratio = self._get_min_shear_ratio(config.seismic.design_acc_g)
+        self.min_shear_ratio = self._get_min_shear_ratio(config.seismic.intensity)
 
     def _get_model_bbox(self) -> tuple[float, float, float, float]:
         nodes = ops.getNodeTags()
@@ -61,9 +61,9 @@ class SeismicCodeChecker:
         ys = [ops.nodeCoord(n, 2) for n in nodes]
         return min(xs), max(xs), min(ys), max(ys)
 
-    def _get_min_shear_ratio(self, acc_g: float) -> float:
-        mapping = {0.10: 0.016, 0.15: 0.024, 0.20: 0.032, 0.30: 0.048}
-        key = round(float(acc_g), 2)
+    def _get_min_shear_ratio(self, intensity: float) -> float:
+        mapping = {6.0: 0.008, 7.0: 0.016, 7.5: 0.024, 8.0: 0.032, 8.5: 0.048, 9.0: 0.064}
+        key = round(float(intensity), 2)
         return mapping.get(key, 0.016)
 
     def _combine(self, modal_vals: list[float], eigs: list[float]) -> float:
