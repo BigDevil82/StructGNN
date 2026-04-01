@@ -13,6 +13,7 @@ processed_data
 data/*
 outputs/*
 docs/paper/latex/build/*
+%TEMP%
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
