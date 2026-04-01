@@ -12,16 +12,12 @@ try:
     from .model_builder import YJKJsonModelBuilder
     from .result_extractor import StoryDriftData, YJKResultExtractor
 except ImportError:
-    from pipelines.yjk_pipeline.analysis_runner import YJKAnalysisRunner
-    from pipelines.yjk_pipeline.common import clean_output_files, setup_file_logger
-    from pipelines.yjk_pipeline.config import PipelineConfig
-    from pipelines.yjk_pipeline.json_loader import (
-        load_segments_from_json,
-        scale_segments,
-        translate_segments_to_origin,
-    )
-    from pipelines.yjk_pipeline.model_builder import YJKJsonModelBuilder
-    from pipelines.yjk_pipeline.result_extractor import StoryDriftData, YJKResultExtractor
+    from analysis_runner import YJKAnalysisRunner
+    from common import clean_output_files, setup_file_logger
+    from config import PipelineConfig
+    from json_loader import load_segments_from_json, scale_segments, translate_segments_to_origin
+    from model_builder import YJKJsonModelBuilder
+    from result_extractor import StoryDriftData, YJKResultExtractor
 
 
 @dataclass

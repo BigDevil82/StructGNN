@@ -20,8 +20,8 @@ def _load_runtime_symbols(force_reload: bool = False):
         from . import config as config_mod
         from . import pipeline as pipeline_mod
     except ImportError:
-        import pipelines.yjk_pipeline.config as config_mod
-        import pipelines.yjk_pipeline.pipeline as pipeline_mod
+        import config as config_mod
+        import pipeline as pipeline_mod
 
     if force_reload:
         config_mod = importlib.reload(config_mod)
