@@ -48,6 +48,7 @@
 \usepackage{amsmath}
 \usepackage{algorithmic}
 \usepackage{algorithm}
+\usepackage{enumerate}
 \usepackage{array}
 \usepackage{booktabs}
 \usepackage{multirow}
@@ -56,7 +57,7 @@
 \usepackage{lineno}
 \usepackage{float}
 \usepackage{caption}
-
+\setlength{\linenumbersep}{3pt}
 \hyphenpenalty=1000
 \hypersetup{
      colorlinks   = true,
@@ -116,7 +117,7 @@
 %%             country={}}
 %% \fntext[label3]{}
 
-\title{Room-Level Graph Neural Networks for Conditional Shear Wall Layout Generation in High-Rise Buildings}
+\title{RC-GNN: Room-level Conditional Graph Neural Networks for Shear Wall Layout Generation in High-Rise Buildings}
 
 %% use optional labels to link authors explicitly to addresses:
 %% \author[label1,label2]{}
@@ -154,7 +155,7 @@
 %             country={Country Two}}
 
 \begin{abstract}
-Designing shear-wall layouts for high-rise residential buildings is a labor-intensive early-stage task that must satisfy architectural constraints while meeting seismic performance demands. Existing learning-based approaches are commonly formulated either as image-to-image generation or as graph learning on geometric primitives, but these formulations can be inefficient and may not explicitly reflect room-level spatial semantics. This paper proposes a room-level graph formulation that represents rooms as nodes and their adjacencies as edges, enabling wall placement to be modeled directly along room boundaries and reducing the graph size relative to primitive-based representations. On top of this representation, we develop a conditional graph neural network with FiLM-based modulation to generate layouts that comply with prescribed shear-wall density regimes. To mitigate limited paired data across design conditions, we introduce a dual-stream training strategy that combines supervision from engineered layouts with density-consistency constraints under counterfactual conditions. Experiments on 143 residential floor plans show that the proposed method achieves an Image IoU of 0.597 and improves over an edge-based GNN baseline by 9.8 percentage points. Ablation results indicate that conditioning is the primary driver of controllability, and case-based finite-element evaluation further suggests engineering feasibility under the tested settings.
+Designing shear wall layouts for high-rise buildings remains a labor-intensive task in preliminary design, because the layout must satisfy architectural constraints while meeting seismic performance demands. Existing generative AI approaches are commonly formulated either as image-to-image translation or graph learning on basic geometric components. However, these formulations are often inefficient and fail to explicitly capture room-level spatial semantics. This study proposes a room-level graph formulation, where rooms are represented as nodes and their adjacencies as edges. This representation enables direct modeling of wall placement along room boundaries while significantly reducing graph size compared to component-based representations. Building on this representation, a conditional graph neural network (GNN) with Feature-wise Linear Modulation (FiLM) is developed to generate layouts under prescribed shear wall density regimes. To address limited paired data across design conditions, a dual-stream training strategy is proposed, integrating supervision from engineered layouts with cross-condition regularization under mismatched conditions. Experiments on 143 residential floor plans show that the proposed method achieves an average Image IoU of 0.597, outperforming a component-based GNN baseline by 9.8\%. Ablation studies indicate that conditioning is the main driver of controllability of the model, and case-based finite element analysis confirms the engineering feasibility under the tested settings.
 \end{abstract}
 
 %%Graphical abstract
@@ -165,15 +166,15 @@ Designing shear-wall layouts for high-rise residential buildings is a labor-inte
 %%Research highlights
 % \begin{strip}
 \begin{highlights}
-\item A room-level graph formulation for structural layout generation that encodes architectural spaces and their adjacencies, enabling direct use of room semantics and boundary constraints while reducing the scale of graph inference relative to primitive-based formulations.
-\item A conditional GNN architecture with FiLM-based modulation for controllable shear wall layout generation under prescribed wall-density categories, including a decoding design that predicts both wall existence and geometry.
-\item A dual-stream training scheme that improves conditional compliance under limited paired data by combining supervised learning with counterfactual, density-oriented regularization.
+\item Room-level graph formulation encodes architectural spaces and boundary constraints, reducing inference scale versus baseline.
+\item Conditional GNNs with FiLM modulation enable density-controlled generation, jointly predicting wall existence and geometry.
+\item Dual-stream training combines supervised learning with density regularization to improve compliance under sparse paired data.
 \end{highlights}
 % \end{strip}
 
 \begin{keyword}
 %% keywords here, in the form: keyword \sep keyword
-shear wall layout \sep graph neural networks \sep conditional generation \sep room-level representation \sep structural design automation 
+structural design automation \sep  shear wall layout \sep graph neural networks \sep conditional generation \sep room-level representation  
 %% PACS codes here, in the form: \PACS code \sep code
 % \PACS 0000 \sep 1111
 %% MSC codes here, in the form: \MSC code \sep code
@@ -183,20 +184,20 @@ shear wall layout \sep graph neural networks \sep conditional generation \sep ro
 
 \end{frontmatter}
 
-%% \linenumbers
+\linenumbers
 
 %%%%%%%%%%%%%%%%%%%%%%% main body start %%%%%%%%%%%%%%%%%%%%%%
-\input{sections/1intro} % introduction
+\input{1intro} % introduction
 
-\input{sections/2related} % related works
+\input{2related} % related works
 
-\input{sections/3methodology} % methodology
+\input{3methodology} % methodology
 
-\input{sections/4experiments} % experiments
+\input{4experiments} % experiments
 
-\input{sections/5discussion} % discussion
+\input{5discussion} % discussion
 
-\input{sections/6conclusion} % conclusion
+\input{6conclusion} % conclusion
 %%%%%%%%%%%%%%%%%%%%%%% main body end %%%%%%%%%%%%%%%%%%%%%%
 
 \section*{Data availability statement}
@@ -209,11 +210,11 @@ The authors declare that they have no known competing financial interests or per
 Hao Leng: Conceptualization, Methodology, Software, Formal analysis, Data curation, Writing – original draft \& Visualization. Yuqing Gao: Conceptualization, Methodology, Editing, Review, Supervision. Ying Zhou: Conceptualization, Review, Supervision, Project administration, Funding acquisition. 
 
 \section*{Acknowledgments}
-This work was supported by the National Natural Science Foundation of China (No. 52025083, U2139209), the Shanghai Social Development Science and Technology Research Project (Grant No. 22dz1201400), and the Shanghai Urban Digital Transformation Special Fund (Grant No. 202201033). The authors would like to acknowledge Mr. Zhen Zhang, Mr. Yi Wang, Mr. Zhuoju Huang and Mr. Ming Du from Tongji Architectural Design Institute for providing valuable design drawings used to train the model in this study. We would also like to express our gratitude to Mr. Zhijie Mo and Mr. Boyang Liu for their assistance in annotating the room layout datasets used for model training.
+This work was supported by the National Natural Science Foundation of China (No. 52025083, U2139209), the Shanghai Urban Digital Transformation Special Fund (Grant No. 202201033), the Shanghai Rising-Star Program (Grant No. 24YF2749100) and the Open Recruitment for Leadership Positions Project of Tongji Architectural Design (Group) Co., Ltd. (Grant No. 2024J-JB07) . The authors would like to acknowledge Mr. Zhen Zhang, Mr. Yi Wang, Mr. Zhuoju Huang and Mr. Ming Du from Tongji Architectural Design Institute for providing valuable design drawings used to train the model in this study. We would also like to express our gratitude to Mr. Zhijie Mo and Mr. Boyang Liu for their assistance in annotating the room layout datasets used for model training.
 
 
 %%%%%%%%%%%%%%%%%%%%%%% appendix %%%%%%%%%%%%%%%%%%%%%%
-% \input{sections/8appendix}
+% \input{8appendix}
 
 %%%%%%%%%%%%%%%%%%%%%%% bibliography %%%%%%%%%%%%%%%%%%%%%%
 %% If you have bibdatabase file and want bibtex to generate the

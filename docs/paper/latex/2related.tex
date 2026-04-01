@@ -1,0 +1,59 @@
+% !TeX root = ../main.tex
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Structural layout generation for shear wall systems}
+\label{subsec:structural_layout_generation}
+
+Early intelligent structural layout methods were largely optimization-driven, such as genetic-algorithm-based search with prior knowledge and multi-objective exploration combining structural performance with design preferences \cite{zhouAutomatedStructuralDesign2022b,muellerCombiningStructuralPerformance2015,zhangShearWallLayout2017,louPracticalShearWall2021c}. These methods provide interpretable search trajectories, but they often require iterative evaluations and hand-crafted parameterizations, which limit efficiency in early-stage design where rapid alternatives are needed. Related AI-based search strategies, such as MCTS-driven topology design (e.g., truss domains), further demonstrate the value of machine intelligence for discrete structural decisions, yet remain task-specific and not directly tailored to complex shear wall residential layouts \cite{luoAlphaTrussMonteCarlo2022a,hayashiGraphbasedReinforcementLearning2022}.
+
+With the rise of deep learning, many studies formulated shear wall generation as image-to-image prediction. Representative examples include StructGAN for automatic wall layout generation from semantic floor-plan images \cite{liaoAutomatedStructuralDesign2021a}, fused text-image GANs for condition-guided synthesis \cite{liaoIntelligentGenerativeStructural2022a}, physics-enhanced GANs that introduce mechanical objectives during training \cite{luIntelligentStructuralDesign2022a}, and attention-enhanced GAN variants for shear wall prediction \cite{zhaoIntelligentDesignShear2023}. Similar pixel-space generation was also explored in other structural systems, such as dual-GAN pipelines for steel frame-brace component layouts and their physics-guided extensions \cite{fuDualGenerativeAdversarial2023,fuPhysicalRuleguidedGenerative2024}. These methods demonstrate strong pattern-learning capacity, but they still face limitations in shear wall design, including sparse informative pixels with high computational cost at high resolution, implicit topology modeling, and additional vectorization steps for downstream engineering workflows.
+
+Recent diffusion-based methods further improved conditional generation quality in shear wall tasks and reported strong overlap performance under condition prompts \cite{liFrameDiffusionLatentDiffusion2025}. However, diffusion models in pixel/tensor spaces still do not natively encode room-level relational semantics, and iterative denoising can increase inference latency. In parallel, vector diffusion for floorplan generation (e.g., HouseDiffusion) showed that graph-constrained generation can improve geometric fidelity, although the focus is architectural space layout rather than structural component design \cite{shabaniHouseDiffusionVectorFloorplan2022}.
+
+
+\subsection{From component-based graphs to room-level semantics}
+\label{subsec:graph_repr_gnn}
+
+Graph-based learning has become a promising direction because it explicitly represents entities and their relations in vectorized form \cite{Wu_2021}. In shear wall design, Zhao et al. modeled intersections as nodes and wall segments as edges, and cast layout generation as graph prediction, showing clear advantages over purely pixel-based formulations \cite{zhaoIntelligentDesignShear2023b}. Follow-up work incorporated explicit design-condition features (e.g., PGA, period, height) into node/edge attributes to improve condition responsiveness within one model \cite{zhaoDesignconditioninformedShearWall2023d}. Additional studies extended graph learning to co-design settings, such as simultaneous wall-beam prediction \cite{IntelligentCodesignShear2025}, and to broader structural topology generation pipelines \cite{zhangEndtoendGenerationStructural,longTwostageAutomatedGeneration2026}.
+
+
+\begin{table*}[t]
+\centering
+\caption{Comparison of structural layout generation methods}
+\label{tab:related_work}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{
+>{\raggedright\arraybackslash}p{3.5cm}
+>{\raggedright\arraybackslash}p{2.5cm}
+>{\raggedright\arraybackslash}p{3.0cm}
+>{\raggedright\arraybackslash\hsize=0.85\hsize}X
+>{\raggedright\arraybackslash\hsize=1.15\hsize}X
+}
+\toprule
+Category & Representative Works & Representation Level & Conditional Strategy & Key Limitations \\
+\midrule
+Optimization-Based Methods & \cite{zhouAutomatedStructuralDesign2022b,muellerCombiningStructuralPerformance2015,luoAlphaTrussMonteCarlo2022a} & Parametric geometry & Objective search & Slow iterative evaluation; limited end-to-end efficiency. \\
+Pixel-Based Generative Models & \cite{liaoAutomatedStructuralDesign2021a,zhouStructDiffusionEndendIntelligent2024,luIntelligentStructuralDesign2022a,liFrameDiffusionLatentDiffusion2025} & Pixel/image tensor & Text/image prompts & Implicit topology; sparse wall pixels; extra vectorization needed. \\
+Component-Level GNNs & \cite{zhaoIntelligentDesignShear2023b,zhaoDesignconditioninformedShearWall2023d,IntelligentCodesignShear2025} & Component-based graph & Feature concatenation & Large graphs; limited room-level semantics. \\
+Room-Level Graph Models & \cite{nauataHouseGANRelationalGenerative2020,huGraph2PlanLearningFloorplan2020} & Room-based graph & Graph-constrained generation & Mainly architectural layout tasks, not structural layout design. \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Despite these advances, most structural GNN pipelines still operate on basic geometric components (intersections and segments). This level is effective for local connectivity but less aligned with architectural semantics, where many constraints are naturally room-centric. In architectural layout generation, room-graph methods such as House-GAN \cite{nauataHouseGANRelationalGenerative2020,nauataHouseGANGenerativeAdversarial2021a} and Graph2Plan \cite{huGraph2PlanLearningFloorplan2020} have shown that room-level relational abstractions can provide stronger semantic control than low-level geometry alone. This motivates moving from component-based graphs to room-level graph representations for structural layout tasks.
+
+
+
+\subsection{Conditional controllability and training under limited paired data}
+\label{subsec:conditional_data_scarcity}
+
+Condition-aware generation is essential in practical structural design because layout decisions should respond to explicit targets and design scenarios. In shear wall studies, text-image fusion GANs condition generation through textual prompts \cite{liaoIntelligentGenerativeStructural2022a}, diffusion-based approaches use image prompts for condition guidance \cite{zhouStructDiffusionEndendIntelligent2024}, and graph-based methods inject condition variables by feature concatenation \cite{zhaoDesignconditioninformedShearWall2023d}. These studies show that existing conditioning strategies can be effective. In practical engineering applications, however, their performance depends strongly on whether the training set contains enough condition-diverse samples for the model to learn a stable mapping between design conditions and structural layouts. More broadly, conditional-generation research in machine learning reports that explicit modulation layers can propagate condition information more reliably than plain concatenation in deep networks \cite{perezFiLMVisualReasoning2018,huangUnifiedConditionalDiffusion2024}.
+
+Another practical bottleneck is data sparsity. Real projects usually provide one finalized design per architectural plan under one requirement setting, rather than multi-condition paired labels for the same plan. As a result, even when the condition variable is injected correctly, the supervision needed to disentangle geometry-driven patterns from condition-driven variation may still be insufficient. This mismatch with standard supervised conditional training assumptions motivates learning strategies that combine available supervised labels with additional cross-condition regularization under weakly supervised settings \cite{dasConditionalSyntheticData2022,chenCounterfactualSamplesSynthesizing2023}.
+
+\subsection{Research gap and positioning}
+\label{subsec:research_gap}
+
+Table~\ref{tab:related_work} shows a clear methodological progression from optimization-based search to pixel-based deep generation and then to graph-based learning. This progression has improved automation efficiency and representation quality, but it has not fully resolved the requirements of practical shear wall design. Existing graph methods already move beyond raster space, yet most of them still operate at the level of wall intersections and segments, so room-level architectural semantics remain only indirectly encoded. Existing conditional methods introduce design-condition information and can be effective, but their performance is sensitive to condition-data coverage and is difficult to stabilize when multi-condition supervision is sparse. Standard conditional training pipelines assume richer paired supervision than real projects can usually provide, because a given floor plan is rarely available with multiple finalized layouts under different design conditions.
