@@ -8,7 +8,13 @@ import openseespy.opensees as ops
 from src.misc.logger import setup_file_logger
 from src.misc.parallel import run_batch
 from src.misc.timer import Timer
-from src.shearwall_modeling import ModelConfig, StandardStoryGroupConfig, load_and_scale_input
+from src.shearwall_modeling import (
+    ModelConfig,
+    ParametricModelParams,
+    StandardStoryGroupConfig,
+    build_model_config_from_params,
+    load_and_scale_input,
+)
 from src.shearwall_modeling.builders import DetailedShellBuilder
 from src.shearwall_modeling.evaluation import SeismicCodeChecker
 
@@ -40,16 +46,40 @@ def build_single(json_path: Path) -> None:
 
     logger.info(f"Geometry scale factor used: {scale:.2f}")
 
-    standard_story_groups = [
-        StandardStoryGroupConfig(count=10, story_height=3.0),
-    ]
-
-    config = ModelConfig(
-        num_modes=num_modes,
-        standard_story_groups=standard_story_groups,
-    )
+    standard_story_groups = [StandardStoryGroupConfig(count=10, story_height=3.0)]
+    config = ModelConfig(num_modes=num_modes, standard_story_groups=standard_story_groups)
     config.seismic.combination_method = combine_method
 
+    run_with_config(input_data, config)
+
+
+def build_single_parametric(json_path: Path, params: ParametricModelParams) -> None:
+    input_unit_scale_to_m = 0.001
+    enable_auto_scale = True
+    scale_low = 2.0
+    scale_high = 6.0
+    scale_seed = 42
+    manual_scale_factor = None
+    combine_method = "CQC"
+
+    input_data, scale = load_and_scale_input(
+        json_path=json_path,
+        input_unit_scale_to_m=input_unit_scale_to_m,
+        enable_auto_scale=enable_auto_scale,
+        low=scale_low,
+        high=scale_high,
+        seed=scale_seed,
+        manual_factor=manual_scale_factor,
+    )
+
+    logger.info(f"Geometry scale factor used: {scale:.2f}")
+    config = build_model_config_from_params(params)
+    config.seismic.combination_method = combine_method
+
+    run_with_config(input_data, config)
+
+
+def run_with_config(input_data, config: ModelConfig) -> None:
     builder = DetailedShellBuilder(logger)
     build_result = builder.build(input_data, config)
 
@@ -102,6 +132,20 @@ def build_folder(dxf_folder: str, max_workers: Optional[int] = None) -> None:
 
 def main() -> None:
     # build_folder(r"data\dxf\cad_json_data\fem_raw")
+    # build_single_parametric(
+    #     Path(r"data\dxf\cad_json_data\fem_raw\L1L28_10.json"),
+    #     ParametricModelParams(
+    #         N=30,
+    #         t_w_bot=250,
+    #         h_b=500,
+    #         b_b=250,
+    #         h_s=120,
+    #         conc_bot="C40",
+    #         intensity=8.0,
+    #         site_class="II",
+    #         seismic_group=1,
+    #     ),
+    # )
     build_single(Path(r"data\dxf\cad_json_data\fem_raw\L1L28_10.json"))
 
 

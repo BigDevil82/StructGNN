@@ -1,6 +1,35 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+_CONCRETE_E_MPA_BY_GRADE: dict[str, float] = {
+    "C30": 3.00e4,
+    "C35": 3.15e4,
+    "C40": 3.25e4,
+    "C45": 3.35e4,
+    "C50": 3.45e4,
+}
+
+
+def _normalize_concrete_grade(concrete_grade: str) -> str:
+    grade = concrete_grade.strip().upper()
+    if not grade.startswith("C"):
+        grade = f"C{grade}"
+    if grade not in _CONCRETE_E_MPA_BY_GRADE:
+        supported = ", ".join(sorted(_CONCRETE_E_MPA_BY_GRADE.keys()))
+        raise ValueError(f"Unsupported concrete_grade={concrete_grade}. Supported grades: {supported}")
+    return grade
+
+
+def _resolve_elastic_modulus_pa(concrete_grade: str) -> float:
+    grade = _normalize_concrete_grade(concrete_grade)
+    return _CONCRETE_E_MPA_BY_GRADE[grade] * 1.0e6
+
+
+def _resolve_shear_modulus_pa(elastic_modulus_pa: float, poisson_ratio: float = 0.2) -> float:
+    if poisson_ratio <= -1.0:
+        raise ValueError("poisson_ratio must be greater than -1.")
+    return elastic_modulus_pa / (2.0 * (1.0 + poisson_ratio))
+
 
 def _gb50011_spectrum_shape_params(damping_ratio: float) -> tuple[float, float, float]:
     xi = damping_ratio
@@ -102,9 +131,17 @@ def _build_gb50011_spectrum(
 
 @dataclass
 class MaterialConfig:
-    E: float = 3.0e10
-    G: float = 1.2e10
+    concrete_grade: str = "C30"
+    E: Optional[float] = None
+    G: Optional[float] = None
     density_kg_m3: float = 2550.0
+
+    def __post_init__(self) -> None:
+        self.concrete_grade = _normalize_concrete_grade(self.concrete_grade)
+        if self.E is None:
+            self.E = _resolve_elastic_modulus_pa(self.concrete_grade)
+        if self.G is None:
+            self.G = _resolve_shear_modulus_pa(self.E)
 
 
 @dataclass
@@ -122,7 +159,7 @@ class SeismicConfig:
     damping_ratio: float = 0.05
     combination_method: str = "CQC"
     design_code: str = "GB50011"
-    intensity: int = 7
+    intensity: float = 7.0
     site_class: str = "II"
     seismic_group: int = 1
     alpha_max_override: Optional[float] = None
@@ -205,6 +242,7 @@ class ModelConfig:
         for group in self.standard_story_groups:
             section = group.section or self.section
             mass_source = group.mass_source or self.mass_source
+            material = group.material or self.material
             story_height = group.story_height
 
             for _ in range(group.count):
@@ -216,6 +254,7 @@ class ModelConfig:
                         z_bottom=z_bottom,
                         z_top=z_top,
                         section=section,
+                        material=material,
                         mass_source=mass_source,
                     )
                 )
@@ -233,6 +272,7 @@ class StandardStoryGroupConfig:
     count: int
     story_height: float
     section: Optional[SectionConfig] = None
+    material: Optional[MaterialConfig] = None
     mass_source: Optional[MassSourceConfig] = None
 
 
@@ -243,4 +283,5 @@ class StoryProfile:
     z_bottom: float
     z_top: float
     section: SectionConfig
+    material: MaterialConfig
     mass_source: MassSourceConfig

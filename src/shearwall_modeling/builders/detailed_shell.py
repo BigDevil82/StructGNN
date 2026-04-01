@@ -3,7 +3,7 @@ from logging import Logger
 
 import openseespy.opensees as ops
 
-from ..config import ModelConfig
+from ..config import MaterialConfig, ModelConfig
 from ..domain import FEMInput, PlanMember
 from ..geometry import estimate_floor_area, estimate_structural_self_mass_per_floor
 from .base import ModelBuildResult, StructuralModelBuilder
@@ -17,6 +17,16 @@ def _beam_section_props(width: float, depth: float) -> tuple[float, float, float
     iz = depth * (width**3) / 12.0
     j = iy + iz
     return area, j, iy, iz
+
+
+def _material_props(material: MaterialConfig) -> tuple[float, float, float]:
+    e = float(material.E)
+    g = float(material.G)
+    nu = 0.2
+    if abs(g) > 1.0e-12:
+        nu_from_eg = e / (2.0 * g) - 1.0
+        nu = min(0.45, max(0.05, nu_from_eg))
+    return e, g, nu
 
 
 class DetailedShellBuilder(StructuralModelBuilder):
@@ -47,13 +57,6 @@ class DetailedShellBuilder(StructuralModelBuilder):
         ops.wipe()
         ops.model("basic", "-ndm", 3, "-ndf", 6)
 
-        e = config.material.E
-        g = config.material.G
-        nu = 0.2
-        if abs(g) > 1.0e-12:
-            nu_from_eg = e / (2.0 * g) - 1.0
-            nu = min(0.45, max(0.05, nu_from_eg))
-
         story_profiles = config.resolve_story_profiles()
         z_levels = [0.0] + [profile.z_top for profile in story_profiles]
 
@@ -71,7 +74,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 beam_width=profile.section.beam_width,
                 beam_depth=profile.section.beam_depth,
                 slab_thickness=profile.section.slab_thickness,
-                density_kg_m3=config.material.density_kg_m3,
+                density_kg_m3=profile.material.density_kg_m3,
                 floor_area=floor_area,
             )
             self_mass = (
@@ -86,13 +89,23 @@ class DetailedShellBuilder(StructuralModelBuilder):
         mat_tag = 1
         shell_sec_tag = 1
         beam_transf_tag = 999
-        ops.nDMaterial("ElasticIsotropic", mat_tag, e, nu)
         ops.geomTransf("Linear", beam_transf_tag, 0.0, 0.0, 1.0)
+
+        material_tag_cache: dict[tuple[float, float], int] = {}
 
         shell_section_by_story: dict[int, int] = {}
         section_tag = shell_sec_tag
         for story, profile in enumerate(story_profiles, start=1):
-            ops.section("PlateFiber", section_tag, mat_tag, profile.section.wall_thickness)
+            e, g, nu = _material_props(profile.material)
+            mat_key = (e, g)
+            story_mat_tag = material_tag_cache.get(mat_key)
+            if story_mat_tag is None:
+                story_mat_tag = mat_tag
+                mat_tag += 1
+                ops.nDMaterial("ElasticIsotropic", story_mat_tag, e, nu)
+                material_tag_cache[mat_key] = story_mat_tag
+
+            ops.section("PlateFiber", section_tag, story_mat_tag, profile.section.wall_thickness)
             shell_section_by_story[story] = section_tag
             section_tag += 1
 
@@ -163,6 +176,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
         beam_count = 0
         for story, profile in enumerate(story_profiles, start=1):
             z = profile.z_top
+            e, g, _ = _material_props(profile.material)
             beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(
                 profile.section.beam_width,
                 profile.section.beam_depth,
