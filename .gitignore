@@ -15,6 +15,7 @@ test.py
 *.docx
 **/output/*
 data/*
+%TEMP%
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
