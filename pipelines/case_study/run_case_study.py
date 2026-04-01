@@ -18,7 +18,7 @@ from pipelines.case_study.visualization import (
     visualize_prediction_comparison,
     visualize_wall_layout,
 )
-from shearwall_pred.inference import load_ensemble_model, predict_shear_walls
+from src.shearwall_pred.inference import load_ensemble_model, predict_shear_walls
 
 
 def main():
