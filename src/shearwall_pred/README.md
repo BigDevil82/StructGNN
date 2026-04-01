@@ -19,6 +19,7 @@
 - `losses.py`: 损失函数
 - `trainer.py`: 训练 / 测试 / 可视化入口
 - `cross_validate.py`: 交叉验证与集成
+- `inference.py`: 对外推理接口
 
 ## 主要入口
 
