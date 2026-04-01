@@ -178,7 +178,6 @@ class MassSourceConfig:
 @dataclass
 class ModelConfig:
     standard_story_groups: list["StandardStoryGroupConfig"]
-    mass_per_area: float = 1000.0
     mass_source: MassSourceConfig = field(default_factory=MassSourceConfig)
     material: MaterialConfig = field(default_factory=MaterialConfig)
     section: SectionConfig = field(default_factory=SectionConfig)
