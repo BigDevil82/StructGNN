@@ -4,7 +4,7 @@ from logging import Logger
 import openseespy.opensees as ops
 
 from ..config import MaterialConfig, ModelConfig
-from ..domain import FEMInput, PlanMember
+from ..domain import BeamRole, FEMInput
 from ..geometry import estimate_floor_area, estimate_structural_self_mass_per_floor
 from .base import ModelBuildResult, StructuralModelBuilder
 
@@ -67,12 +67,15 @@ class DetailedShellBuilder(StructuralModelBuilder):
         for profile in story_profiles:
             load_mass_per_area = profile.mass_source.load_to_mass_per_area()
             load_mass_per_floor = load_mass_per_area * floor_area
+            secondary_beam_width, secondary_beam_depth = profile.section.get_beam_section(BeamRole.SECONDARY)
             self_mass_info = estimate_structural_self_mass_per_floor(
                 input_data=input_data,
                 story_height=profile.story_height,
                 wall_thickness=profile.section.wall_thickness,
-                beam_width=profile.section.beam_width,
-                beam_depth=profile.section.beam_depth,
+                primary_beam_width=profile.section.beam_width,
+                primary_beam_depth=profile.section.beam_depth,
+                secondary_beam_width=secondary_beam_width,
+                secondary_beam_depth=secondary_beam_depth,
                 slab_thickness=profile.section.slab_thickness,
                 density_kg_m3=profile.material.density_kg_m3,
                 floor_area=floor_area,
@@ -174,14 +177,15 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
         beam_edges: set[tuple[int, int]] = set()
         beam_count = 0
+        beam_count_by_role: dict[BeamRole, int] = {BeamRole.PRIMARY: 0, BeamRole.SECONDARY: 0}
         for story, profile in enumerate(story_profiles, start=1):
             z = profile.z_top
             e, g, _ = _material_props(profile.material)
-            beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(
-                profile.section.beam_width,
-                profile.section.beam_depth,
-            )
+
             for beam in input_data.beams:
+                beam_width, beam_depth = profile.section.get_beam_section(beam.role)
+                beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(beam_width, beam_depth)
+
                 ni = get_or_create_node(beam.start[0], beam.start[1], z)
                 nj = get_or_create_node(beam.end[0], beam.end[1], z)
                 floor_plan_nodes[story].add(ni)
@@ -209,6 +213,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 )
                 elem_tag += 1
                 beam_count += 1
+                beam_count_by_role[beam.role] += 1
 
         master_nodes: list[int] = []
         for story, profile in enumerate(story_profiles, start=1):
@@ -240,7 +245,11 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
         self.logger.info(
             f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
-            f"beams={len(input_data.beams)}, shellElems={shell_count}, beamElems={beam_count}, "
+            f"beams={len(input_data.beams)} (primary={len(input_data.beams_by_role(BeamRole.PRIMARY))}, "
+            f"secondary={len(input_data.beams_by_role(BeamRole.SECONDARY))}), "
+            f"shellElems={shell_count}, beamElems={beam_count} "
+            f"(primary={beam_count_by_role[BeamRole.PRIMARY]}, "
+            f"secondary={beam_count_by_role[BeamRole.SECONDARY]}), "
             f"floor_area~{floor_area:.2f} m^2, floor_mass_range=[{min(floor_masses)/1e3:.2f}, {max(floor_masses)/1e3:.2f}] t, "
             f"load_mass_total={total_load_mass/1e3:.2f} t, self_mass_total={total_self_mass/1e3:.2f} t, "
             f"total_mass={total_structure_mass/1e3:.2f} t ({total_structure_mass / 1e3:.2f} t)"

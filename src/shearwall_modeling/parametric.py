@@ -63,38 +63,37 @@ def build_model_config_from_params(
     conc_mid = _downgrade_concrete_grade(parsed.conc_bot, steps=1)
     conc_top = _downgrade_concrete_grade(parsed.conc_bot, steps=2)
 
+    beam_width = parsed.b_b / 1000.0
+    beam_depth = parsed.h_b / 1000.0
+    slab_thickness = parsed.h_s / 1000.0
+
+    def make_section(wall_thickness_mm: int) -> SectionConfig:
+        return SectionConfig(
+            wall_thickness=wall_thickness_mm / 1000.0,
+            beam_width=beam_width,
+            beam_depth=beam_depth,
+            secondary_beam_width=beam_width,
+            secondary_beam_depth=beam_depth,
+            slab_thickness=slab_thickness,
+        )
+
     groups = [
         StandardStoryGroupConfig(
             count=n_bottom,
             story_height=story_height,
-            section=SectionConfig(
-                wall_thickness=parsed.t_w_bot / 1000.0,
-                beam_width=parsed.b_b / 1000.0,
-                beam_depth=parsed.h_b / 1000.0,
-                slab_thickness=parsed.h_s / 1000.0,
-            ),
+            section=make_section(parsed.t_w_bot),
             material=MaterialConfig(concrete_grade=parsed.conc_bot),
         ),
         StandardStoryGroupConfig(
             count=n_middle,
             story_height=story_height,
-            section=SectionConfig(
-                wall_thickness=t_w_mid / 1000.0,
-                beam_width=parsed.b_b / 1000.0,
-                beam_depth=parsed.h_b / 1000.0,
-                slab_thickness=parsed.h_s / 1000.0,
-            ),
+            section=make_section(t_w_mid),
             material=MaterialConfig(concrete_grade=conc_mid),
         ),
         StandardStoryGroupConfig(
             count=n_top,
             story_height=story_height,
-            section=SectionConfig(
-                wall_thickness=t_w_top / 1000.0,
-                beam_width=parsed.b_b / 1000.0,
-                beam_depth=parsed.h_b / 1000.0,
-                slab_thickness=parsed.h_s / 1000.0,
-            ),
+            section=make_section(t_w_top),
             material=MaterialConfig(concrete_grade=conc_top),
         ),
     ]

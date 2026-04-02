@@ -7,12 +7,14 @@ from .config import (
     StandardStoryGroupConfig,
     StoryProfile,
 )
-from .domain import FEMInput, PlanMember
+from .domain import BeamMember, BeamRole, FEMInput, PlanMember
 from .geometry import load_and_scale_input
 from .parametric import ParametricModelParams, build_model_config_from_params, sample_parametric_model_params
 
 __all__ = [
     "FEMInput",
+    "BeamMember",
+    "BeamRole",
     "MassSourceConfig",
     "MaterialConfig",
     "ModelConfig",

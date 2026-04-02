@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .domain import BeamRole
+
 _CONCRETE_E_MPA_BY_GRADE: dict[str, float] = {
     "C30": 3.00e4,
     "C35": 3.15e4,
@@ -149,7 +151,16 @@ class SectionConfig:
     wall_thickness: float = 0.2
     beam_width: float = 0.3
     beam_depth: float = 0.5
+    secondary_beam_width: Optional[float] = None
+    secondary_beam_depth: Optional[float] = None
     slab_thickness: float = 0.12
+
+    def get_beam_section(self, role: BeamRole) -> tuple[float, float]:
+        if role == BeamRole.SECONDARY:
+            width = self.beam_width if self.secondary_beam_width is None else self.secondary_beam_width
+            depth = self.beam_depth if self.secondary_beam_depth is None else self.secondary_beam_depth
+            return width, depth
+        return self.beam_width, self.beam_depth
 
 
 @dataclass

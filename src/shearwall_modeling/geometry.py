@@ -2,7 +2,7 @@ import math
 from pathlib import Path
 from typing import Union
 
-from .domain import FEMInput
+from .domain import BeamRole, FEMInput
 
 
 def _polygon_area(points: list[tuple[float, float]]) -> float:
@@ -127,9 +127,9 @@ def choose_scale_factor(input_data: FEMInput, low: float = 2.0, high: float = 6.
     if spans and depths:
         span_med = _median(spans)
         depth_med = _median(depths)
-        print(
-            f"Median rectangular slab span: {span_med:.3f} m, depth: {depth_med:.3f} m (count={len(rect_dims)})"
-        )
+        # print(
+        #     f"Median rectangular slab span: {span_med:.3f} m, depth: {depth_med:.3f} m (count={len(rect_dims)})"
+        # )
         if span_med > 1.0e-9:
             weighted_scales.append((span_target / span_med, 0.45))
             lower_bounds.append(span_min / span_med)
@@ -178,7 +178,7 @@ def estimate_floor_area(input_data: FEMInput) -> float:
     slab_areas = [_polygon_area(slab) for slab in input_data.slabs if len(slab) >= 3]
     slab_area = sum(a for a in slab_areas if a > 0.0)
     if slab_area > 1.0e-9:
-        print(f"Floor area from slabs: {slab_area:.3f} m^2 (count={len(slab_areas)})")
+        # print(f"Floor area from slabs: {slab_area:.3f} m^2 (count={len(slab_areas)})")
         return max(slab_area, 16.0)
 
     points = []
@@ -201,8 +201,10 @@ def estimate_structural_self_mass_per_floor(
     input_data: FEMInput,
     story_height: float,
     wall_thickness: float,
-    beam_width: float,
-    beam_depth: float,
+    primary_beam_width: float,
+    primary_beam_depth: float,
+    secondary_beam_width: float,
+    secondary_beam_depth: float,
     slab_thickness: float,
     density_kg_m3: float,
     floor_area: Union[float, None] = None,
@@ -210,20 +212,29 @@ def estimate_structural_self_mass_per_floor(
     area = estimate_floor_area(input_data) if floor_area is None else max(0.0, floor_area)
 
     wall_length_total = sum(m.length for m in input_data.walls if m.length > 1.0e-9)
-    beam_length_total = sum(m.length for m in input_data.beams if m.length > 1.0e-9)
+    primary_beam_length_total = input_data.beam_length_by_role(BeamRole.PRIMARY)
+    secondary_beam_length_total = input_data.beam_length_by_role(BeamRole.SECONDARY)
 
     wall_vol = wall_length_total * max(0.0, wall_thickness) * max(0.0, story_height)
-    beam_vol = beam_length_total * max(0.0, beam_width) * max(0.0, beam_depth)
+    primary_beam_vol = primary_beam_length_total * max(0.0, primary_beam_width) * max(0.0, primary_beam_depth)
+    secondary_beam_vol = (
+        secondary_beam_length_total * max(0.0, secondary_beam_width) * max(0.0, secondary_beam_depth)
+    )
+    beam_vol = primary_beam_vol + secondary_beam_vol
     slab_vol = area * max(0.0, slab_thickness)
 
     density = max(0.0, density_kg_m3)
     wall_mass = wall_vol * density
+    primary_beam_mass = primary_beam_vol * density
+    secondary_beam_mass = secondary_beam_vol * density
     beam_mass = beam_vol * density
     slab_mass = slab_vol * density
     total_mass = wall_mass + beam_mass + slab_mass
 
     return {
         "wall_mass": wall_mass,
+        "primary_beam_mass": primary_beam_mass,
+        "secondary_beam_mass": secondary_beam_mass,
         "beam_mass": beam_mass,
         "slab_mass": slab_mass,
         "total_mass": total_mass,
