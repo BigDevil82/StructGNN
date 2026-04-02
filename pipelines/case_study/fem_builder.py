@@ -88,6 +88,7 @@ class FEMTopologyBuilder:
 
         # 6. 构建节点拓扑
         self._build_topology(segments)
+        self._classify_beams_by_length_distribution()
 
         return self._format_result()
 
@@ -539,6 +540,90 @@ class FEMTopologyBuilder:
                 }
             )
 
+    def _classify_beams_by_length_distribution(self):
+        """
+        基于梁长分布自适应划分主梁/次梁。
+
+        策略：
+        1. 收集全部梁长度；
+        2. 在排序后的所有可行切分点中，寻找能最大化类间方差的阈值；
+        3. 若分布缺乏明显双峰特征，则不强行分类，统一记为主梁。
+        """
+        beam_indices = [idx for idx, element in enumerate(self.elements) if element["type"] == "beam"]
+        beam_lengths = [self.elements[idx]["length"] for idx in beam_indices]
+
+        if not beam_lengths:
+            return
+
+        for idx in beam_indices:
+            self.elements[idx]["beam_role"] = "primary"
+
+        if len(beam_lengths) < 3:
+            print("    梁分类: 梁数量过少，默认全部视为主梁")
+            return
+
+        lengths = np.array(sorted(float(length) for length in beam_lengths), dtype=float)
+        total_mean = float(np.mean(lengths))
+        total_var = float(np.var(lengths))
+
+        if total_var <= 1e-6:
+            print("    梁分类: 梁长分布几乎无差异，默认全部视为主梁")
+            return
+
+        best_score = -1.0
+        best_threshold = None
+        best_split = None
+        min_group_size = max(1, len(lengths) // 5)
+
+        for split_idx in range(min_group_size, len(lengths) - min_group_size + 1):
+            left = lengths[:split_idx]
+            right = lengths[split_idx:]
+
+            if left[-1] >= right[0]:
+                continue
+
+            w0 = len(left) / len(lengths)
+            w1 = len(right) / len(lengths)
+            mean0 = float(np.mean(left))
+            mean1 = float(np.mean(right))
+            between_var = w0 * (mean0 - total_mean) ** 2 + w1 * (mean1 - total_mean) ** 2
+
+            if between_var > best_score:
+                best_score = between_var
+                best_threshold = (left[-1] + right[0]) / 2.0
+                best_split = (mean0, mean1, len(left), len(right))
+
+        if best_threshold is None or best_split is None:
+            print("    梁分类: 未找到稳定切分点，默认全部视为主梁")
+            return
+
+        separability = best_score / total_var
+        mean_short, mean_long, _, _ = best_split
+
+        if separability < 0.55:
+            print(
+                "    梁分类: 梁长分布可分性不足 "
+                f"(score={separability:.2f})，默认全部视为主梁"
+            )
+            return
+
+        secondary_count = 0
+        primary_count = 0
+        for idx in beam_indices:
+            role = "secondary" if self.elements[idx]["length"] < best_threshold else "primary"
+            self.elements[idx]["beam_role"] = role
+            if role == "secondary":
+                secondary_count += 1
+            else:
+                primary_count += 1
+
+        print(
+            "    梁分类: "
+            f"threshold={best_threshold:.1f}, "
+            f"主梁={primary_count} (avg={mean_long:.1f}), "
+            f"次梁={secondary_count} (avg={mean_short:.1f})"
+        )
+
     def validate_topology(self, result: Optional[dict] = None) -> dict:
         """
         校核拓扑中是否存在孤立点与异常构件。
@@ -729,6 +814,12 @@ class FEMTopologyBuilder:
                 "num_members": len(self.elements),
                 "num_shearwalls": sum(1 for m in self.elements if m["type"] == "shearwall"),
                 "num_beams": sum(1 for m in self.elements if m["type"] == "beam"),
+                "num_primary_beams": sum(
+                    1 for m in self.elements if m["type"] == "beam" and m.get("beam_role") == "primary"
+                ),
+                "num_secondary_beams": sum(
+                    1 for m in self.elements if m["type"] == "beam" and m.get("beam_role") == "secondary"
+                ),
                 "num_slabs": len(slabs),
                 "total_sw_length": sum(m["length"] for m in self.elements if m["type"] == "shearwall"),
                 "total_beam_length": sum(m["length"] for m in self.elements if m["type"] == "beam"),
@@ -917,6 +1008,7 @@ def export_to_json(result: dict, output_path: str):
                 "start_node": m["start_node"],
                 "end_node": m["end_node"],
                 "length": m["length"],
+                "beam_role": m.get("beam_role", "primary"),
             }
             for m in result["members"]
             if m["type"] == "beam"
