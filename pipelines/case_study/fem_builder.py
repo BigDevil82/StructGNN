@@ -389,7 +389,7 @@ class FEMTopologyBuilder:
             # 去重并排序
             ratios = sorted(set(ratios))
             # 去掉过于接近端点的打断点
-            # ratios = [r for r in ratios if 0.01 < r < 0.99]
+            ratios = [r for r in ratios if 0.01 < r < 0.99]
             if not ratios:
                 result.append(seg)
                 continue
@@ -493,12 +493,14 @@ class FEMTopologyBuilder:
         # 计算交点在 i 上的ratio
         if len_i > 1:
             ri = np.dot(np.array([cross_x, cross_y]) - pi1, vec_i) / (len_i * len_i)
-            split_ratios[i].append(ri)
+            if 0.01 < ri < 0.99:
+                split_ratios[i].append(ri)
 
         # 计算交点在 j 上的ratio
         if len_j > 1:
             rj = np.dot(np.array([cross_x, cross_y]) - pj1, vec_j) / (len_j * len_j)
-            split_ratios[j].append(rj)
+            if 0.01 < rj < 0.99:
+                split_ratios[j].append(rj)
 
     def _build_topology(self, segments: List[dict]):
         """构建节点和构件列表"""
