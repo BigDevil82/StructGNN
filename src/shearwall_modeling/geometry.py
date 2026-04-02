@@ -98,21 +98,14 @@ def choose_scale_factor(input_data: FEMInput, low: float = 2.0, high: float = 6.
     if low <= 0.0 or high <= 0.0 or high < low:
         raise ValueError("choose_scale_factor expects 0 < low <= high.")
 
-    rect_dims: list[tuple[float, float]] = []
-    for slab in input_data.slabs:
-        if not isinstance(slab, list):
-            continue
-        sd = _rect_slab_span_depth(slab)
-        if sd is None:
-            continue
-        rect_dims.append(sd)
+    rect_dims = [sd for slab in input_data.slabs if (sd := _rect_slab_span_depth(slab)) is not None]
 
     rect_dims = _filter_reasonable_rect_slabs(rect_dims)
     spans = [d[0] for d in rect_dims]
     depths = [d[1] for d in rect_dims]
 
-    wall_lengths = [m.length for m in input_data.walls if m.length > 1.0e-9]
-    beam_lengths = [m.length for m in input_data.beams if m.length > 1.0e-9]
+    wall_lengths = [m.length for m in input_data.walls]
+    beam_lengths = [m.length for m in input_data.beams]
 
     weighted_scales: list[tuple[float, float]] = []
     lower_bounds: list[float] = []
@@ -124,20 +117,20 @@ def choose_scale_factor(input_data: FEMInput, low: float = 2.0, high: float = 6.
     span_min, span_max = 2.7, 4.2
     depth_min, depth_max = 3.3, 6.0
 
-    if spans and depths:
+    if spans:
         span_med = _median(spans)
+        weighted_scales.append((span_target / span_med, 0.45))
+        lower_bounds.append(span_min / span_med)
+        upper_bounds.append(span_max / span_med)
+
+    if depths:
         depth_med = _median(depths)
         # print(
         #     f"Median rectangular slab span: {span_med:.3f} m, depth: {depth_med:.3f} m (count={len(rect_dims)})"
         # )
-        if span_med > 1.0e-9:
-            weighted_scales.append((span_target / span_med, 0.45))
-            lower_bounds.append(span_min / span_med)
-            upper_bounds.append(span_max / span_med)
-        if depth_med > 1.0e-9:
-            weighted_scales.append((depth_target / depth_med, 0.35))
-            lower_bounds.append(depth_min / depth_med)
-            upper_bounds.append(depth_max / depth_med)
+        weighted_scales.append((depth_target / depth_med, 0.35))
+        lower_bounds.append(depth_min / depth_med)
+        upper_bounds.append(depth_max / depth_med)
 
     # Longest wall and beam constraints keep the global plan size in a practical interval.
     target_long = 0.5 * (low + high)
@@ -153,25 +146,22 @@ def choose_scale_factor(input_data: FEMInput, low: float = 2.0, high: float = 6.
         upper_bounds.append(high / beam_max)
 
     if not weighted_scales:
-        return 1.0
+        raise ValueError("Cannot infer scale factor: no usable slab, wall, or beam geometry.")
 
     # Weighted geometric mean is robust to different scale magnitudes.
     total_w = sum(w for _, w in weighted_scales)
     log_sum = 0.0
     for s, w in weighted_scales:
-        log_sum += w * (0.0 if s <= 1.0e-12 else math.log(s))
-    scale = math.exp(log_sum / max(total_w, 1.0e-12))
+        log_sum += w * math.log(s)
+    scale = math.exp(log_sum / total_w)
 
     if lower_bounds and upper_bounds:
         lb = max(lower_bounds)
         ub = min(upper_bounds)
         if lb <= ub:
             scale = _clamp(scale, lb, ub)
-        else:
-            # If constraints conflict due to noisy geometry, use the closest feasible side.
-            scale = lb if scale < lb else ub
 
-    return max(scale, 1.0e-6)
+    return scale
 
 
 def estimate_floor_area(input_data: FEMInput) -> float:
@@ -179,14 +169,14 @@ def estimate_floor_area(input_data: FEMInput) -> float:
     slab_area = sum(a for a in slab_areas if a > 0.0)
     if slab_area > 1.0e-9:
         # print(f"Floor area from slabs: {slab_area:.3f} m^2 (count={len(slab_areas)})")
-        return max(slab_area, 16.0)
+        return slab_area
 
     points = []
     for m in input_data.all_members():
         points.append(m.start)
         points.append(m.end)
     if len(points) < 2:
-        return 36.0
+        raise ValueError("Cannot estimate floor area: no valid geometry points.")
 
     xs = [p[0] for p in points]
     ys = [p[1] for p in points]
@@ -194,7 +184,7 @@ def estimate_floor_area(input_data: FEMInput) -> float:
     ly = max(ys) - min(ys)
     print(f"Estimated floor plan bounding box: {lx:.3f} m x {ly:.3f} m")
     area = lx * ly
-    return max(area, 16.0)
+    return area
 
 
 def estimate_structural_self_mass_per_floor(

@@ -35,7 +35,6 @@ class _ElementBuildResult:
     node_coords: dict[int, tuple[float, float, float]]
     floor_nodes: dict[int, set[int]]
     next_node_tag: int
-    next_elem_tag: int
     shell_count: int
     beam_count: int
     beam_count_by_role: dict[BeamRole, int]
@@ -200,6 +199,49 @@ class DetailedShellBuilder(StructuralModelBuilder):
             return tag
 
         shell_count = 0
+        elem_tag, shell_count = self._add_wall_shell_elements(
+            input_data=input_data,
+            z_levels=z_levels,
+            num_stories=num_stories,
+            shell_section_by_story=shell_section_by_story,
+            get_node=get_node,
+            floor_nodes=floor_nodes,
+            fixed_base_nodes=fixed_base_nodes,
+            start_elem_tag=elem_tag,
+        )
+
+        elem_tag, beam_count, beam_count_by_role = self._add_beam_elements(
+            input_data=input_data,
+            story_profiles=story_profiles,
+            beam_transf_tag=beam_transf_tag,
+            get_node=get_node,
+            floor_nodes=floor_nodes,
+            start_elem_tag=elem_tag,
+        )
+
+        return _ElementBuildResult(
+            node_coords=node_coords,
+            floor_nodes=floor_nodes,
+            next_node_tag=node_tag,
+            shell_count=shell_count,
+            beam_count=beam_count,
+            beam_count_by_role=beam_count_by_role,
+        )
+
+    def _add_wall_shell_elements(
+        self,
+        input_data: FEMInput,
+        z_levels: list[float],
+        num_stories: int,
+        shell_section_by_story: dict[int, int],
+        get_node,
+        floor_nodes: dict[int, set[int]],
+        fixed_base_nodes: set[int],
+        start_elem_tag: int,
+    ) -> tuple[int, int]:
+        elem_tag = start_elem_tag
+        shell_count = 0
+
         for wall in input_data.walls:
             if wall.length < 1.0e-6:
                 continue
@@ -232,6 +274,18 @@ class DetailedShellBuilder(StructuralModelBuilder):
                     elem_tag += 1
                     shell_count += 1
 
+        return elem_tag, shell_count
+
+    def _add_beam_elements(
+        self,
+        input_data: FEMInput,
+        story_profiles: list[StoryProfile],
+        beam_transf_tag: int,
+        get_node,
+        floor_nodes: dict[int, set[int]],
+        start_elem_tag: int,
+    ) -> tuple[int, int, dict[BeamRole, int]]:
+        elem_tag = start_elem_tag
         beam_count = 0
         beam_count_by_role: dict[BeamRole, int] = {BeamRole.PRIMARY: 0, BeamRole.SECONDARY: 0}
 
@@ -267,15 +321,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 beam_count += 1
                 beam_count_by_role[beam.role] += 1
 
-        return _ElementBuildResult(
-            node_coords=node_coords,
-            floor_nodes=floor_nodes,
-            next_node_tag=node_tag,
-            next_elem_tag=elem_tag,
-            shell_count=shell_count,
-            beam_count=beam_count,
-            beam_count_by_role=beam_count_by_role,
-        )
+        return elem_tag, beam_count, beam_count_by_role
 
     def _create_story_masters(
         self,
