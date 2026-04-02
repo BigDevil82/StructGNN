@@ -4,7 +4,7 @@ from logging import Logger
 
 import openseespy.opensees as ops
 
-from ..config import MaterialConfig, ModelConfig
+from ..config import MaterialConfig, ModelConfig, StoryProfile
 from ..domain import BeamRole, FEMInput
 from ..geometry import estimate_floor_area, estimate_structural_self_mass_per_floor
 from .base import ModelBuildResult, StructuralModelBuilder
@@ -114,27 +114,31 @@ class DetailedShellBuilder(StructuralModelBuilder):
         )
         return ModelBuildResult(master_nodes=master_nodes, floor_area=floor_area)
 
-    def _calc_floor_masses(self, input_data: FEMInput, story_profiles: list, floor_area: float) -> tuple[list[float], float, float]:
+    def _calc_floor_masses(
+        self, input_data: FEMInput, story_profiles: list[StoryProfile], floor_area: float
+    ) -> tuple[list[float], float, float]:
         masses: list[float] = []
         total_load_mass = 0.0
         total_self_mass = 0.0
 
-        for profile in story_profiles:
-            load_mass = profile.mass_source.load_to_mass_per_area() * floor_area
-            sec_w, sec_d = profile.section.get_beam_section(BeamRole.SECONDARY)
+        for prf in story_profiles:
+            load_mass = prf.mass_source.load_to_mass_per_area() * floor_area
+            sec_w, sec_d = prf.section.get_beam_section(BeamRole.SECONDARY)
             self_mass_info = estimate_structural_self_mass_per_floor(
                 input_data=input_data,
-                story_height=profile.story_height,
-                wall_thickness=profile.section.wall_thickness,
-                primary_beam_width=profile.section.beam_width,
-                primary_beam_depth=profile.section.beam_depth,
+                story_height=prf.story_height,
+                wall_thickness=prf.section.wall_thickness,
+                primary_beam_width=prf.section.beam_width,
+                primary_beam_depth=prf.section.beam_depth,
                 secondary_beam_width=sec_w,
                 secondary_beam_depth=sec_d,
-                slab_thickness=profile.section.slab_thickness,
-                density_kg_m3=profile.material.density_kg_m3,
+                slab_thickness=prf.section.slab_thickness,
+                density_kg_m3=prf.material.density_kg_m3,
                 floor_area=floor_area,
             )
-            self_mass = self_mass_info["total_mass"] if profile.mass_source.include_structural_self_weight else 0.0
+            self_mass = (
+                self_mass_info["total_mass"] if prf.mass_source.include_structural_self_weight else 0.0
+            )
 
             masses.append(load_mass + self_mass)
             total_load_mass += load_mass
@@ -142,7 +146,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
         return masses, total_load_mass, total_self_mass
 
-    def _create_shell_sections(self, story_profiles: list) -> dict[int, int]:
+    def _create_shell_sections(self, story_profiles: list[StoryProfile]) -> dict[int, int]:
         mat_tag = 1
         sec_tag = 1
         mat_cache: dict[tuple[float, float], int] = {}
@@ -165,7 +169,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
     def _build_shell_and_beam_elements(
         self,
         input_data: FEMInput,
-        story_profiles: list,
+        story_profiles: list[StoryProfile],
         z_levels: list[float],
         shell_section_by_story: dict[int, int],
         beam_transf_tag: int,
@@ -228,7 +232,6 @@ class DetailedShellBuilder(StructuralModelBuilder):
                     elem_tag += 1
                     shell_count += 1
 
-        beam_edges: set[tuple[int, int]] = set()
         beam_count = 0
         beam_count_by_role: dict[BeamRole, int] = {BeamRole.PRIMARY: 0, BeamRole.SECONDARY: 0}
 
@@ -246,10 +249,6 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
                 if ni == nj:
                     continue
-                edge = (min(ni, nj), max(ni, nj))
-                if edge in beam_edges:
-                    continue
-                beam_edges.add(edge)
 
                 ops.element(
                     "elasticBeamColumn",
@@ -280,7 +279,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
     def _create_story_masters(
         self,
-        story_profiles: list,
+        story_profiles: list[StoryProfile],
         floor_plan_nodes: dict[int, set[int]],
         node_coords: dict[int, tuple[float, float, float]],
         floor_masses: list[float],
