@@ -209,26 +209,23 @@ def estimate_structural_self_mass_per_floor(
     density_kg_m3: float,
     floor_area: Union[float, None] = None,
 ) -> dict[str, float]:
-    area = estimate_floor_area(input_data) if floor_area is None else max(0.0, floor_area)
+    area = estimate_floor_area(input_data) if floor_area is None else floor_area
 
-    wall_length_total = sum(m.length for m in input_data.walls if m.length > 1.0e-9)
+    wall_length_total = sum(m.length for m in input_data.walls)
     primary_beam_length_total = input_data.beam_length_by_role(BeamRole.PRIMARY)
     secondary_beam_length_total = input_data.beam_length_by_role(BeamRole.SECONDARY)
 
-    wall_vol = wall_length_total * max(0.0, wall_thickness) * max(0.0, story_height)
-    primary_beam_vol = primary_beam_length_total * max(0.0, primary_beam_width) * max(0.0, primary_beam_depth)
-    secondary_beam_vol = (
-        secondary_beam_length_total * max(0.0, secondary_beam_width) * max(0.0, secondary_beam_depth)
-    )
+    wall_vol = wall_length_total * wall_thickness * story_height
+    primary_beam_vol = primary_beam_length_total * primary_beam_width * primary_beam_depth
+    secondary_beam_vol = secondary_beam_length_total * secondary_beam_width * secondary_beam_depth
     beam_vol = primary_beam_vol + secondary_beam_vol
-    slab_vol = area * max(0.0, slab_thickness)
+    slab_vol = area * slab_thickness
 
-    density = max(0.0, density_kg_m3)
-    wall_mass = wall_vol * density
-    primary_beam_mass = primary_beam_vol * density
-    secondary_beam_mass = secondary_beam_vol * density
-    beam_mass = beam_vol * density
-    slab_mass = slab_vol * density
+    wall_mass = wall_vol * density_kg_m3
+    primary_beam_mass = primary_beam_vol * density_kg_m3
+    secondary_beam_mass = secondary_beam_vol * density_kg_m3
+    beam_mass = beam_vol * density_kg_m3
+    slab_mass = slab_vol * density_kg_m3
     total_mass = wall_mass + beam_mass + slab_mass
 
     return {

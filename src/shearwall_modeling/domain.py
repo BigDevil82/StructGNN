@@ -3,7 +3,7 @@ import math
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 Point2D = tuple[float, float]
 
@@ -16,11 +16,15 @@ class BeamRole(str, Enum):
     def from_raw(cls, raw: Any) -> "BeamRole":
         if isinstance(raw, BeamRole):
             return raw
+        if raw is None:
+            return cls.PRIMARY
         if isinstance(raw, str):
             normalized = raw.strip().lower()
+            if normalized == cls.PRIMARY.value:
+                return cls.PRIMARY
             if normalized == cls.SECONDARY.value:
                 return cls.SECONDARY
-        return cls.PRIMARY
+        raise ValueError(f"Unsupported beam_role={raw}. Expected 'primary' or 'secondary'.")
 
 
 def _parse_point(raw: Any, xy_scale_to_m: float) -> Point2D:
@@ -51,45 +55,27 @@ class FEMInput:
     beams: list["BeamMember"]
     slabs: list[list[Point2D]]
 
-    @staticmethod
-    def _parse_plan_member(raw_member: Any, xy_scale_to_m: float) -> PlanMember | None:
-        if not isinstance(raw_member, dict):
-            return None
-        if "start" not in raw_member or "end" not in raw_member:
-            return None
-        return PlanMember(
-            start=_parse_point(raw_member["start"], xy_scale_to_m),
-            end=_parse_point(raw_member["end"], xy_scale_to_m),
-        )
-
-    @staticmethod
-    def _parse_beam_member(raw_member: Any, xy_scale_to_m: float) -> Optional["BeamMember"]:
-        base_member = FEMInput._parse_plan_member(raw_member, xy_scale_to_m)
-        if base_member is None:
-            return None
-        role_raw = raw_member.get("beam_role") if isinstance(raw_member, dict) else None
-        return BeamMember(
-            start=base_member.start,
-            end=base_member.end,
-            role=BeamRole.from_raw(role_raw),
-        )
-
     @classmethod
     def from_json(cls, json_path: Path, xy_scale_to_m: float = 0.001) -> "FEMInput":
         with json_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
 
-        walls = []
-        for raw_wall in data.get("shearwalls", []):
-            parsed = cls._parse_plan_member(raw_wall, xy_scale_to_m)
-            if parsed is not None:
-                walls.append(parsed)
+        walls = [
+            PlanMember(
+                start=_parse_point(w["start"], xy_scale_to_m),
+                end=_parse_point(w["end"], xy_scale_to_m),
+            )
+            for w in data.get("shearwalls", [])
+        ]
 
-        beams = []
-        for raw_beam in data.get("beams", []):
-            parsed = cls._parse_beam_member(raw_beam, xy_scale_to_m)
-            if parsed is not None:
-                beams.append(parsed)
+        beams = [
+            BeamMember(
+                start=_parse_point(b["start"], xy_scale_to_m),
+                end=_parse_point(b["end"], xy_scale_to_m),
+                role=BeamRole.from_raw(b.get("beam_role")),
+            )
+            for b in data.get("beams", [])
+        ]
 
         slabs = [
             [

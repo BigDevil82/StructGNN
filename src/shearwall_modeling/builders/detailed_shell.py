@@ -1,4 +1,5 @@
 import math
+from dataclasses import dataclass
 from logging import Logger
 
 import openseespy.opensees as ops
@@ -29,6 +30,17 @@ def _material_props(material: MaterialConfig) -> tuple[float, float, float]:
     return e, g, nu
 
 
+@dataclass
+class _ElementBuildResult:
+    node_coords: dict[int, tuple[float, float, float]]
+    floor_nodes: dict[int, set[int]]
+    next_node_tag: int
+    next_elem_tag: int
+    shell_count: int
+    beam_count: int
+    beam_count_by_role: dict[BeamRole, int]
+
+
 class DetailedShellBuilder(StructuralModelBuilder):
     """Refined FE-like builder:
 
@@ -57,77 +69,125 @@ class DetailedShellBuilder(StructuralModelBuilder):
         ops.wipe()
         ops.model("basic", "-ndm", 3, "-ndf", 6)
 
-        story_profiles = config.resolve_story_profiles()
-        z_levels = [0.0] + [profile.z_top for profile in story_profiles]
+        profiles = config.resolve_story_profiles()
+        z_levels = [0.0] + [p.z_top for p in profiles]
 
         floor_area = estimate_floor_area(input_data)
-        floor_masses: list[float] = []
+        floor_masses, total_load_mass, total_self_mass = self._calc_floor_masses(
+            input_data=input_data,
+            story_profiles=profiles,
+            floor_area=floor_area,
+        )
+
+        total_structure_mass = sum(floor_masses)
+
+        beam_transf_tag = 999
+        ops.geomTransf("Linear", beam_transf_tag, 0.0, 0.0, 1.0)
+
+        shell_section_by_story = self._create_shell_sections(profiles)
+        element_result = self._build_shell_and_beam_elements(
+            input_data=input_data,
+            story_profiles=profiles,
+            z_levels=z_levels,
+            shell_section_by_story=shell_section_by_story,
+            beam_transf_tag=beam_transf_tag,
+            num_stories=config.num_stories,
+        )
+        master_nodes = self._create_story_masters(
+            story_profiles=profiles,
+            floor_plan_nodes=element_result.floor_nodes,
+            node_coords=element_result.node_coords,
+            floor_masses=floor_masses,
+            start_node_tag=element_result.next_node_tag,
+        )
+
+        self.logger.info(
+            f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
+            f"beams={len(input_data.beams)} (primary={len(input_data.beams_by_role(BeamRole.PRIMARY))}, "
+            f"secondary={len(input_data.beams_by_role(BeamRole.SECONDARY))}), "
+            f"shellElems={element_result.shell_count}, beamElems={element_result.beam_count} "
+            f"(primary={element_result.beam_count_by_role[BeamRole.PRIMARY]}, "
+            f"secondary={element_result.beam_count_by_role[BeamRole.SECONDARY]}), "
+            f"floor_area~{floor_area:.2f} m^2, floor_mass_range=[{min(floor_masses)/1e3:.2f}, {max(floor_masses)/1e3:.2f}] t, "
+            f"load_mass_total={total_load_mass/1e3:.2f} t, self_mass_total={total_self_mass/1e3:.2f} t, "
+            f"total_mass={total_structure_mass/1e3:.2f} t ({total_structure_mass / 1e3:.2f} t)"
+        )
+        return ModelBuildResult(master_nodes=master_nodes, floor_area=floor_area)
+
+    def _calc_floor_masses(self, input_data: FEMInput, story_profiles: list, floor_area: float) -> tuple[list[float], float, float]:
+        masses: list[float] = []
         total_load_mass = 0.0
         total_self_mass = 0.0
+
         for profile in story_profiles:
-            load_mass_per_area = profile.mass_source.load_to_mass_per_area()
-            load_mass_per_floor = load_mass_per_area * floor_area
-            secondary_beam_width, secondary_beam_depth = profile.section.get_beam_section(BeamRole.SECONDARY)
+            load_mass = profile.mass_source.load_to_mass_per_area() * floor_area
+            sec_w, sec_d = profile.section.get_beam_section(BeamRole.SECONDARY)
             self_mass_info = estimate_structural_self_mass_per_floor(
                 input_data=input_data,
                 story_height=profile.story_height,
                 wall_thickness=profile.section.wall_thickness,
                 primary_beam_width=profile.section.beam_width,
                 primary_beam_depth=profile.section.beam_depth,
-                secondary_beam_width=secondary_beam_width,
-                secondary_beam_depth=secondary_beam_depth,
+                secondary_beam_width=sec_w,
+                secondary_beam_depth=sec_d,
                 slab_thickness=profile.section.slab_thickness,
                 density_kg_m3=profile.material.density_kg_m3,
                 floor_area=floor_area,
             )
-            self_mass = (
-                self_mass_info["total_mass"] if profile.mass_source.include_structural_self_weight else 0.0
-            )
-            floor_masses.append(load_mass_per_floor + self_mass)
-            total_load_mass += load_mass_per_floor
+            self_mass = self_mass_info["total_mass"] if profile.mass_source.include_structural_self_weight else 0.0
+
+            masses.append(load_mass + self_mass)
+            total_load_mass += load_mass
             total_self_mass += self_mass
 
-        total_structure_mass = sum(floor_masses)
+        return masses, total_load_mass, total_self_mass
 
+    def _create_shell_sections(self, story_profiles: list) -> dict[int, int]:
         mat_tag = 1
-        shell_sec_tag = 1
-        beam_transf_tag = 999
-        ops.geomTransf("Linear", beam_transf_tag, 0.0, 0.0, 1.0)
+        sec_tag = 1
+        mat_cache: dict[tuple[float, float], int] = {}
+        sections: dict[int, int] = {}
 
-        material_tag_cache: dict[tuple[float, float], int] = {}
-
-        shell_section_by_story: dict[int, int] = {}
-        section_tag = shell_sec_tag
         for story, profile in enumerate(story_profiles, start=1):
             e, g, nu = _material_props(profile.material)
             mat_key = (e, g)
-            story_mat_tag = material_tag_cache.get(mat_key)
-            if story_mat_tag is None:
-                story_mat_tag = mat_tag
+            if mat_key not in mat_cache:
+                mat_cache[mat_key] = mat_tag
+                ops.nDMaterial("ElasticIsotropic", mat_tag, e, nu)
                 mat_tag += 1
-                ops.nDMaterial("ElasticIsotropic", story_mat_tag, e, nu)
-                material_tag_cache[mat_key] = story_mat_tag
 
-            ops.section("PlateFiber", section_tag, story_mat_tag, profile.section.wall_thickness)
-            shell_section_by_story[story] = section_tag
-            section_tag += 1
+            ops.section("PlateFiber", sec_tag, mat_cache[mat_key], profile.section.wall_thickness)
+            sections[story] = sec_tag
+            sec_tag += 1
 
+        return sections
+
+    def _build_shell_and_beam_elements(
+        self,
+        input_data: FEMInput,
+        story_profiles: list,
+        z_levels: list[float],
+        shell_section_by_story: dict[int, int],
+        beam_transf_tag: int,
+        num_stories: int,
+    ) -> _ElementBuildResult:
         node_tag = 1
         elem_tag = 1
-
         node_cache: dict[tuple[float, float, float], int] = {}
         node_coords: dict[int, tuple[float, float, float]] = {}
         fixed_base_nodes: set[int] = set()
+        floor_nodes: dict[int, set[int]] = {story: set() for story in range(1, num_stories + 1)}
 
-        def _coord_key(x: float, y: float, z: float) -> tuple[float, float, float]:
+        def coord_key(x: float, y: float, z: float) -> tuple[float, float, float]:
             q = self.coord_tol
             return (round(x / q) * q, round(y / q) * q, round(z / q) * q)
 
-        def get_or_create_node(x: float, y: float, z: float) -> int:
+        def get_node(x: float, y: float, z: float) -> int:
             nonlocal node_tag
-            key = _coord_key(x, y, z)
+            key = coord_key(x, y, z)
             if key in node_cache:
                 return node_cache[key]
+
             tag = node_tag
             ops.node(tag, x, y, z)
             node_cache[key] = tag
@@ -135,64 +195,57 @@ class DetailedShellBuilder(StructuralModelBuilder):
             node_tag += 1
             return tag
 
-        floor_plan_nodes: dict[int, set[int]] = {story: set() for story in range(1, config.num_stories + 1)}
-
         shell_count = 0
         for wall in input_data.walls:
-            wall_len = max(wall.length, 1.0e-9)
-            if wall_len < 1.0e-6:
+            if wall.length < 1.0e-6:
                 continue
-
-            div = max(1, int(math.ceil(wall_len / self.wall_mesh_size_m)))
+            div = max(1, int(math.ceil(wall.length / self.wall_mesh_size_m)))
             dx = (wall.end[0] - wall.start[0]) / div
             dy = (wall.end[1] - wall.start[1]) / div
 
             wall_grid: list[list[int]] = []
-            for level in range(0, config.num_stories + 1):
+            for level in range(num_stories + 1):
                 z = z_levels[level]
                 row: list[int] = []
                 for i in range(div + 1):
-                    x = wall.start[0] + i * dx
-                    y = wall.start[1] + i * dy
-                    n = get_or_create_node(x, y, z)
+                    n = get_node(wall.start[0] + i * dx, wall.start[1] + i * dy, z)
                     row.append(n)
                     if level == 0:
                         if n not in fixed_base_nodes:
                             ops.fix(n, 1, 1, 1, 1, 1, 1)
                             fixed_base_nodes.add(n)
                     else:
-                        floor_plan_nodes[level].add(n)
+                        floor_nodes[level].add(n)
                 wall_grid.append(row)
 
-            for level in range(config.num_stories):
+            for level in range(num_stories):
                 for i in range(div):
                     n1 = wall_grid[level][i]
                     n2 = wall_grid[level][i + 1]
                     n3 = wall_grid[level + 1][i + 1]
                     n4 = wall_grid[level + 1][i]
-                    story = level + 1
-                    ops.element("ShellMITC4", elem_tag, n1, n2, n3, n4, shell_section_by_story[story])
+                    ops.element("ShellMITC4", elem_tag, n1, n2, n3, n4, shell_section_by_story[level + 1])
                     elem_tag += 1
                     shell_count += 1
 
         beam_edges: set[tuple[int, int]] = set()
         beam_count = 0
         beam_count_by_role: dict[BeamRole, int] = {BeamRole.PRIMARY: 0, BeamRole.SECONDARY: 0}
+
         for story, profile in enumerate(story_profiles, start=1):
             z = profile.z_top
             e, g, _ = _material_props(profile.material)
-
             for beam in input_data.beams:
-                beam_width, beam_depth = profile.section.get_beam_section(beam.role)
-                beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(beam_width, beam_depth)
+                beam_w, beam_d = profile.section.get_beam_section(beam.role)
+                beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(beam_w, beam_d)
 
-                ni = get_or_create_node(beam.start[0], beam.start[1], z)
-                nj = get_or_create_node(beam.end[0], beam.end[1], z)
-                floor_plan_nodes[story].add(ni)
-                floor_plan_nodes[story].add(nj)
+                ni = get_node(beam.start[0], beam.start[1], z)
+                nj = get_node(beam.end[0], beam.end[1], z)
+                floor_nodes[story].add(ni)
+                floor_nodes[story].add(nj)
+
                 if ni == nj:
                     continue
-
                 edge = (min(ni, nj), max(ni, nj))
                 if edge in beam_edges:
                     continue
@@ -215,7 +268,27 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 beam_count += 1
                 beam_count_by_role[beam.role] += 1
 
-        master_nodes: list[int] = []
+        return _ElementBuildResult(
+            node_coords=node_coords,
+            floor_nodes=floor_nodes,
+            next_node_tag=node_tag,
+            next_elem_tag=elem_tag,
+            shell_count=shell_count,
+            beam_count=beam_count,
+            beam_count_by_role=beam_count_by_role,
+        )
+
+    def _create_story_masters(
+        self,
+        story_profiles: list,
+        floor_plan_nodes: dict[int, set[int]],
+        node_coords: dict[int, tuple[float, float, float]],
+        floor_masses: list[float],
+        start_node_tag: int,
+    ) -> list[int]:
+        node_tag = start_node_tag
+        masters: list[int] = []
+
         for story, profile in enumerate(story_profiles, start=1):
             level_nodes = sorted(floor_plan_nodes[story])
             if not level_nodes:
@@ -235,23 +308,11 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 nodal_mass * ((node_coords[n][0] - com_x) ** 2 + (node_coords[n][1] - com_y) ** 2)
                 for n in level_nodes
             )
+
             ops.mass(master, floor_mass, floor_mass, 0.0, 0.0, 0.0, rot_mass)
             ops.fix(master, 0, 0, 1, 1, 1, 0)
-
             if len(level_nodes) >= 2:
                 ops.rigidDiaphragm(3, master, *level_nodes)
+            masters.append(master)
 
-            master_nodes.append(master)
-
-        self.logger.info(
-            f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
-            f"beams={len(input_data.beams)} (primary={len(input_data.beams_by_role(BeamRole.PRIMARY))}, "
-            f"secondary={len(input_data.beams_by_role(BeamRole.SECONDARY))}), "
-            f"shellElems={shell_count}, beamElems={beam_count} "
-            f"(primary={beam_count_by_role[BeamRole.PRIMARY]}, "
-            f"secondary={beam_count_by_role[BeamRole.SECONDARY]}), "
-            f"floor_area~{floor_area:.2f} m^2, floor_mass_range=[{min(floor_masses)/1e3:.2f}, {max(floor_masses)/1e3:.2f}] t, "
-            f"load_mass_total={total_load_mass/1e3:.2f} t, self_mass_total={total_self_mass/1e3:.2f} t, "
-            f"total_mass={total_structure_mass/1e3:.2f} t ({total_structure_mass / 1e3:.2f} t)"
-        )
-        return ModelBuildResult(master_nodes=master_nodes, floor_area=floor_area)
+        return masters
