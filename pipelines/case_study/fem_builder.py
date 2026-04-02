@@ -601,10 +601,7 @@ class FEMTopologyBuilder:
         mean_short, mean_long, _, _ = best_split
 
         if separability < 0.55:
-            print(
-                "    梁分类: 梁长分布可分性不足 "
-                f"(score={separability:.2f})，默认全部视为主梁"
-            )
+            print("    梁分类: 梁长分布可分性不足 " f"(score={separability:.2f})，默认全部视为主梁")
             return
 
         secondary_count = 0
@@ -870,7 +867,7 @@ def visualize_fem_result(
             linewidth = 4
             zorder = 10
         else:  # beam
-            color = "blue"
+            color = "blue" if member.get("beam_role") == "primary" else "cyan"
             linewidth = 4
             zorder = 2
 
@@ -934,7 +931,20 @@ def visualize_fem_result(
         Line2D(
             [0], [0], color="red", linewidth=4, label=f'Shear Wall ({result["statistics"]["num_shearwalls"]})'
         ),
-        Line2D([0], [0], color="blue", linewidth=2, label=f'Beam ({result["statistics"]["num_beams"]})'),
+        Line2D(
+            [0],
+            [0],
+            color="blue",
+            linewidth=2,
+            label=f'Primary Beam ({result["statistics"]["num_primary_beams"]})',
+        ),
+        Line2D(
+            [0],
+            [0],
+            color="cyan",
+            linewidth=2,
+            label=f'Secondary Beam ({result["statistics"]["num_secondary_beams"]})',
+        ),
         Line2D(
             [0],
             [0],
