@@ -36,6 +36,10 @@ class DirectionCheckResult:
     is_shear_weight_passed: bool
     is_stiffness_passed: bool
     is_period_ratio_passed: bool
+    max_interstory_drift_ratio: float
+    max_interstory_drift_story: int
+    interstory_drift_limit: float
+    is_interstory_drift_passed: bool
 
 
 class SeismicCodeChecker:
@@ -54,6 +58,7 @@ class SeismicCodeChecker:
         self.xmin, self.xmax, self.ymin, self.ymax = self._get_model_bbox()
         self.floor_masses = [ops.nodeMass(n, 1) for n in master_nodes]
         self.min_shear_ratio = self._get_min_shear_ratio(config.seismic.intensity)
+        self.max_interstory_drift_limit = 1.0 / 1000.0
 
     def _get_model_bbox(self) -> tuple[float, float, float, float]:
         nodes = ops.getNodeTags()
@@ -249,10 +254,10 @@ class SeismicCodeChecker:
 
             for i in range(self.num_stories):
                 V_i = self._combine(modal_V[i], eigs)
-                d_cm = self._combine(modal_drift_cm[i], eigs)
+                d_cm = abs(self._combine(modal_drift_cm[i], eigs))
                 combined_cm_drifts.append(d_cm)
 
-                drifts_c = [self._combine(modal_drift_corners[c][i], eigs) for c in range(4)]
+                drifts_c = [abs(self._combine(modal_drift_corners[c][i], eigs)) for c in range(4)]
                 d_max, d_min = max(drifts_c), min(drifts_c)
                 d_avg = (d_max + d_min) / 2.0
 
@@ -292,6 +297,10 @@ class SeismicCodeChecker:
             is_tor_pass = all(m.torsion_ratio <= 1.5 for m in metrics)
             is_sw_pass = all(m.shear_weight_ratio >= self.min_shear_ratio for m in metrics)
             is_stiff_pass = all(m.gamma1 >= 0.7 and m.gamma2 >= 0.8 for m in metrics)
+            max_drift_story_metric = max(metrics, key=lambda m: m.drift_max)
+            max_interstory_drift_ratio = max_drift_story_metric.drift_max
+            max_interstory_drift_story = max_drift_story_metric.story
+            is_interstory_drift_passed = max_interstory_drift_ratio <= self.max_interstory_drift_limit
 
             check_results[dir_name] = DirectionCheckResult(
                 direction=dir_name,
@@ -306,6 +315,10 @@ class SeismicCodeChecker:
                 is_shear_weight_passed=is_sw_pass,
                 is_stiffness_passed=is_stiff_pass,
                 is_period_ratio_passed=is_period_ratio_passed,
+                max_interstory_drift_ratio=max_interstory_drift_ratio,
+                max_interstory_drift_story=max_interstory_drift_story,
+                interstory_drift_limit=self.max_interstory_drift_limit,
+                is_interstory_drift_passed=is_interstory_drift_passed,
             )
             standard_drifts[dir_name] = combined_cm_drifts
 
@@ -349,11 +362,18 @@ class SeismicCodeChecker:
             self.logger.info(
                 f" -> 刚度突变 (限值 0.7/0.8): {'✅通过' if res.is_stiffness_passed else '❌超限'}"
             )
+            self.logger.info(
+                " -> 最大层间位移角 "
+                f"(限值 1/{int(round(1.0 / res.interstory_drift_limit))}): "
+                f"{res.max_interstory_drift_ratio:.6f} "
+                f"(控制层: {res.max_interstory_drift_story}层) "
+                f"{'✅通过' if res.is_interstory_drift_passed else '❌超限'}"
+            )
 
-            self.logger.info(f"\n 楼层 | 位移比(Max/Avg) | 剪重比(%) | 刚度比γ1 | 刚度比γ2")
-            self.logger.info("-" * 55)
+            self.logger.info("楼层 | 层间位移角Max | 位移比(Max/Avg) | 剪重比(%) | 刚度比γ1 | 刚度比γ2")
+            self.logger.info("-" * 78)
             # 逆序输出，符合结构从上到下的阅读直觉
             for m in reversed(res.metrics):
                 self.logger.info(
-                    f"  {m.story:02d}  |     {m.torsion_ratio:.3f}     |   {m.shear_weight_ratio*100:.2f}   |  {m.gamma1:.2f}   |  {m.gamma2:.2f}"
+                    f"  {m.story:02d}  |    {m.drift_max:.6f}   |     {m.torsion_ratio:.3f}     |   {m.shear_weight_ratio*100:.2f}   |  {m.gamma1:.2f}   |  {m.gamma2:.2f}"
                 )
