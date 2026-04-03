@@ -13,7 +13,7 @@ def convert_dxf_to_fem_topology(dxf_path: str, output_path: str) -> FEMTopologyB
         builder_graph = build_graph_from_dxf(dxf_path, mode="none")
     except Exception as e:
         print(f"Error processing {dxf_path}: {e}")
-        return
+        raise e
 
     # 提取房间信息
     node_ids = list(builder_graph.graph.nodes())
@@ -34,12 +34,21 @@ def convert_dxf_to_fem_topology(dxf_path: str, output_path: str) -> FEMTopologyB
         fem_builder.add_room(room_poly, sw_vectors[i], masks_list[i])
     result = fem_builder.build()
     export_to_json(result, output_path)
-    if not result["validation"]["ok"]:
-        visualize_fem_result(
-            result,
-            room_polys,
-            title=os.path.basename(dxf_path),
-        )
+
+    visualize_fem_result(
+        result,
+        room_polys,
+        title=os.path.basename(dxf_path),
+    )
+
+    ## for debug
+    # if not result["validation"]["ok"]:
+    #     visualize_fem_result(
+    #         result,
+    #         room_polys,
+    #         title=os.path.basename(dxf_path),
+    #     )
+    return result
 
 
 def _convert_task(task: Tuple[str, str]) -> Optional[str]:
@@ -82,11 +91,13 @@ def convert_folder(dxf_folder: str, output_folder: str, max_workers: Optional[in
 
 
 if __name__ == "__main__":
-    dxf_folder = r"data/dxf/fem_raw"
-    output_folder = r"data/dxf/cad_json_data/fem_raw"
-    os.makedirs(output_folder, exist_ok=True)
-    convert_folder(dxf_folder, output_folder)
+    # dxf_folder = r"data/dxf/fem_raw"
+    # output_folder = r"data/dxf/cad_json_data/fem_raw_tmp"
+    # os.makedirs(output_folder, exist_ok=True)
+    # convert_folder(dxf_folder, output_folder)
 
-    # dxf = r"data/dxf/fem_raw/L1L28_190.dxf"
-    # output = r"data\data\dxf\cad_json_data\shearwall_split_8_2\L1L28_10.json"
-    # convert_dxf_to_fem_topology(dxf, output)
+    dxf = r"data/dxf/fem_raw/L1L28_76.dxf"
+    output = (
+        r"data\dxf\cad_json_data\fem_raw_tmp" + os.sep + os.path.splitext(os.path.basename(dxf))[0] + ".json"
+    )
+    convert_dxf_to_fem_topology(dxf, output)

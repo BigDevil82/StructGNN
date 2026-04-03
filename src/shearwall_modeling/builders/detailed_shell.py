@@ -271,19 +271,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 if ni == nj:
                     continue
 
-                ops.element(
-                    "elasticBeamColumn",
-                    elem_tag,
-                    ni,
-                    nj,
-                    beam_area,
-                    e,
-                    g,
-                    beam_j,
-                    beam_iy,
-                    beam_iz,
-                    beam_transf_tag,
-                )
+                ops.element("elasticBeamColumn", elem_tag, ni, nj, beam_area, e, g, beam_j, beam_iy, beam_iz, beam_transf_tag) # fmt: skip
+
                 elem_tag += 1
                 beam_count += 1
                 beam_count_by_role[beam.role] += 1
