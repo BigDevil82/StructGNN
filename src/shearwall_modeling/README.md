@@ -18,5 +18,4 @@ shearwall_modeling/
 ## 使用建议
 
 - 新代码优先从子包导入，例如 `shearwall_modeling.core.domain`
-- 顶层 `config.py`、`domain.py`、`evaluation.py` 等仅保留兼容用途
 - 结构分析建模逻辑放在本目录，流程编排留给上层 `pipelines`
