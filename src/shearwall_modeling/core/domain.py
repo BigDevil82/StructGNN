@@ -25,6 +25,25 @@ class Point2D:
         return math.hypot(other.x - self.x, other.y - self.y)
 
 
+def _parse_point(raw: Any, xy_scale_to_m: float) -> Point2D:
+    if not isinstance(raw, (list, tuple)) or len(raw) < 2:
+        raise ValueError("Point must be a list/tuple with at least 2 values.")
+    return Point2D(float(raw[0]) * xy_scale_to_m, float(raw[1]) * xy_scale_to_m)
+
+
+@dataclass
+class PlanMember:
+    start: Point2D
+    end: Point2D
+
+    @property
+    def length(self) -> float:
+        return self.start.distance_to(self.end)
+
+    def scaled(self, factor: float) -> "PlanMember":
+        return PlanMember(start=self.start.scaled(factor), end=self.end.scaled(factor))
+
+
 class BeamRole(str, Enum):
     PRIMARY = "primary"
     SECONDARY = "secondary"
@@ -44,23 +63,12 @@ class BeamRole(str, Enum):
         raise ValueError(f"Unsupported beam_role={raw}. Expected 'primary' or 'secondary'.")
 
 
-def _parse_point(raw: Any, xy_scale_to_m: float) -> Point2D:
-    if not isinstance(raw, (list, tuple)) or len(raw) < 2:
-        raise ValueError("Point must be a list/tuple with at least 2 values.")
-    return Point2D(float(raw[0]) * xy_scale_to_m, float(raw[1]) * xy_scale_to_m)
-
-
 @dataclass
-class PlanMember:
-    start: Point2D
-    end: Point2D
+class BeamMember(PlanMember):
+    role: BeamRole = BeamRole.PRIMARY
 
-    @property
-    def length(self) -> float:
-        return self.start.distance_to(self.end)
-
-    def scaled(self, factor: float) -> "PlanMember":
-        return PlanMember(start=self.start.scaled(factor), end=self.end.scaled(factor))
+    def scaled(self, factor: float) -> "BeamMember":
+        return BeamMember(start=self.start.scaled(factor), end=self.end.scaled(factor), role=self.role)
 
 
 @dataclass
@@ -117,11 +125,3 @@ class FEMInput:
             beams=[b.scaled(factor) for b in self.beams],
             slabs=[[point.scaled(factor) for point in slab] for slab in self.slabs],
         )
-
-
-@dataclass
-class BeamMember(PlanMember):
-    role: BeamRole = BeamRole.PRIMARY
-
-    def scaled(self, factor: float) -> "BeamMember":
-        return BeamMember(start=self.start.scaled(factor), end=self.end.scaled(factor), role=self.role)
