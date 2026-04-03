@@ -2,8 +2,8 @@ import logging
 
 from ..builders.base import ModelBuildResult
 from ..core.config import ModelConfig
-from ..core.constants import MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY
 from .checkers import (
+    DirectionChecker,
     InterstoryDriftChecker,
     PeriodRatioChecker,
     ShearWeightRatioChecker,
@@ -98,21 +98,18 @@ class SeismicEvaluationPipeline:
     def __init__(self, build_result: ModelBuildResult, config: ModelConfig, logger: logging.Logger):
         self.context = AnalysisModelContext(build_result=build_result, config=config, logger=logger)
         self.analyzer = ResponseSpectrumAnalyzer(self.context)
-        self.min_shear_ratio = self._get_min_shear_ratio(config.seismic.intensity)
         self.max_interstory_drift_limit = 1.0 / 1000.0
-        self.direction_checkers = [
+        shear_weight_checker = ShearWeightRatioChecker.from_intensity(config.seismic.intensity)
+        self.direction_checkers: list[DirectionChecker] = [
             TorsionChecker(),
-            ShearWeightRatioChecker(min_ratio=self.min_shear_ratio),
+            shear_weight_checker,
             StiffnessChecker(),
             PeriodRatioChecker(),
             InterstoryDriftChecker(drift_limit=self.max_interstory_drift_limit),
         ]
         self.wall_axial_checker = WallAxialCompressionChecker(self.context)
-        self.report_printer = EvaluationReportPrinter(logger, self.min_shear_ratio)
-
-    def _get_min_shear_ratio(self, intensity: float) -> float:
-        key = round(float(intensity), 2)
-        return MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY.get(key, 0.016)
+        self.report_printer = EvaluationReportPrinter(logger, shear_weight_checker.min_ratio)
+        self.shear_weight_checker = shear_weight_checker
 
     def _evaluate_direction(self, response: DirectionResponse) -> DirectionCheckResult:
         result = build_direction_result(response)
@@ -120,7 +117,9 @@ class SeismicEvaluationPipeline:
             checker.apply(response, result)
         return result
 
-    def evaluate(self) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult], list[WallAxialMetric]]:
+    def evaluate(
+        self,
+    ) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult], list[WallAxialMetric]]:
         eigen_values, modal_periods, modal_summary = self.analyzer.extract_global_modal_data()
         story_weights = self.analyzer.compute_story_weights()
 
@@ -148,10 +147,6 @@ class SeismicCodeChecker:
     def __init__(self, build_result: ModelBuildResult, config: ModelConfig, logger: logging.Logger):
         self.pipeline = SeismicEvaluationPipeline(build_result, config, logger)
         self.wall_axial_metrics: list[WallAxialMetric] = []
-
-    @property
-    def min_shear_ratio(self) -> float:
-        return self.pipeline.min_shear_ratio
 
     def run_analysis_and_evaluate(self) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult]]:
         standard_drifts, check_results, wall_axial_metrics = self.pipeline.evaluate()

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from ..core.constants import MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY
 from .results import DirectionCheckResult, DirectionResponse, StoryMetric
 
 
@@ -21,6 +22,11 @@ class TorsionChecker(DirectionChecker):
 @dataclass(frozen=True)
 class ShearWeightRatioChecker(DirectionChecker):
     min_ratio: float
+
+    @classmethod
+    def from_intensity(cls, intensity: float) -> "ShearWeightRatioChecker":
+        key = round(float(intensity), 2)
+        return cls(min_ratio=MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY.get(key, 0.016))
 
     def apply(self, response: DirectionResponse, result: DirectionCheckResult) -> None:
         result.is_shear_weight_passed = all(
@@ -99,4 +105,3 @@ def update_story_stiffness_ratios(metrics: list[StoryMetric], stiffness_values: 
         metric.stiffness_ratio_average = (
             current_stiffness / average_upper_stiffness if average_upper_stiffness > 1.0e-9 else 1.0
         )
-
