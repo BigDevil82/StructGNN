@@ -1,4 +1,4 @@
-from .config import (
+from .core.config import (
     MassSourceConfig,
     MaterialConfig,
     ModelConfig,
@@ -9,9 +9,13 @@ from .config import (
     StandardStoryGroupConfig,
     StoryProfile,
 )
-from .domain import BeamMember, BeamRole, FEMInput, PlanMember, Point2D
-from .geometry import load_and_scale_input
-from .parametric import ParametricModelParams, build_model_config_from_params, sample_parametric_model_params
+from .core.domain import BeamMember, BeamRole, FEMInput, PlanMember, Point2D
+from .geometry.scaling import load_and_scale_input
+from .parametric.generator import (
+    ParametricModelParams,
+    build_model_config_from_params,
+    sample_parametric_model_params,
+)
 
 __all__ = [
     "FEMInput",

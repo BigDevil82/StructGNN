@@ -2,20 +2,10 @@ import math
 from pathlib import Path
 from typing import Union
 
-from .constants import RectSlabFilterBounds
-from .domain import BeamRole, FEMInput, Point2D
-
-
-def _polygon_area(points: list[Point2D]) -> float:
-    if len(points) < 3:
-        return 0.0
-    acc = 0.0
-    n = len(points)
-    for i in range(n):
-        x1, y1 = points[i]
-        x2, y2 = points[(i + 1) % n]
-        acc += x1 * y2 - x2 * y1
-    return abs(acc) * 0.5
+from ..core.constants import RectSlabFilterBounds
+from ..core.domain import FEMInput
+from .mass_estimation import estimate_floor_area, estimate_structural_self_mass_per_floor
+from .primitives import polygon_area, rect_slab_span_depth
 
 
 def _median(values: list[float]) -> float:
@@ -27,27 +17,6 @@ def _median(values: list[float]) -> float:
     if n % 2 == 1:
         return vs[mid]
     return 0.5 * (vs[mid - 1] + vs[mid])
-
-
-def _rect_slab_span_depth(slab: list[Point2D]) -> Union[tuple[float, float], None]:
-    if len(slab) != 4:
-        return None
-
-    edges = [slab[i].distance_to(slab[(i + 1) % 4]) for i in range(4)]
-    if any(e <= 1.0e-9 for e in edges):
-        return None
-
-    # Opposite edges of a rectangle should be close. Keep a loose tolerance for noisy CAD input.
-    tol = 0.20
-    e0, e1, e2, e3 = edges
-    if abs(e0 - e2) / max(e0, e2) > tol:
-        return None
-    if abs(e1 - e3) / max(e1, e3) > tol:
-        return None
-
-    span = min(edges)
-    depth = max(edges)
-    return span, depth
 
 
 def _resolve_rect_slab_thresholds(
@@ -117,7 +86,7 @@ def choose_scale_factor(input_data: FEMInput, low: float = 2.0, high: float = 6.
     for slab in input_data.slabs:
         if not isinstance(slab, list):
             continue
-        sd = _rect_slab_span_depth(slab)
+        sd = rect_slab_span_depth(slab)
         if sd is None:
             continue
         rect_dims.append(sd)
@@ -187,69 +156,6 @@ def choose_scale_factor(input_data: FEMInput, low: float = 2.0, high: float = 6.
             scale = lb if scale < lb else ub
 
     return max(scale, 1.0e-6)
-
-
-def estimate_floor_area(input_data: FEMInput) -> float:
-    slab_areas = [_polygon_area(slab) for slab in input_data.slabs if len(slab) >= 3]
-    slab_area = sum(a for a in slab_areas if a > 0.0)
-    if slab_area > 1.0e-9:
-        # print(f"Floor area from slabs: {slab_area:.3f} m^2 (count={len(slab_areas)})")
-        return max(slab_area, 16.0)
-
-    points = []
-    for m in input_data.all_members():
-        points.append(m.start)
-        points.append(m.end)
-    if len(points) < 2:
-        return 36.0
-
-    xs = [p[0] for p in points]
-    ys = [p[1] for p in points]
-    lx = max(xs) - min(xs)
-    ly = max(ys) - min(ys)
-    area = lx * ly
-    return max(area, 16.0)
-
-
-def estimate_structural_self_mass_per_floor(
-    input_data: FEMInput,
-    story_height: float,
-    wall_thickness: float,
-    primary_beam_width: float,
-    primary_beam_depth: float,
-    secondary_beam_width: float,
-    secondary_beam_depth: float,
-    slab_thickness: float,
-    density_kg_m3: float,
-    floor_area: Union[float, None] = None,
-) -> dict[str, float]:
-    area = estimate_floor_area(input_data) if floor_area is None else floor_area
-
-    wall_length_total = sum(m.length for m in input_data.walls)
-    primary_beam_length_total = input_data.beam_length_by_role(BeamRole.PRIMARY)
-    secondary_beam_length_total = input_data.beam_length_by_role(BeamRole.SECONDARY)
-
-    wall_vol = wall_length_total * wall_thickness * story_height
-    primary_beam_vol = primary_beam_length_total * primary_beam_width * primary_beam_depth
-    secondary_beam_vol = secondary_beam_length_total * secondary_beam_width * secondary_beam_depth
-    beam_vol = primary_beam_vol + secondary_beam_vol
-    slab_vol = area * slab_thickness
-
-    wall_mass = wall_vol * density_kg_m3
-    primary_beam_mass = primary_beam_vol * density_kg_m3
-    secondary_beam_mass = secondary_beam_vol * density_kg_m3
-    beam_mass = beam_vol * density_kg_m3
-    slab_mass = slab_vol * density_kg_m3
-    total_mass = wall_mass + beam_mass + slab_mass
-
-    return {
-        "wall_mass": wall_mass,
-        "primary_beam_mass": primary_beam_mass,
-        "secondary_beam_mass": secondary_beam_mass,
-        "beam_mass": beam_mass,
-        "slab_mass": slab_mass,
-        "total_mass": total_mass,
-    }
 
 
 def load_and_scale_input(

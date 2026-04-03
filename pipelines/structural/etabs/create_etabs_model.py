@@ -33,7 +33,7 @@ from pipelines.structural.etabs.etabs_util import (
     define_wall_sec,
 )
 from pipelines.structural.etabs.unit import GPa, M, kN, mm
-from src.shearwall_modeling.domain import FEMInput
+from src.shearwall_modeling.core.domain import FEMInput
 
 # 初始化COM
 comtypes.CoInitialize()

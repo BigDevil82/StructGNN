@@ -3,7 +3,7 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
-from .config import MaterialConfig, ModelConfig, SectionConfig, SeismicConfig, StandardStoryGroupConfig
+from ..core.config import MaterialConfig, ModelConfig, SectionConfig, SeismicConfig, StandardStoryGroupConfig
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from src.shearwall_modeling.domain import FEMInput, PlanMember
+from src.shearwall_modeling.core.domain import FEMInput, PlanMember, Point2D
 
 
 def fem_result_to_serializable(fem_result: dict) -> dict:
@@ -43,22 +43,34 @@ def fem_result_to_fem_input(fem_result: dict, xy_scale_to_m: float = 0.001) -> F
     """将 case_study 结果转为结构分析通用的 FEMInput。"""
     walls = [
         PlanMember(
-            start=(float(member["start_coord"][0]) * xy_scale_to_m, float(member["start_coord"][1]) * xy_scale_to_m),
-            end=(float(member["end_coord"][0]) * xy_scale_to_m, float(member["end_coord"][1]) * xy_scale_to_m),
+            start=Point2D(
+                float(member["start_coord"][0]) * xy_scale_to_m,
+                float(member["start_coord"][1]) * xy_scale_to_m,
+            ),
+            end=Point2D(
+                float(member["end_coord"][0]) * xy_scale_to_m,
+                float(member["end_coord"][1]) * xy_scale_to_m,
+            ),
         )
         for member in fem_result["members"]
         if member["type"] == "shearwall"
     ]
     beams = [
         PlanMember(
-            start=(float(member["start_coord"][0]) * xy_scale_to_m, float(member["start_coord"][1]) * xy_scale_to_m),
-            end=(float(member["end_coord"][0]) * xy_scale_to_m, float(member["end_coord"][1]) * xy_scale_to_m),
+            start=Point2D(
+                float(member["start_coord"][0]) * xy_scale_to_m,
+                float(member["start_coord"][1]) * xy_scale_to_m,
+            ),
+            end=Point2D(
+                float(member["end_coord"][0]) * xy_scale_to_m,
+                float(member["end_coord"][1]) * xy_scale_to_m,
+            ),
         )
         for member in fem_result["members"]
         if member["type"] == "beam"
     ]
     slabs = [
-        [(float(point[0]) * xy_scale_to_m, float(point[1]) * xy_scale_to_m) for point in slab]
+        [Point2D(float(point[0]) * xy_scale_to_m, float(point[1]) * xy_scale_to_m) for point in slab]
         for slab in fem_result.get("slabs", [])
     ]
     return FEMInput(walls=walls, beams=beams, slabs=slabs)

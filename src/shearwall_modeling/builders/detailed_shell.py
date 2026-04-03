@@ -4,9 +4,9 @@ from logging import Logger
 
 import openseespy.opensees as ops
 
-from ..config import MaterialConfig, ModelConfig, StoryProfile
-from ..domain import BeamRole, FEMInput
-from ..geometry import estimate_floor_area, estimate_structural_self_mass_per_floor
+from ..core.config import MaterialConfig, ModelConfig, StoryProfile
+from ..core.domain import BeamRole, FEMInput
+from ..geometry.mass_estimation import estimate_floor_area, estimate_structural_self_mass_per_floor
 from .base import ModelBuildResult, StructuralModelBuilder, WallBaseCheckUnit
 
 

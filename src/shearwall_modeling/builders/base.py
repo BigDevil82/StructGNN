@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from ..config import ModelConfig
-from ..domain import FEMInput
+from ..core.config import ModelConfig
+from ..core.domain import FEMInput
 
 
 @dataclass
