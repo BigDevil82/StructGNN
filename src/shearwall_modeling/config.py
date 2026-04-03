@@ -1,30 +1,24 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .constants import CONCRETE_ELASTIC_MODULUS_MPA, GB50011_TG_BY_SITE_CLASS, SEISMIC_ALPHA_MAX_BY_INTENSITY
 from .domain import BeamRole
-
-_CONCRETE_E_MPA_BY_GRADE: dict[str, float] = {
-    "C30": 3.00e4,
-    "C35": 3.15e4,
-    "C40": 3.25e4,
-    "C45": 3.35e4,
-    "C50": 3.45e4,
-}
 
 
 def _normalize_concrete_grade(concrete_grade: str) -> str:
+    """Normalize a concrete grade string like `30` or `c30` to `C30`."""
     grade = concrete_grade.strip().upper()
     if not grade.startswith("C"):
         grade = f"C{grade}"
-    if grade not in _CONCRETE_E_MPA_BY_GRADE:
-        supported = ", ".join(sorted(_CONCRETE_E_MPA_BY_GRADE.keys()))
+    if grade not in CONCRETE_ELASTIC_MODULUS_MPA:
+        supported = ", ".join(sorted(CONCRETE_ELASTIC_MODULUS_MPA.keys()))
         raise ValueError(f"Unsupported concrete_grade={concrete_grade}. Supported grades: {supported}")
     return grade
 
 
 def _resolve_elastic_modulus_pa(concrete_grade: str) -> float:
     grade = _normalize_concrete_grade(concrete_grade)
-    return _CONCRETE_E_MPA_BY_GRADE[grade] * 1.0e6
+    return CONCRETE_ELASTIC_MODULUS_MPA[grade] * 1.0e6
 
 
 def _resolve_shear_modulus_pa(elastic_modulus_pa: float, poisson_ratio: float = 0.2) -> float:
@@ -44,18 +38,19 @@ def _gb50011_spectrum_shape_params(damping_ratio: float) -> tuple[float, float, 
     return gamma, eta1, eta2
 
 
-def _gb50011_alpha(T: float, alpha_max: float, Tg: float, damping_ratio: float) -> float:
+def _calculate_gb50011_alpha(period: float, alpha_max: float, characteristic_period: float, damping_ratio: float) -> float:
+    """Calculate the GB50011 seismic influence coefficient for a vibration period."""
     gamma, eta1, eta2 = _gb50011_spectrum_shape_params(damping_ratio)
 
-    if T <= 0.1:
-        return alpha_max * (0.45 + (eta2 - 0.45) * (T / 0.1))
-    if T <= Tg:
+    if period <= 0.1:
+        return alpha_max * (0.45 + (eta2 - 0.45) * (period / 0.1))
+    if period <= characteristic_period:
         return eta2 * alpha_max
-    if T <= 5.0 * Tg:
-        return eta2 * alpha_max * ((Tg / T) ** gamma)
-    if T <= 6.0:
-        return alpha_max * (eta2 * (0.2**gamma) - eta1 * (T - 5.0 * Tg))
-    return alpha_max * max(0.0, eta2 * (0.2**gamma) - eta1 * (6.0 - 5.0 * Tg))
+    if period <= 5.0 * characteristic_period:
+        return eta2 * alpha_max * ((characteristic_period / period) ** gamma)
+    if period <= 6.0:
+        return alpha_max * (eta2 * (0.2**gamma) - eta1 * (period - 5.0 * characteristic_period))
+    return alpha_max * max(0.0, eta2 * (0.2**gamma) - eta1 * (6.0 - 5.0 * characteristic_period))
 
 
 def _resolve_gb50011_design_params(
@@ -65,50 +60,33 @@ def _resolve_gb50011_design_params(
     alpha_max_override: Optional[float],
     Tg_override: Optional[float],
 ) -> tuple[float, float]:
-    alpha_max_map = {
-        6.0: 0.04,
-        7.0: 0.08,
-        7.5: 0.12,
-        8.0: 0.16,
-        8.5: 0.24,
-        9.0: 0.32,
-    }
-
-    tg_map = {
-        "I0": {1: 0.20, 2: 0.25, 3: 0.30},
-        "I": {1: 0.25, 2: 0.30, 3: 0.35},
-        "II": {1: 0.35, 2: 0.40, 3: 0.45},
-        "III": {1: 0.45, 2: 0.55, 3: 0.65},
-        "IV": {1: 0.65, 2: 0.75, 3: 0.90},
-    }
-
     acc_key = round(float(intensity), 2)
     site_key = str(site_class).upper()
     group_key = int(seismic_group)
 
     if alpha_max_override is None:
-        if acc_key not in alpha_max_map:
+        if acc_key not in SEISMIC_ALPHA_MAX_BY_INTENSITY:
             raise ValueError(f"Unsupported intensity={intensity}. " "Set alpha_max_override to continue.")
-        alpha_max = alpha_max_map[acc_key]
+        alpha_max = SEISMIC_ALPHA_MAX_BY_INTENSITY[acc_key]
     else:
         alpha_max = float(alpha_max_override)
 
     if Tg_override is None:
-        if site_key not in tg_map or group_key not in tg_map[site_key]:
+        if site_key not in GB50011_TG_BY_SITE_CLASS or group_key not in GB50011_TG_BY_SITE_CLASS[site_key]:
             raise ValueError(
                 f"Unsupported site/group combination: site_class={site_class}, "
                 f"seismic_group={seismic_group}. Set Tg_override to continue."
             )
-        tg = tg_map[site_key][group_key]
+        tg = GB50011_TG_BY_SITE_CLASS[site_key][group_key]
     else:
         tg = float(Tg_override)
 
     return alpha_max, tg
 
 
-def _build_gb50011_spectrum(
+def _build_gb50011_response_spectrum(
     alpha_max: float,
-    Tg: float,
+    characteristic_period: float,
     damping_ratio: float,
     gravity: float,
     t_max: float,
@@ -120,15 +98,48 @@ def _build_gb50011_spectrum(
         raise ValueError("spectrum_t_max must be greater than 0.")
 
     periods: list[float] = []
-    spectral_acc: list[float] = []
+    spectral_accel: list[float] = []
     steps = int(t_max / dt)
     for i in range(steps + 1):
         t = i * dt
-        alpha = _gb50011_alpha(t, alpha_max, Tg, damping_ratio=damping_ratio)
+        alpha = _calculate_gb50011_alpha(t, alpha_max, characteristic_period, damping_ratio=damping_ratio)
         periods.append(t)
-        spectral_acc.append(alpha * gravity)
+        spectral_accel.append(alpha * gravity)
 
-    return periods, spectral_acc
+    return periods, spectral_accel
+
+
+@dataclass(frozen=True)
+class ResponseSpectrum:
+    periods: list[float]
+    spectral_accel: list[float]
+
+
+class ResponseSpectrumBuilder:
+    """Build response spectra from seismic configuration values."""
+
+    def build(self, config: "SeismicConfig") -> ResponseSpectrum:
+        if config.design_code.upper() != "GB50011":
+            raise ValueError(
+                f"Unsupported design_code={config.design_code}. Currently only GB50011 is implemented."
+            )
+
+        alpha_max, characteristic_period = _resolve_gb50011_design_params(
+            intensity=config.intensity,
+            site_class=config.site_class,
+            seismic_group=config.seismic_group,
+            alpha_max_override=config.alpha_max_override,
+            Tg_override=config.Tg_override,
+        )
+        periods, spectral_accel = _build_gb50011_response_spectrum(
+            alpha_max=alpha_max,
+            characteristic_period=characteristic_period,
+            damping_ratio=config.damping_ratio,
+            gravity=config.gravity,
+            t_max=config.spectrum_t_max,
+            dt=config.spectrum_dt,
+        )
+        return ResponseSpectrum(periods=periods, spectral_accel=spectral_accel)
 
 
 @dataclass
@@ -186,27 +197,13 @@ class SeismicConfig:
         if self.periods or self.sa:
             raise ValueError("seismic.periods and seismic.sa should be both provided or both omitted.")
 
-        if self.design_code.upper() != "GB50011":
-            raise ValueError(
-                f"Unsupported design_code={self.design_code}. " "Currently only GB50011 is implemented."
-            )
+        spectrum = ResponseSpectrumBuilder().build(self)
+        self.periods = spectrum.periods
+        self.sa = spectrum.spectral_accel
 
-        alpha_max, tg = _resolve_gb50011_design_params(
-            intensity=self.intensity,
-            site_class=self.site_class,
-            seismic_group=self.seismic_group,
-            alpha_max_override=self.alpha_max_override,
-            Tg_override=self.Tg_override,
-        )
-
-        self.periods, self.sa = _build_gb50011_spectrum(
-            alpha_max=alpha_max,
-            Tg=tg,
-            damping_ratio=self.damping_ratio,
-            gravity=self.gravity,
-            t_max=self.spectrum_t_max,
-            dt=self.spectrum_dt,
-        )
+    @property
+    def spectral_accel(self) -> list[float]:
+        return self.sa
 
 
 @dataclass

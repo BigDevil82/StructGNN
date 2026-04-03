@@ -2,10 +2,11 @@ import math
 from pathlib import Path
 from typing import Union
 
-from .domain import BeamRole, FEMInput
+from .constants import RectSlabFilterBounds
+from .domain import BeamRole, FEMInput, Point2D
 
 
-def _polygon_area(points: list[tuple[float, float]]) -> float:
+def _polygon_area(points: list[Point2D]) -> float:
     if len(points) < 3:
         return 0.0
     acc = 0.0
@@ -15,12 +16,6 @@ def _polygon_area(points: list[tuple[float, float]]) -> float:
         x2, y2 = points[(i + 1) % n]
         acc += x1 * y2 - x2 * y1
     return abs(acc) * 0.5
-
-
-def _segment_length(p1: tuple[float, float], p2: tuple[float, float]) -> float:
-    dx = p2[0] - p1[0]
-    dy = p2[1] - p1[1]
-    return (dx * dx + dy * dy) ** 0.5
 
 
 def _median(values: list[float]) -> float:
@@ -34,11 +29,11 @@ def _median(values: list[float]) -> float:
     return 0.5 * (vs[mid - 1] + vs[mid])
 
 
-def _rect_slab_span_depth(slab: list[tuple[float, float]]) -> Union[tuple[float, float], None]:
+def _rect_slab_span_depth(slab: list[Point2D]) -> Union[tuple[float, float], None]:
     if len(slab) != 4:
         return None
 
-    edges = [_segment_length(slab[i], slab[(i + 1) % 4]) for i in range(4)]
+    edges = [slab[i].distance_to(slab[(i + 1) % 4]) for i in range(4)]
     if any(e <= 1.0e-9 for e in edges):
         return None
 
@@ -55,35 +50,55 @@ def _rect_slab_span_depth(slab: list[tuple[float, float]]) -> Union[tuple[float,
     return span, depth
 
 
+def _resolve_rect_slab_thresholds(
+    rect_dims: list[tuple[float, float]], bounds: RectSlabFilterBounds
+) -> tuple[float, float, float]:
+    spans = [span for span, _ in rect_dims]
+    depths = [depth for _, depth in rect_dims]
+    areas = [span * depth for span, depth in rect_dims]
+    span_med = _median(spans)
+    depth_med = _median(depths)
+    area_med = _median(areas)
+    return (
+        max(bounds.min_span_floor, bounds.median_span_factor * span_med),
+        max(bounds.min_depth_floor, bounds.median_depth_factor * depth_med),
+        max(bounds.min_area_floor, bounds.median_area_factor * area_med),
+    )
+
+
+def _is_reasonable_rect_slab(
+    span: float,
+    depth: float,
+    span_min: float,
+    depth_min: float,
+    area_min: float,
+    bounds: RectSlabFilterBounds,
+) -> bool:
+    area = span * depth
+    aspect = depth / max(span, 1.0e-9)
+    return (
+        span >= span_min
+        and depth >= depth_min
+        and area >= area_min
+        and span >= bounds.min_span
+        and span <= bounds.max_span
+        and depth >= bounds.min_depth
+        and depth <= bounds.max_depth
+        and aspect <= bounds.max_aspect_ratio
+    )
+
+
 def _filter_reasonable_rect_slabs(rect_dims: list[tuple[float, float]]) -> list[tuple[float, float]]:
     if len(rect_dims) <= 2:
         return rect_dims
 
-    spans = [d[0] for d in rect_dims]
-    depths = [d[1] for d in rect_dims]
-    areas = [d[0] * d[1] for d in rect_dims]
-    span_med = _median(spans)
-    depth_med = _median(depths)
-    area_med = _median(areas)
-
-    # Remove tiny outliers (typically shafts/void artifacts) while preserving normal rooms.
-    span_min = max(0.8, 0.55 * span_med)
-    depth_min = max(1.0, 0.55 * depth_med)
-    area_min = max(2.0, 0.35 * area_med)
-
-    filtered: list[tuple[float, float]] = []
-    for span, depth in rect_dims:
-        area = span * depth
-        aspect = depth / max(span, 1.0e-9)
-        if span < span_min or depth < depth_min or area < area_min:
-            continue
-        if aspect > 3.5:
-            continue
-        if span < 2.0 or depth < 3.0:
-            continue
-        if span > 8.0 or depth > 12.0:
-            continue
-        filtered.append((span, depth))
+    bounds = RectSlabFilterBounds()
+    span_min, depth_min, area_min = _resolve_rect_slab_thresholds(rect_dims, bounds)
+    filtered = [
+        (span, depth)
+        for span, depth in rect_dims
+        if _is_reasonable_rect_slab(span, depth, span_min, depth_min, area_min, bounds)
+    ]
 
     return filtered if filtered else rect_dims
 
@@ -192,7 +207,6 @@ def estimate_floor_area(input_data: FEMInput) -> float:
     ys = [p[1] for p in points]
     lx = max(xs) - min(xs)
     ly = max(ys) - min(ys)
-    print(f"Estimated floor plan bounding box: {lx:.3f} m x {ly:.3f} m")
     area = lx * ly
     return max(area, 16.0)
 

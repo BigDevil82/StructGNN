@@ -30,12 +30,41 @@ def _material_props(material: MaterialConfig) -> tuple[float, float, float]:
     return e, g, nu
 
 
+class OpenSeesModelSession:
+    """Small wrapper around OpenSees global model initialization."""
+
+    def initialize(self) -> None:
+        ops.wipe()
+        ops.model("basic", "-ndm", 3, "-ndf", 6)
+
+
+@dataclass
+class _BuildState:
+    next_node_tag: int = 1
+    next_element_tag: int = 1
+    node_cache: dict[tuple[float, float, float], int] | None = None
+    node_coords: dict[int, tuple[float, float, float]] | None = None
+
+    def __post_init__(self) -> None:
+        self.node_cache = {}
+        self.node_coords = {}
+
+    def alloc_node_tag(self) -> int:
+        tag = self.next_node_tag
+        self.next_node_tag += 1
+        return tag
+
+    def alloc_element_tag(self) -> int:
+        tag = self.next_element_tag
+        self.next_element_tag += 1
+        return tag
+
+
 @dataclass
 class _ElementBuildResult:
     node_coords: dict[int, tuple[float, float, float]]
     floor_nodes: dict[int, set[int]]
     wall_base_nodes: list[list[int]]
-    next_node_tag: int
     shell_count: int
     beam_count: int
     beam_count_by_role: dict[BeamRole, int]
@@ -66,8 +95,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
         if not input_data.walls:
             raise ValueError("detailed_shell builder requires at least one shear wall.")
 
-        ops.wipe()
-        ops.model("basic", "-ndm", 3, "-ndf", 6)
+        OpenSeesModelSession().initialize()
 
         profiles = config.resolve_story_profiles()
         z_levels = [0.0] + [p.z_top for p in profiles]
@@ -98,7 +126,6 @@ class DetailedShellBuilder(StructuralModelBuilder):
             floor_plan_nodes=element_result.floor_nodes,
             node_coords=element_result.node_coords,
             floor_masses=floor_masses,
-            start_node_tag=element_result.next_node_tag,
         )
         bottom_wall_thickness = profiles[0].section.wall_thickness
         wall_base_units = [
@@ -193,10 +220,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
         beam_transf_tag: int,
         num_stories: int,
     ) -> _ElementBuildResult:
-        node_tag = 1
-        elem_tag = 1
-        node_cache: dict[tuple[float, float, float], int] = {}
-        node_coords: dict[int, tuple[float, float, float]] = {}
+        state = _BuildState()
         fixed_base_nodes: set[int] = set()
         floor_nodes: dict[int, set[int]] = {story: set() for story in range(1, num_stories + 1)}
         wall_base_nodes: list[list[int]] = []
@@ -206,16 +230,14 @@ class DetailedShellBuilder(StructuralModelBuilder):
             return (round(x / q) * q, round(y / q) * q, round(z / q) * q)
 
         def get_node(x: float, y: float, z: float) -> int:
-            nonlocal node_tag
             key = coord_key(x, y, z)
-            if key in node_cache:
-                return node_cache[key]
+            if key in state.node_cache:
+                return state.node_cache[key]
 
-            tag = node_tag
+            tag = state.alloc_node_tag()
             ops.node(tag, x, y, z)
-            node_cache[key] = tag
-            node_coords[tag] = (x, y, z)
-            node_tag += 1
+            state.node_cache[key] = tag
+            state.node_coords[tag] = (x, y, z)
             return tag
 
         shell_count = 0
@@ -249,8 +271,15 @@ class DetailedShellBuilder(StructuralModelBuilder):
                     n2 = wall_grid[level][i + 1]
                     n3 = wall_grid[level + 1][i + 1]
                     n4 = wall_grid[level + 1][i]
-                    ops.element("ShellMITC4", elem_tag, n1, n2, n3, n4, shell_section_by_story[level + 1])
-                    elem_tag += 1
+                    ops.element(
+                        "ShellMITC4",
+                        state.alloc_element_tag(),
+                        n1,
+                        n2,
+                        n3,
+                        n4,
+                        shell_section_by_story[level + 1],
+                    )
                     shell_count += 1
 
         beam_count = 0
@@ -271,17 +300,26 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 if ni == nj:
                     continue
 
-                ops.element("elasticBeamColumn", elem_tag, ni, nj, beam_area, e, g, beam_j, beam_iy, beam_iz, beam_transf_tag) # fmt: skip
-
-                elem_tag += 1
+                ops.element(
+                    "elasticBeamColumn",
+                    state.alloc_element_tag(),
+                    ni,
+                    nj,
+                    beam_area,
+                    e,
+                    g,
+                    beam_j,
+                    beam_iy,
+                    beam_iz,
+                    beam_transf_tag,
+                )  # fmt: skip
                 beam_count += 1
                 beam_count_by_role[beam.role] += 1
 
         return _ElementBuildResult(
-            node_coords=node_coords,
+            node_coords=state.node_coords,
             floor_nodes=floor_nodes,
             wall_base_nodes=wall_base_nodes,
-            next_node_tag=node_tag,
             shell_count=shell_count,
             beam_count=beam_count,
             beam_count_by_role=beam_count_by_role,
@@ -293,9 +331,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
         floor_plan_nodes: dict[int, set[int]],
         node_coords: dict[int, tuple[float, float, float]],
         floor_masses: list[float],
-        start_node_tag: int,
     ) -> list[int]:
-        node_tag = start_node_tag
+        node_tag = max(node_coords, default=0) + 1
         masters: list[int] = []
 
         for story, profile in enumerate(story_profiles, start=1):

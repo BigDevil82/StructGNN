@@ -5,7 +5,24 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-Point2D = tuple[float, float]
+
+@dataclass(frozen=True)
+class Point2D:
+    x: float
+    y: float
+
+    def __iter__(self):
+        yield self.x
+        yield self.y
+
+    def __getitem__(self, index: int) -> float:
+        return (self.x, self.y)[index]
+
+    def scaled(self, factor: float) -> "Point2D":
+        return Point2D(self.x * factor, self.y * factor)
+
+    def distance_to(self, other: "Point2D") -> float:
+        return math.hypot(other.x - self.x, other.y - self.y)
 
 
 class BeamRole(str, Enum):
@@ -30,7 +47,7 @@ class BeamRole(str, Enum):
 def _parse_point(raw: Any, xy_scale_to_m: float) -> Point2D:
     if not isinstance(raw, (list, tuple)) or len(raw) < 2:
         raise ValueError("Point must be a list/tuple with at least 2 values.")
-    return float(raw[0]) * xy_scale_to_m, float(raw[1]) * xy_scale_to_m
+    return Point2D(float(raw[0]) * xy_scale_to_m, float(raw[1]) * xy_scale_to_m)
 
 
 @dataclass
@@ -40,13 +57,10 @@ class PlanMember:
 
     @property
     def length(self) -> float:
-        return math.hypot(self.end[0] - self.start[0], self.end[1] - self.start[1])
+        return self.start.distance_to(self.end)
 
     def scaled(self, factor: float) -> "PlanMember":
-        return PlanMember(
-            start=(self.start[0] * factor, self.start[1] * factor),
-            end=(self.end[0] * factor, self.end[1] * factor),
-        )
+        return PlanMember(start=self.start.scaled(factor), end=self.end.scaled(factor))
 
 
 @dataclass
@@ -79,7 +93,7 @@ class FEMInput:
 
         slabs = [
             [
-                (float(p[0]) * xy_scale_to_m, float(p[1]) * xy_scale_to_m)
+                Point2D(float(p[0]) * xy_scale_to_m, float(p[1]) * xy_scale_to_m)
                 for p in slab
                 if isinstance(p, (list, tuple)) and len(p) >= 2
             ]
@@ -101,7 +115,7 @@ class FEMInput:
         return FEMInput(
             walls=[w.scaled(factor) for w in self.walls],
             beams=[b.scaled(factor) for b in self.beams],
-            slabs=[[(x * factor, y * factor) for x, y in slab] for slab in self.slabs],
+            slabs=[[point.scaled(factor) for point in slab] for slab in self.slabs],
         )
 
 
@@ -110,8 +124,4 @@ class BeamMember(PlanMember):
     role: BeamRole = BeamRole.PRIMARY
 
     def scaled(self, factor: float) -> "BeamMember":
-        return BeamMember(
-            start=(self.start[0] * factor, self.start[1] * factor),
-            end=(self.end[0] * factor, self.end[1] * factor),
-            role=self.role,
-        )
+        return BeamMember(start=self.start.scaled(factor), end=self.end.scaled(factor), role=self.role)

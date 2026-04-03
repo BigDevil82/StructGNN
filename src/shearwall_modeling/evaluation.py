@@ -8,6 +8,7 @@ import openseespy.opensees as ops
 
 from .builders.base import ModelBuildResult
 from .config import ModelConfig
+from .constants import CONCRETE_COMPRESSIVE_STRENGTH_PA, MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY
 from .modal_combination import cqc, srss
 
 
@@ -19,8 +20,24 @@ class StoryMetric:
     torsion_ratio: float
     shear_weight_ratio: float
     stiffness_k: float
-    gamma1: float  # K_i / K_{i+1}
-    gamma2: float  # K_i / avg(K_{i+1}, K_{i+2}, K_{i+3})
+    stiffness_ratio_adjacent: float
+    stiffness_ratio_average: float
+
+    @property
+    def gamma1(self) -> float:
+        return self.stiffness_ratio_adjacent
+
+    @gamma1.setter
+    def gamma1(self, value: float) -> None:
+        self.stiffness_ratio_adjacent = value
+
+    @property
+    def gamma2(self) -> float:
+        return self.stiffness_ratio_average
+
+    @gamma2.setter
+    def gamma2(self, value: float) -> None:
+        self.stiffness_ratio_average = value
 
 
 @dataclass
@@ -78,17 +95,10 @@ class SeismicCodeChecker:
         self.wall_axial_metrics: list[WallAxialMetric] = []
 
     def _concrete_fc_pa(self, concrete_grade: str) -> float:
-        fc_map = {
-            "C30": 14.3e6,
-            "C35": 16.7e6,
-            "C40": 19.1e6,
-            "C45": 21.2e6,
-            "C50": 23.1e6,
-        }
         grade = concrete_grade.strip().upper()
-        if grade not in fc_map:
+        if grade not in CONCRETE_COMPRESSIVE_STRENGTH_PA:
             raise ValueError(f"Unsupported concrete grade for axial check: {concrete_grade}")
-        return fc_map[grade]
+        return CONCRETE_COMPRESSIVE_STRENGTH_PA[grade]
 
     def _run_wall_axial_check(self) -> list[WallAxialMetric]:
         ts_tag = 70001
@@ -158,9 +168,8 @@ class SeismicCodeChecker:
         return min(xs), max(xs), min(ys), max(ys)
 
     def _get_min_shear_ratio(self, intensity: float) -> float:
-        mapping = {6.0: 0.008, 7.0: 0.016, 7.5: 0.024, 8.0: 0.032, 8.5: 0.048, 9.0: 0.064}
         key = round(float(intensity), 2)
-        return mapping.get(key, 0.016)
+        return MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY.get(key, 0.016)
 
     def _combine(self, modal_vals: list[float], eigs: list[float]) -> float:
         num_modes = len(modal_vals)
@@ -237,6 +246,181 @@ class SeismicCodeChecker:
 
         return translational_mode_index, torsional_mode_index
 
+    def _compute_story_weights(self) -> list[float]:
+        story_weights = [0.0] * self.num_stories
+        cumulative_mass = 0.0
+        for story_index in reversed(range(self.num_stories)):
+            cumulative_mass += self.floor_masses[story_index]
+            story_weights[story_index] = cumulative_mass * self.config.seismic.gravity
+        return story_weights
+
+    def _compute_corner_displacements(
+        self, dir_idx: int, cm_disp: float, rotation_z: float, cm_x: float, cm_y: float
+    ) -> list[float]:
+        dx = [self.xmin - cm_x, self.xmax - cm_x, self.xmax - cm_x, self.xmin - cm_x]
+        dy = [self.ymin - cm_y, self.ymin - cm_y, self.ymax - cm_y, self.ymax - cm_y]
+        if dir_idx == 1:
+            return [cm_disp - rotation_z * delta_y for delta_y in dy]
+        return [cm_disp + rotation_z * delta_x for delta_x in dx]
+
+    def _analyze_response_spectrum_mode(
+        self,
+        dir_idx: int,
+        eigen_value: float,
+        mode_index: int,
+        modal_drift_cm: list[list[float]],
+        modal_drift_corners: list[list[list[float]]],
+        modal_story_shear: list[list[float]],
+    ) -> None:
+        ops.responseSpectrumAnalysis(
+            dir_idx,
+            "-Tn",
+            *self.config.seismic.periods,
+            "-Sa",
+            *self.config.seismic.spectral_accel,
+            "-mode",
+            mode_index,
+        )
+
+        prev_u_cm = 0.0
+        prev_u_corners = [0.0] * 4
+        inertial_forces = [0.0] * self.num_stories
+        for story_index, master in enumerate(self.master_nodes):
+            u_cm = ops.nodeDisp(master, dir_idx)
+            rotation_z = ops.nodeDisp(master, 6)
+            cm_x, cm_y = ops.nodeCoord(master, 1), ops.nodeCoord(master, 2)
+
+            inertial_forces[story_index] = self.floor_masses[story_index] * eigen_value * u_cm
+            corner_displacements = self._compute_corner_displacements(dir_idx, u_cm, rotation_z, cm_x, cm_y)
+            story_height = self.story_heights[story_index]
+
+            modal_drift_cm[story_index].append((u_cm - prev_u_cm) / story_height)
+            for corner_index, corner_disp in enumerate(corner_displacements):
+                modal_drift_corners[corner_index][story_index].append(
+                    (corner_disp - prev_u_corners[corner_index]) / story_height
+                )
+
+            prev_u_cm = u_cm
+            prev_u_corners = corner_displacements
+
+        cumulative_shear = 0.0
+        for story_index in reversed(range(self.num_stories)):
+            cumulative_shear += inertial_forces[story_index]
+            modal_story_shear[story_index].append(cumulative_shear)
+
+    def _update_story_stiffness_ratios(self, metrics: list[StoryMetric], stiffness_values: list[float]) -> None:
+        for story_index, metric in enumerate(metrics):
+            current_stiffness = stiffness_values[story_index]
+            next_stiffness = (
+                stiffness_values[story_index + 1] if story_index < self.num_stories - 1 else current_stiffness
+            )
+
+            upper_stiffness = [
+                stiffness_values[story_index + offset]
+                for offset in range(1, 4)
+                if story_index + offset < self.num_stories
+            ]
+            average_upper_stiffness = (
+                sum(upper_stiffness) / len(upper_stiffness) if upper_stiffness else current_stiffness
+            )
+            metric.stiffness_ratio_adjacent = (
+                current_stiffness / next_stiffness if next_stiffness > 1.0e-9 else 1.0
+            )
+            metric.stiffness_ratio_average = (
+                current_stiffness / average_upper_stiffness if average_upper_stiffness > 1.0e-9 else 1.0
+            )
+
+    def _evaluate_direction(
+        self,
+        dir_idx: int,
+        dir_name: str,
+        eigs: list[float],
+        periods: list[float],
+        modal_summary: tuple[int | None, float | None, int | None, float | None, float | None, bool],
+        story_weights: list[float],
+    ) -> tuple[list[float], DirectionCheckResult]:
+        modal_drift_cm = [[] for _ in range(self.num_stories)]
+        modal_drift_corners = [[[] for _ in range(self.num_stories)] for _ in range(4)]
+        modal_story_shear = [[] for _ in range(self.num_stories)]
+
+        for mode_index, eigen_value in enumerate(eigs, start=1):
+            self._analyze_response_spectrum_mode(
+                dir_idx=dir_idx,
+                eigen_value=eigen_value,
+                mode_index=mode_index,
+                modal_drift_cm=modal_drift_cm,
+                modal_drift_corners=modal_drift_corners,
+                modal_story_shear=modal_story_shear,
+            )
+
+        metrics: list[StoryMetric] = []
+        stiffness_values = [0.0] * self.num_stories
+        combined_cm_drifts: list[float] = []
+        for story_index in range(self.num_stories):
+            story_shear = self._combine(modal_story_shear[story_index], eigs)
+            cm_drift = abs(self._combine(modal_drift_cm[story_index], eigs))
+            combined_cm_drifts.append(cm_drift)
+
+            corner_drifts = [
+                abs(self._combine(modal_drift_corners[corner_index][story_index], eigs))
+                for corner_index in range(4)
+            ]
+            drift_max = max(corner_drifts)
+            drift_min = min(corner_drifts)
+            drift_avg = 0.5 * (drift_max + drift_min)
+            torsion_ratio = drift_max / drift_avg if drift_avg > 1.0e-9 else 1.0
+            shear_weight_ratio = story_shear / story_weights[story_index] if story_weights[story_index] > 1.0e-9 else 0.0
+            stiffness = story_shear / cm_drift if cm_drift > 1.0e-9 else 0.0
+            stiffness_values[story_index] = stiffness
+
+            metrics.append(
+                StoryMetric(
+                    story=story_index + 1,
+                    drift_max=drift_max,
+                    drift_avg=drift_avg,
+                    torsion_ratio=torsion_ratio,
+                    shear_weight_ratio=shear_weight_ratio,
+                    stiffness_k=stiffness,
+                    stiffness_ratio_adjacent=1.0,
+                    stiffness_ratio_average=1.0,
+                )
+            )
+
+        self._update_story_stiffness_ratios(metrics, stiffness_values)
+        max_drift_metric = max(metrics, key=lambda metric: metric.drift_max)
+        (
+            translational_mode_index,
+            translational_period,
+            torsional_mode_index,
+            torsional_period,
+            period_ratio,
+            is_period_ratio_passed,
+        ) = modal_summary
+        result = DirectionCheckResult(
+            direction=dir_name,
+            metrics=metrics,
+            modal_periods=periods.copy(),
+            translational_mode_index=translational_mode_index,
+            translational_period=translational_period,
+            torsional_mode_index=torsional_mode_index,
+            torsional_period=torsional_period,
+            period_ratio=period_ratio,
+            is_torsion_passed=all(metric.torsion_ratio <= 1.5 for metric in metrics),
+            is_shear_weight_passed=all(
+                metric.shear_weight_ratio >= self.min_shear_ratio for metric in metrics
+            ),
+            is_stiffness_passed=all(
+                metric.stiffness_ratio_adjacent >= 0.7 and metric.stiffness_ratio_average >= 0.8
+                for metric in metrics
+            ),
+            is_period_ratio_passed=is_period_ratio_passed,
+            max_interstory_drift_ratio=max_drift_metric.drift_max,
+            max_interstory_drift_story=max_drift_metric.story,
+            interstory_drift_limit=self.max_interstory_drift_limit,
+            is_interstory_drift_passed=max_drift_metric.drift_max <= self.max_interstory_drift_limit,
+        )
+        return combined_cm_drifts, result
+
     def run_analysis_and_evaluate(self) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult]]:
         """执行分析并同时提取所有需要的数据，绝不重复计算"""
         # 1. 设置求解器(引入UmfPack提速)
@@ -248,10 +432,10 @@ class SeismicCodeChecker:
         ops.integrator("LoadControl", 0.0)
         ops.analysis("Static")
 
-        nreq = min(self.config.num_modes, self.num_stories * 2)
-        self.logger.info(f"\n[校核器] 正在提取 {nreq} 阶特征值 (UmfPack)...")
+        num_modes_required = min(self.config.num_modes, self.num_stories * 2)
+        self.logger.info(f"\n[校核器] 正在提取 {num_modes_required} 阶特征值 (UmfPack)...")
         start = time()
-        eigs = ops.eigen("-genBandArpack", nreq)
+        eigs = ops.eigen("-genBandArpack", num_modes_required)
         end = time()
         self.logger.info(f"Eigenvalue extraction completed in {end - start:.2f} seconds.")
 
@@ -267,151 +451,22 @@ class SeismicCodeChecker:
 
         periods = [2.0 * math.pi / math.sqrt(lam) for lam in eigs]
         self.logger.info(f"Modal periods (s): {[round(t, 4) for t in periods]}")
-        (
-            translational_mode_index,
-            translational_period,
-            torsional_mode_index,
-            torsional_period,
-            period_ratio,
-            is_period_ratio_passed,
-        ) = self._extract_modal_summary(periods, modal_props)
+        modal_summary = self._extract_modal_summary(periods, modal_props)
 
-        # 计算各层累计重力 W_i
-        W = [0.0] * self.num_stories
-        cum_mass = 0.0
-        for i in reversed(range(self.num_stories)):
-            cum_mass += self.floor_masses[i]
-            W[i] = cum_mass * self.config.seismic.gravity
+        story_weights = self._compute_story_weights()
 
         standard_drifts = {}
         check_results = {}
 
-        # 2. 反应谱核心循环：只跑一次，抓取所有数据
         for dir_idx, dir_name in ((1, "X"), (2, "Y")):
-            modal_drift_cm = [[] for _ in range(self.num_stories)]
-            modal_drift_corners = [[[] for _ in range(self.num_stories)] for _ in range(4)]
-            modal_V = [[] for _ in range(self.num_stories)]
-
-            for mode in range(1, len(eigs) + 1):
-                omega2 = eigs[mode - 1]
-                ops.responseSpectrumAnalysis(
-                    dir_idx,
-                    "-Tn",
-                    *self.config.seismic.periods,
-                    "-Sa",
-                    *self.config.seismic.sa,
-                    "-mode",
-                    mode,
-                )
-
-                prev_u_cm = 0.0
-                prev_u_corners = [0.0] * 4
-                F_inertial = [0.0] * self.num_stories
-
-                # 提取该模态下的响应
-                for i, master in enumerate(self.master_nodes):
-                    u_cm = ops.nodeDisp(master, dir_idx)
-                    theta_z = ops.nodeDisp(master, 6)
-                    cm_x, cm_y = ops.nodeCoord(master, 1), ops.nodeCoord(master, 2)
-
-                    F_inertial[i] = self.floor_masses[i] * omega2 * u_cm
-
-                    dx = [self.xmin - cm_x, self.xmax - cm_x, self.xmax - cm_x, self.xmin - cm_x]
-                    dy = [self.ymin - cm_y, self.ymin - cm_y, self.ymax - cm_y, self.ymax - cm_y]
-
-                    u_corners = [0.0] * 4
-                    h_i = self.story_heights[i]
-                    for c in range(4):
-                        if dir_idx == 1:
-                            u_corners[c] = u_cm - theta_z * dy[c]
-                        else:
-                            u_corners[c] = u_cm + theta_z * dx[c]
-                        modal_drift_corners[c][i].append((u_corners[c] - prev_u_corners[c]) / h_i)
-
-                    modal_drift_cm[i].append((u_cm - prev_u_cm) / h_i)
-                    prev_u_cm = u_cm
-                    prev_u_corners = u_corners
-
-                # 累加得到楼层剪力
-                cum_V = 0.0
-                for i in reversed(range(self.num_stories)):
-                    cum_V += F_inertial[i]
-                    modal_V[i].append(cum_V)
-
-            # 3. 数据组合与规范指标计算
-            metrics: list[StoryMetric] = []
-            K_array = [0.0] * self.num_stories
-            combined_cm_drifts = []
-
-            for i in range(self.num_stories):
-                V_i = self._combine(modal_V[i], eigs)
-                d_cm = abs(self._combine(modal_drift_cm[i], eigs))
-                combined_cm_drifts.append(d_cm)
-
-                drifts_c = [abs(self._combine(modal_drift_corners[c][i], eigs)) for c in range(4)]
-                d_max, d_min = max(drifts_c), min(drifts_c)
-                d_avg = (d_max + d_min) / 2.0
-
-                t_ratio = d_max / d_avg if d_avg > 1e-9 else 1.0
-                sw_ratio = V_i / W[i] if W[i] > 1e-9 else 0.0
-                k_i = V_i / d_cm if d_cm > 1e-9 else 0.0
-                K_array[i] = k_i
-
-                metrics.append(
-                    StoryMetric(
-                        story=i + 1,
-                        drift_max=d_max,
-                        drift_avg=d_avg,
-                        torsion_ratio=t_ratio,
-                        shear_weight_ratio=sw_ratio,
-                        stiffness_k=k_i,
-                        gamma1=1.0,
-                        gamma2=1.0,
-                    )
-                )
-
-            # 计算刚度比突变
-            for i in range(self.num_stories):
-                k_i = K_array[i]
-                k_next = K_array[i + 1] if i < self.num_stories - 1 else k_i
-
-                upper_sum, count = 0.0, 0
-                for j in range(1, 4):
-                    if i + j < self.num_stories:
-                        upper_sum += K_array[i + j]
-                        count += 1
-                k_avg_upper = (upper_sum / count) if count > 0 else k_i
-
-                metrics[i].gamma1 = k_i / k_next if k_next > 1e-9 else 1.0
-                metrics[i].gamma2 = k_i / k_avg_upper if k_avg_upper > 1e-9 else 1.0
-
-            is_tor_pass = all(m.torsion_ratio <= 1.5 for m in metrics)
-            is_sw_pass = all(m.shear_weight_ratio >= self.min_shear_ratio for m in metrics)
-            is_stiff_pass = all(m.gamma1 >= 0.7 and m.gamma2 >= 0.8 for m in metrics)
-            max_drift_story_metric = max(metrics, key=lambda m: m.drift_max)
-            max_interstory_drift_ratio = max_drift_story_metric.drift_max
-            max_interstory_drift_story = max_drift_story_metric.story
-            is_interstory_drift_passed = max_interstory_drift_ratio <= self.max_interstory_drift_limit
-
-            check_results[dir_name] = DirectionCheckResult(
-                direction=dir_name,
-                metrics=metrics,
-                modal_periods=periods.copy(),
-                translational_mode_index=translational_mode_index,
-                translational_period=translational_period,
-                torsional_mode_index=torsional_mode_index,
-                torsional_period=torsional_period,
-                period_ratio=period_ratio,
-                is_torsion_passed=is_tor_pass,
-                is_shear_weight_passed=is_sw_pass,
-                is_stiffness_passed=is_stiff_pass,
-                is_period_ratio_passed=is_period_ratio_passed,
-                max_interstory_drift_ratio=max_interstory_drift_ratio,
-                max_interstory_drift_story=max_interstory_drift_story,
-                interstory_drift_limit=self.max_interstory_drift_limit,
-                is_interstory_drift_passed=is_interstory_drift_passed,
+            standard_drifts[dir_name], check_results[dir_name] = self._evaluate_direction(
+                dir_idx=dir_idx,
+                dir_name=dir_name,
+                eigs=eigs,
+                periods=periods,
+                modal_summary=modal_summary,
+                story_weights=story_weights,
             )
-            standard_drifts[dir_name] = combined_cm_drifts
 
         self.wall_axial_metrics = self._run_wall_axial_check()
 
