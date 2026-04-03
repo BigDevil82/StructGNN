@@ -178,6 +178,7 @@ class SeismicConfig:
     spectrum_t_max: float = 6.0
     spectrum_dt: float = 0.01
     gravity: float = 9.81
+    axial_compression_ratio_limit: float = 0.5
 
     def __post_init__(self) -> None:
         if self.periods and self.sa:

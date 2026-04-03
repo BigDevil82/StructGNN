@@ -6,6 +6,7 @@ from typing import Any
 
 import openseespy.opensees as ops
 
+from .builders.base import ModelBuildResult
 from .config import ModelConfig
 from .modal_combination import cqc, srss
 
@@ -42,23 +43,113 @@ class DirectionCheckResult:
     is_interstory_drift_passed: bool
 
 
+@dataclass
+class WallAxialMetric:
+    wall_id: int
+    axial_force_n: float
+    area_m2: float
+    axial_stress_mpa: float
+    axial_ratio: float
+    ratio_limit: float
+    is_passed: bool
+
+
 class SeismicCodeChecker:
     """
     独立于标准分析的综合指标校核器 (高级分析引擎模式)。
     仅需执行一次循环，同时输出常规层间位移角和规范抗震指标。
     """
 
-    def __init__(self, master_nodes: list[int], config: ModelConfig, logger: logging.Logger):
-        self.master_nodes = master_nodes
+    def __init__(self, build_result: ModelBuildResult, config: ModelConfig, logger: logging.Logger):
+        self.master_nodes = build_result.master_nodes
+        self.floor_area = build_result.floor_area
+        self.wall_base_units = build_result.wall_base_units
+        self.floor_story_nodes = build_result.floor_story_nodes
         self.config = config
-        self.num_stories = len(master_nodes)
+        self.num_stories = len(self.master_nodes)
         self.story_heights = config.get_story_heights()
+        self.story_profiles = config.resolve_story_profiles()
         self.logger = logger
 
         self.xmin, self.xmax, self.ymin, self.ymax = self._get_model_bbox()
-        self.floor_masses = [ops.nodeMass(n, 1) for n in master_nodes]
+        self.floor_masses = [ops.nodeMass(n, 1) for n in self.master_nodes]
         self.min_shear_ratio = self._get_min_shear_ratio(config.seismic.intensity)
         self.max_interstory_drift_limit = 1.0 / 1000.0
+        self.wall_axial_metrics: list[WallAxialMetric] = []
+
+    def _concrete_fc_pa(self, concrete_grade: str) -> float:
+        fc_map = {
+            "C30": 14.3e6,
+            "C35": 16.7e6,
+            "C40": 19.1e6,
+            "C45": 21.2e6,
+            "C50": 23.1e6,
+        }
+        grade = concrete_grade.strip().upper()
+        if grade not in fc_map:
+            raise ValueError(f"Unsupported concrete grade for axial check: {concrete_grade}")
+        return fc_map[grade]
+
+    def _run_wall_axial_check(self) -> list[WallAxialMetric]:
+        ts_tag = 70001
+        pat_tag = 70001
+
+        floor_gravity_forces = [
+            (p.mass_source.dead_kpa + 0.5 * p.mass_source.live_kpa) * 1000.0 * self.floor_area
+            for p in self.story_profiles
+        ]
+
+        ops.timeSeries("Linear", ts_tag)
+        ops.pattern("Plain", pat_tag, ts_tag)
+        for i, floor_nodes in enumerate(self.floor_story_nodes):
+            nodal_force = floor_gravity_forces[i] / len(floor_nodes)
+            for node in floor_nodes:
+                ops.load(node, 0.0, 0.0, -nodal_force, 0.0, 0.0, 0.0)
+
+        ops.wipeAnalysis()
+        ops.constraints("Transformation")
+        ops.numberer("RCM")
+        ops.system("UmfPack")
+        ops.test("NormDispIncr", 1.0e-6, 20)
+        ops.algorithm("Newton")
+        ops.integrator("LoadControl", 1.0)
+        ops.analysis("Static")
+
+        ok = ops.analyze(1)
+        if ok != 0:
+            raise RuntimeError(f"Static gravity case failed with code={ok}")
+
+        ops.reactions()
+        base_nodes = sorted({n for unit in self.wall_base_units for n in unit.base_nodes})
+        node_rxn = {n: ops.nodeReaction(n, 3) for n in base_nodes}
+
+        node_share = {n: 0 for n in base_nodes}
+        for unit in self.wall_base_units:
+            for n in unit.base_nodes:
+                node_share[n] += 1
+
+        fc_pa = self._concrete_fc_pa(self.story_profiles[0].material.concrete_grade)
+        ratio_limit = self.config.seismic.axial_compression_ratio_limit
+        metrics: list[WallAxialMetric] = []
+
+        for unit in self.wall_base_units:
+            axial_force_n = sum(node_rxn[n] / node_share[n] for n in unit.base_nodes)
+            area_m2 = unit.length * unit.thickness
+            stress_pa = axial_force_n / area_m2
+            ratio = stress_pa / fc_pa
+            metrics.append(
+                WallAxialMetric(
+                    wall_id=unit.wall_id,
+                    axial_force_n=axial_force_n,
+                    area_m2=area_m2,
+                    axial_stress_mpa=stress_pa / 1.0e6,
+                    axial_ratio=ratio,
+                    ratio_limit=ratio_limit,
+                    is_passed=ratio <= ratio_limit,
+                )
+            )
+
+        return metrics
 
     def _get_model_bbox(self) -> tuple[float, float, float, float]:
         nodes = ops.getNodeTags()
@@ -322,6 +413,8 @@ class SeismicCodeChecker:
             )
             standard_drifts[dir_name] = combined_cm_drifts
 
+        self.wall_axial_metrics = self._run_wall_axial_check()
+
         # self._print_report(check_results)
         return standard_drifts, check_results
 
@@ -376,4 +469,19 @@ class SeismicCodeChecker:
             for m in reversed(res.metrics):
                 self.logger.info(
                     f"  {m.story:02d}  |    {m.drift_max:.6f}   |     {m.torsion_ratio:.3f}     |   {m.shear_weight_ratio*100:.2f}   |  {m.gamma1:.2f}   |  {m.gamma2:.2f}"
+                )
+
+        if self.wall_axial_metrics:
+            self.logger.info("\n【墙肢轴压比校核】")
+            worst = max(self.wall_axial_metrics, key=lambda item: item.axial_ratio)
+            self.logger.info(
+                f" 控制墙肢: #{worst.wall_id}, 轴压比={worst.axial_ratio:.3f}, "
+                f"限值={worst.ratio_limit:.3f}, {'✅通过' if worst.is_passed else '❌超限'}"
+            )
+            self.logger.info("墙ID | 轴力(kN) | 面积(m2) | 轴应力(MPa) | 轴压比")
+            self.logger.info("-" * 64)
+            for item in self.wall_axial_metrics:
+                self.logger.info(
+                    f" {item.wall_id:03d} | {item.axial_force_n/1e3:8.2f} | {item.area_m2:7.3f} | "
+                    f" {item.axial_stress_mpa:9.3f} | {item.axial_ratio:6.3f}"
                 )

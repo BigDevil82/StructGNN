@@ -7,7 +7,7 @@ import openseespy.opensees as ops
 from ..config import MaterialConfig, ModelConfig, StoryProfile
 from ..domain import BeamRole, FEMInput
 from ..geometry import estimate_floor_area, estimate_structural_self_mass_per_floor
-from .base import ModelBuildResult, StructuralModelBuilder
+from .base import ModelBuildResult, StructuralModelBuilder, WallBaseCheckUnit
 
 
 def _beam_section_props(width: float, depth: float) -> tuple[float, float, float, float]:
@@ -34,6 +34,7 @@ def _material_props(material: MaterialConfig) -> tuple[float, float, float]:
 class _ElementBuildResult:
     node_coords: dict[int, tuple[float, float, float]]
     floor_nodes: dict[int, set[int]]
+    wall_base_nodes: list[list[int]]
     next_node_tag: int
     shell_count: int
     beam_count: int
@@ -99,6 +100,19 @@ class DetailedShellBuilder(StructuralModelBuilder):
             floor_masses=floor_masses,
             start_node_tag=element_result.next_node_tag,
         )
+        bottom_wall_thickness = profiles[0].section.wall_thickness
+        wall_base_units = [
+            WallBaseCheckUnit(
+                wall_id=i + 1,
+                base_nodes=base_nodes,
+                length=input_data.walls[i].length,
+                thickness=bottom_wall_thickness,
+            )
+            for i, base_nodes in enumerate(element_result.wall_base_nodes)
+        ]
+        floor_story_nodes = [
+            sorted(element_result.floor_nodes[story]) for story in range(1, config.num_stories + 1)
+        ]
 
         self.logger.info(
             f"Detailed model built: stories={config.num_stories}, walls={len(input_data.walls)}, "
@@ -111,7 +125,12 @@ class DetailedShellBuilder(StructuralModelBuilder):
             f"load_mass_total={total_load_mass/1e3:.2f} t, self_mass_total={total_self_mass/1e3:.2f} t, "
             f"total_mass={total_structure_mass/1e3:.2f} t ({total_structure_mass / 1e3:.2f} t)"
         )
-        return ModelBuildResult(master_nodes=master_nodes, floor_area=floor_area)
+        return ModelBuildResult(
+            master_nodes=master_nodes,
+            floor_area=floor_area,
+            wall_base_units=wall_base_units,
+            floor_story_nodes=floor_story_nodes,
+        )
 
     def _calc_floor_masses(
         self, input_data: FEMInput, story_profiles: list[StoryProfile], floor_area: float
@@ -180,6 +199,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
         node_coords: dict[int, tuple[float, float, float]] = {}
         fixed_base_nodes: set[int] = set()
         floor_nodes: dict[int, set[int]] = {story: set() for story in range(1, num_stories + 1)}
+        wall_base_nodes: list[list[int]] = []
 
         def coord_key(x: float, y: float, z: float) -> tuple[float, float, float]:
             q = self.coord_tol
@@ -199,49 +219,6 @@ class DetailedShellBuilder(StructuralModelBuilder):
             return tag
 
         shell_count = 0
-        elem_tag, shell_count = self._add_wall_shell_elements(
-            input_data=input_data,
-            z_levels=z_levels,
-            num_stories=num_stories,
-            shell_section_by_story=shell_section_by_story,
-            get_node=get_node,
-            floor_nodes=floor_nodes,
-            fixed_base_nodes=fixed_base_nodes,
-            start_elem_tag=elem_tag,
-        )
-
-        elem_tag, beam_count, beam_count_by_role = self._add_beam_elements(
-            input_data=input_data,
-            story_profiles=story_profiles,
-            beam_transf_tag=beam_transf_tag,
-            get_node=get_node,
-            floor_nodes=floor_nodes,
-            start_elem_tag=elem_tag,
-        )
-
-        return _ElementBuildResult(
-            node_coords=node_coords,
-            floor_nodes=floor_nodes,
-            next_node_tag=node_tag,
-            shell_count=shell_count,
-            beam_count=beam_count,
-            beam_count_by_role=beam_count_by_role,
-        )
-
-    def _add_wall_shell_elements(
-        self,
-        input_data: FEMInput,
-        z_levels: list[float],
-        num_stories: int,
-        shell_section_by_story: dict[int, int],
-        get_node,
-        floor_nodes: dict[int, set[int]],
-        fixed_base_nodes: set[int],
-        start_elem_tag: int,
-    ) -> tuple[int, int]:
-        elem_tag = start_elem_tag
-        shell_count = 0
-
         for wall in input_data.walls:
             if wall.length < 1.0e-6:
                 continue
@@ -264,6 +241,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
                         floor_nodes[level].add(n)
                 wall_grid.append(row)
 
+            wall_base_nodes.append(sorted(set(wall_grid[0])))
+
             for level in range(num_stories):
                 for i in range(div):
                     n1 = wall_grid[level][i]
@@ -274,18 +253,6 @@ class DetailedShellBuilder(StructuralModelBuilder):
                     elem_tag += 1
                     shell_count += 1
 
-        return elem_tag, shell_count
-
-    def _add_beam_elements(
-        self,
-        input_data: FEMInput,
-        story_profiles: list[StoryProfile],
-        beam_transf_tag: int,
-        get_node,
-        floor_nodes: dict[int, set[int]],
-        start_elem_tag: int,
-    ) -> tuple[int, int, dict[BeamRole, int]]:
-        elem_tag = start_elem_tag
         beam_count = 0
         beam_count_by_role: dict[BeamRole, int] = {BeamRole.PRIMARY: 0, BeamRole.SECONDARY: 0}
 
@@ -321,7 +288,15 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 beam_count += 1
                 beam_count_by_role[beam.role] += 1
 
-        return elem_tag, beam_count, beam_count_by_role
+        return _ElementBuildResult(
+            node_coords=node_coords,
+            floor_nodes=floor_nodes,
+            wall_base_nodes=wall_base_nodes,
+            next_node_tag=node_tag,
+            shell_count=shell_count,
+            beam_count=beam_count,
+            beam_count_by_role=beam_count_by_role,
+        )
 
     def _create_story_masters(
         self,

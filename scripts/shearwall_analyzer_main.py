@@ -46,7 +46,7 @@ def build_single(json_path: Path) -> None:
 
     logger.info(f"Geometry scale factor used: {scale:.2f}")
 
-    standard_story_groups = [StandardStoryGroupConfig(count=10, story_height=3.0)]
+    standard_story_groups = [StandardStoryGroupConfig(count=18, story_height=3.0)]
     config = ModelConfig(num_modes=num_modes, standard_story_groups=standard_story_groups)
     config.seismic.combination_method = combine_method
 
@@ -83,7 +83,7 @@ def run_with_config(input_data, config: ModelConfig) -> None:
     builder = DetailedShellBuilder(logger)
     build_result = builder.build(input_data, config)
 
-    checker = SeismicCodeChecker(build_result.master_nodes, config, logger)
+    checker = SeismicCodeChecker(build_result, config, logger)
     _, res = checker.run_analysis_and_evaluate()
     checker._print_report(res)
 
@@ -135,7 +135,7 @@ def main() -> None:
     # build_single_parametric(
     #     Path(r"data\dxf\cad_json_data\fem_raw\L1L28_10.json"),
     #     ParametricModelParams(
-    #         N=30,
+    #         N=12,
     #         t_w_bot=250,
     #         h_b=500,
     #         b_b=250,
@@ -146,7 +146,8 @@ def main() -> None:
     #         seismic_group=1,
     #     ),
     # )
-    build_single(Path(r"data\dxf\cad_json_data\fem_raw\L1L28_10.json"))
+    build_single(Path(r"data\dxf\cad_json_data\fem_raw_tmp\L1L28_10.json"))
+    # build_single(Path(r"outputs\result\case_study\archi_comp_fem_data.json"))
 
 
 if __name__ == "__main__":
