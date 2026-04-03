@@ -120,5 +120,5 @@ uv sync
 
 ## 相关文档
 
-- [`docs/PROJECT_STRUCTURE.md`](/E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/docs/PROJECT_STRUCTURE.md)
-- [`docs/notes/项目梳理.md`](/E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/docs/notes/项目梳理.md)
+- [`docs/PROJECT_STRUCTURE.md`](/docs/PROJECT_STRUCTURE.md)
+- [`docs/notes/项目梳理.md`](/docs/notes/项目梳理.md)
