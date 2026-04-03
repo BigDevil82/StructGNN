@@ -6,6 +6,7 @@ class StoryMetric:
     story: int
     drift_max: float
     drift_avg: float
+    drift_center: float
     torsion_ratio: float
     shear_weight_ratio: float
     stiffness_k: float
@@ -45,7 +46,6 @@ class DirectionResponse:
     modal_periods: list[float]
     modal_summary: ModalSummary
     metrics: list[StoryMetric]
-    combined_center_drifts: list[float]
 
 
 @dataclass
@@ -78,3 +78,24 @@ class WallAxialMetric:
     ratio_limit: float
     is_passed: bool
 
+
+def init_direction_check_result(response: DirectionResponse) -> DirectionCheckResult:
+    summary = response.modal_summary
+    return DirectionCheckResult(
+        direction=response.direction,
+        metrics=response.metrics,
+        modal_periods=response.modal_periods.copy(),
+        translational_mode_index=summary.translational_mode_index,
+        translational_period=summary.translational_period,
+        torsional_mode_index=summary.torsional_mode_index,
+        torsional_period=summary.torsional_period,
+        period_ratio=summary.period_ratio,
+        is_torsion_passed=False,
+        is_shear_weight_passed=False,
+        is_stiffness_passed=False,
+        is_period_ratio_passed=False,
+        max_interstory_drift_ratio=0.0,
+        max_interstory_drift_story=0,
+        interstory_drift_limit=0.0,
+        is_interstory_drift_passed=False,
+    )

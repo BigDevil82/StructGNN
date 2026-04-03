@@ -7,7 +7,6 @@ import openseespy.opensees as ops
 
 from ..builders.base import ModelBuildResult
 from ..core.config import ModelConfig
-from .checkers import update_story_stiffness_ratios
 from .combinations import cqc, srss
 from .modal import identify_dominant_modes, modal_periods_from_eigenvalues
 from .results import DirectionResponse, ModalSummary, StoryMetric
@@ -125,15 +124,9 @@ class ResponseSpectrumAnalyzer:
         modal_drift_corners: list[list[list[float]]],
         modal_story_shear: list[list[float]],
     ) -> None:
-        ops.responseSpectrumAnalysis(
-            dir_idx,
-            "-Tn",
-            *self.context.config.seismic.periods,
-            "-Sa",
-            *self.context.config.seismic.spectral_accel,
-            "-mode",
-            mode_index,
-        )
+        Tn = self.context.config.seismic.periods
+        Sa = self.context.config.seismic.spectral_accel
+        ops.responseSpectrumAnalysis(dir_idx, "-Tn", *Tn, "-Sa", *Sa, "-mode", mode_index)
 
         prev_center_disp = 0.0
         prev_corner_displacements = [0.0] * 4
@@ -160,70 +153,28 @@ class ResponseSpectrumAnalyzer:
             cumulative_shear += inertial_forces[story_index]
             modal_story_shear[story_index].append(cumulative_shear)
 
-    def analyze_direction(
-        self,
-        dir_idx: int,
-        dir_name: str,
-        eigen_values: list[float],
-        modal_periods: list[float],
-        modal_summary: ModalSummary,
-        story_weights: list[float],
-    ) -> DirectionResponse:
-        modal_drift_center = [[] for _ in range(self.context.num_stories)]
-        modal_drift_corners = [[[] for _ in range(self.context.num_stories)] for _ in range(4)]
-        modal_story_shear = [[] for _ in range(self.context.num_stories)]
-
-        for mode_index, eigen_value in enumerate(eigen_values, start=1):
-            self._analyze_mode(
-                dir_idx=dir_idx,
-                eigen_value=eigen_value,
-                mode_index=mode_index,
-                modal_drift_center=modal_drift_center,
-                modal_drift_corners=modal_drift_corners,
-                modal_story_shear=modal_story_shear,
+    def _update_story_stiffness_ratios(
+        self, metrics: list[StoryMetric], stiffness_values: list[float]
+    ) -> None:
+        for story_index, metric in enumerate(metrics):
+            current_stiffness = stiffness_values[story_index]
+            next_stiffness = (
+                stiffness_values[story_index + 1] if story_index < len(metrics) - 1 else current_stiffness
             )
-
-        metrics: list[StoryMetric] = []
-        combined_center_drifts: list[float] = []
-        stiffness_values = [0.0] * self.context.num_stories
-        for story_index in range(self.context.num_stories):
-            story_shear = self._combine(modal_story_shear[story_index], eigen_values)
-            center_drift = abs(self._combine(modal_drift_center[story_index], eigen_values))
-            combined_center_drifts.append(center_drift)
-            corner_drifts = [
-                abs(self._combine(modal_drift_corners[corner_index][story_index], eigen_values))
-                for corner_index in range(4)
+            upper_stiffness = [
+                stiffness_values[story_index + offset]
+                for offset in range(1, 4)
+                if story_index + offset < len(metrics)
             ]
-            drift_max = max(corner_drifts)
-            drift_min = min(corner_drifts)
-            drift_avg = 0.5 * (drift_max + drift_min)
-            torsion_ratio = drift_max / drift_avg if drift_avg > 1.0e-9 else 1.0
-            shear_weight_ratio = (
-                story_shear / story_weights[story_index] if story_weights[story_index] > 1.0e-9 else 0.0
+            average_upper_stiffness = (
+                sum(upper_stiffness) / len(upper_stiffness) if upper_stiffness else current_stiffness
             )
-            stiffness = story_shear / center_drift if center_drift > 1.0e-9 else 0.0
-            stiffness_values[story_index] = stiffness
-            metrics.append(
-                StoryMetric(
-                    story=story_index + 1,
-                    drift_max=drift_max,
-                    drift_avg=drift_avg,
-                    torsion_ratio=torsion_ratio,
-                    shear_weight_ratio=shear_weight_ratio,
-                    stiffness_k=stiffness,
-                    stiffness_ratio_adjacent=1.0,
-                    stiffness_ratio_average=1.0,
-                )
+            metric.stiffness_ratio_adjacent = (
+                current_stiffness / next_stiffness if next_stiffness > 1.0e-9 else 1.0
             )
-
-        update_story_stiffness_ratios(metrics, stiffness_values)
-        return DirectionResponse(
-            direction=dir_name,
-            modal_periods=modal_periods,
-            modal_summary=modal_summary,
-            metrics=metrics,
-            combined_center_drifts=combined_center_drifts,
-        )
+            metric.stiffness_ratio_average = (
+                current_stiffness / average_upper_stiffness if average_upper_stiffness > 1.0e-9 else 1.0
+            )
 
     def extract_global_modal_data(self) -> tuple[list[float], list[float], ModalSummary]:
         ops.constraints("Transformation")
@@ -253,3 +204,63 @@ class ResponseSpectrumAnalyzer:
         modal_periods = modal_periods_from_eigenvalues(eigen_values)
         self.context.logger.info(f"Modal periods (s): {[round(period, 4) for period in modal_periods]}")
         return eigen_values, modal_periods, self.extract_modal_summary(modal_periods, returned)
+
+    def analyze_direction(
+        self,
+        dir_idx: int,
+        dir_name: str,
+        eigen_values: list[float],
+        modal_periods: list[float],
+        modal_summary: ModalSummary,
+        story_weights: list[float],
+    ) -> DirectionResponse:
+        modal_drift_center = [[] for _ in range(self.context.num_stories)]
+        modal_drift_corners = [[[] for _ in range(self.context.num_stories)] for _ in range(4)]
+        modal_story_shear = [[] for _ in range(self.context.num_stories)]
+
+        for mode_index, eigen_value in enumerate(eigen_values, start=1):
+            self._analyze_mode(
+                dir_idx=dir_idx,
+                eigen_value=eigen_value,
+                mode_index=mode_index,
+                modal_drift_center=modal_drift_center,
+                modal_drift_corners=modal_drift_corners,
+                modal_story_shear=modal_story_shear,
+            )
+
+        metrics: list[StoryMetric] = []
+        stiffness_values = [0.0] * self.context.num_stories
+        for story_index in range(self.context.num_stories):
+            story_shear = self._combine(modal_story_shear[story_index], eigen_values)
+            center_drift = abs(self._combine(modal_drift_center[story_index], eigen_values))
+            corner_drifts = [
+                abs(self._combine(modal_drift_corners[corner_index][story_index], eigen_values))
+                for corner_index in range(4)
+            ]
+            drift_max = max(corner_drifts)
+            drift_min = min(corner_drifts)
+            drift_avg = 0.5 * (drift_max + drift_min)
+            torsion_ratio = drift_max / drift_avg if drift_avg > 1.0e-9 else 1.0
+            shear_weight_ratio = (
+                story_shear / story_weights[story_index] if story_weights[story_index] > 1.0e-9 else 0.0
+            )
+            stiffness = story_shear / center_drift if center_drift > 1.0e-9 else 0.0
+            stiffness_values[story_index] = stiffness
+            metrics.append(
+                StoryMetric(
+                    story=story_index + 1,
+                    drift_max=drift_max,
+                    drift_avg=drift_avg,
+                    drift_center=center_drift,
+                    torsion_ratio=torsion_ratio,
+                    shear_weight_ratio=shear_weight_ratio,
+                    stiffness_k=stiffness,
+                    stiffness_ratio_adjacent=1.0,
+                    stiffness_ratio_average=1.0,
+                )
+            )
+
+        self._update_story_stiffness_ratios(metrics, stiffness_values)
+        return DirectionResponse(
+            direction=dir_name, modal_periods=modal_periods, modal_summary=modal_summary, metrics=metrics
+        )

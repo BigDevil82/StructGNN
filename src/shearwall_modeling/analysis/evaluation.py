@@ -9,10 +9,9 @@ from .checkers import (
     ShearWeightRatioChecker,
     StiffnessChecker,
     TorsionChecker,
-    build_direction_result,
 )
 from .response_spectrum import AnalysisModelContext, ResponseSpectrumAnalyzer
-from .results import DirectionCheckResult, DirectionResponse, StoryMetric, WallAxialMetric
+from .results import DirectionCheckResult, DirectionResponse, WallAxialMetric, init_direction_check_result
 from .wall_axial import WallAxialCompressionChecker
 
 
@@ -98,21 +97,19 @@ class SeismicEvaluationPipeline:
     def __init__(self, build_result: ModelBuildResult, config: ModelConfig, logger: logging.Logger):
         self.context = AnalysisModelContext(build_result=build_result, config=config, logger=logger)
         self.analyzer = ResponseSpectrumAnalyzer(self.context)
-        self.max_interstory_drift_limit = 1.0 / 1000.0
         shear_weight_checker = ShearWeightRatioChecker.from_intensity(config.seismic.intensity)
         self.direction_checkers: list[DirectionChecker] = [
             TorsionChecker(),
             shear_weight_checker,
             StiffnessChecker(),
             PeriodRatioChecker(),
-            InterstoryDriftChecker(drift_limit=self.max_interstory_drift_limit),
+            InterstoryDriftChecker(),
         ]
         self.wall_axial_checker = WallAxialCompressionChecker(self.context)
         self.report_printer = EvaluationReportPrinter(logger, shear_weight_checker.min_ratio)
-        self.shear_weight_checker = shear_weight_checker
 
     def _evaluate_direction(self, response: DirectionResponse) -> DirectionCheckResult:
-        result = build_direction_result(response)
+        result = init_direction_check_result(response)
         for checker in self.direction_checkers:
             checker.apply(response, result)
         return result
@@ -123,7 +120,6 @@ class SeismicEvaluationPipeline:
         eigen_values, modal_periods, modal_summary = self.analyzer.extract_global_modal_data()
         story_weights = self.analyzer.compute_story_weights()
 
-        standard_drifts: dict[str, list[float]] = {}
         check_results: dict[str, DirectionCheckResult] = {}
         for dir_idx, dir_name in ((1, "X"), (2, "Y")):
             response = self.analyzer.analyze_direction(
@@ -134,11 +130,10 @@ class SeismicEvaluationPipeline:
                 modal_summary=modal_summary,
                 story_weights=story_weights,
             )
-            standard_drifts[dir_name] = response.combined_center_drifts
             check_results[dir_name] = self._evaluate_direction(response)
 
         wall_axial_metrics = self.wall_axial_checker.check()
-        return standard_drifts, check_results, wall_axial_metrics
+        return check_results, wall_axial_metrics
 
 
 class SeismicCodeChecker:
@@ -149,9 +144,9 @@ class SeismicCodeChecker:
         self.wall_axial_metrics: list[WallAxialMetric] = []
 
     def run_analysis_and_evaluate(self) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult]]:
-        standard_drifts, check_results, wall_axial_metrics = self.pipeline.evaluate()
+        check_results, wall_axial_metrics = self.pipeline.evaluate()
         self.wall_axial_metrics = wall_axial_metrics
-        return standard_drifts, check_results
+        return check_results
 
     def _print_report(self, results: dict[str, DirectionCheckResult]) -> None:
         self.pipeline.report_printer.print(results, self.wall_axial_metrics)

@@ -34,7 +34,7 @@ def _material_props(material: MaterialConfig) -> tuple[float, float, float]:
 class OpenSeesModelContext(AbstractContextManager["OpenSeesModelContext"]):
     """Manage OpenSees global model lifecycle and entity creation."""
 
-    def __init__(self, coord_tol: float = 1.0e-6) -> None:
+    def __init__(self, coord_tol: float = 1.0e-3) -> None:
         self.coord_tol = coord_tol
         self.next_node_tag = 1
         self.next_element_tag = 1
@@ -104,7 +104,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
         self,
         logger: Logger,
         wall_mesh_size_m: float = 2.5,
-        coord_tol: float = 1.0e-6,
+        coord_tol: float = 1.0e-3,
     ) -> None:
         self.wall_mesh_size_m = wall_mesh_size_m
         self.coord_tol = coord_tol
