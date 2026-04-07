@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 from ..core.config import ModelConfig
 from ..core.domain import BeamRole, FEMInput, PlanMember
@@ -46,6 +47,7 @@ class ModelBuildResult:
     floor_story_nodes: list[list[int]]
     beam_element_units: list[BeamElementUnit]
     wall_story_element_units: list[WallStoryElementUnit]
+    analysis_snapshot: Any = None
 
 
 class StructuralModelBuilder(ABC):

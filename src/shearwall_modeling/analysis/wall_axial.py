@@ -16,6 +16,10 @@ class WallAxialCompressionChecker:
         return CONCRETE_COMPRESSIVE_STRENGTH_PA[grade]
 
     def check(self) -> list[WallAxialMetric]:
+        snapshot = self.context.build_result.analysis_snapshot
+        if snapshot is not None:
+            return snapshot.wall_axial_metrics
+
         ts_tag = 70001
         pat_tag = 70001
         floor_gravity_forces = [

@@ -79,6 +79,20 @@ class WallAxialMetric:
     is_passed: bool
 
 
+@dataclass
+class AnalysisSnapshot:
+    eigen_values: list[float]
+    modal_periods: list[float]
+    modal_summary: ModalSummary
+    story_weights: list[float]
+    direction_responses: dict[str, DirectionResponse]
+    gravity_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
+    gravity_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
+    seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
+    seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float, float]]
+    wall_axial_metrics: list[WallAxialMetric]
+
+
 def init_direction_check_result(response: DirectionResponse) -> DirectionCheckResult:
     summary = response.modal_summary
     return DirectionCheckResult(

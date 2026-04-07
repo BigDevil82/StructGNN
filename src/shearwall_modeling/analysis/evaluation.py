@@ -11,8 +11,7 @@ from .checkers import (
     TorsionChecker,
 )
 from .response_spectrum import AnalysisModelContext, ResponseSpectrumAnalyzer
-from .results import DirectionCheckResult, DirectionResponse, WallAxialMetric, init_direction_check_result
-from .wall_axial import WallAxialCompressionChecker
+from .results import AnalysisSnapshot, DirectionCheckResult, DirectionResponse, WallAxialMetric, init_direction_check_result
 
 
 class EvaluationReportPrinter:
@@ -105,8 +104,14 @@ class SeismicEvaluationPipeline:
             PeriodRatioChecker(),
             InterstoryDriftChecker(),
         ]
-        self.wall_axial_checker = WallAxialCompressionChecker(self.context)
         self.report_printer = EvaluationReportPrinter(logger, shear_weight_checker.min_ratio)
+
+    def _get_snapshot(self) -> AnalysisSnapshot:
+        snapshot = self.context.build_result.analysis_snapshot
+        if snapshot is None:
+            snapshot = self.analyzer.build_snapshot()
+            self.context.build_result.analysis_snapshot = snapshot
+        return snapshot
 
     def _evaluate_direction(self, response: DirectionResponse) -> DirectionCheckResult:
         result = init_direction_check_result(response)
@@ -116,24 +121,13 @@ class SeismicEvaluationPipeline:
 
     def evaluate(
         self,
-    ) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult], list[WallAxialMetric]]:
-        eigen_values, modal_periods, modal_summary = self.analyzer.extract_global_modal_data()
-        story_weights = self.analyzer.compute_story_weights()
-
+    ) -> tuple[dict[str, DirectionCheckResult], list[WallAxialMetric]]:
+        snapshot = self._get_snapshot()
         check_results: dict[str, DirectionCheckResult] = {}
-        for dir_idx, dir_name in ((1, "X"), (2, "Y")):
-            response = self.analyzer.analyze_direction(
-                dir_idx=dir_idx,
-                dir_name=dir_name,
-                eigen_values=eigen_values,
-                modal_periods=modal_periods,
-                modal_summary=modal_summary,
-                story_weights=story_weights,
-            )
+        for dir_name in ("X", "Y"):
+            response = snapshot.direction_responses[dir_name]
             check_results[dir_name] = self._evaluate_direction(response)
-
-        wall_axial_metrics = self.wall_axial_checker.check()
-        return check_results, wall_axial_metrics
+        return check_results, snapshot.wall_axial_metrics
 
 
 class SeismicCodeChecker:
@@ -143,7 +137,7 @@ class SeismicCodeChecker:
         self.pipeline = SeismicEvaluationPipeline(build_result, config, logger)
         self.wall_axial_metrics: list[WallAxialMetric] = []
 
-    def run_analysis_and_evaluate(self) -> tuple[dict[str, list[float]], dict[str, DirectionCheckResult]]:
+    def run_analysis_and_evaluate(self) -> dict[str, DirectionCheckResult]:
         check_results, wall_axial_metrics = self.pipeline.evaluate()
         self.wall_axial_metrics = wall_axial_metrics
         return check_results
