@@ -189,6 +189,7 @@ def run_case_study(
         room_polys,
         title=f"FEM Topology (Shapely) - {file_name}",
         save_path=os.path.join(output_dir, f"{file_name}_fem_members.png"),
+        show_exceptions=False,
     )
     visualize_prediction_comparison(
         builder_graph,

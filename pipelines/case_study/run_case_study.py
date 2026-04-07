@@ -3,22 +3,10 @@ Engineering Case Study: 从建筑平面图到推理、后处理与可视化
 """
 
 import argparse
-import sys
-from pathlib import Path
 
 import torch
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from pipelines.case_study.adapters import export_structural_input_json, fem_result_to_fem_input
 from pipelines.case_study.pipeline_core import run_case_study
-from pipelines.case_study.visualization import (
-    export_shearwall_coords,
-    visualize_prediction_comparison,
-    visualize_wall_layout,
-)
-from src.shearwall_pred.inference import load_ensemble_model, predict_shear_walls
 
 
 def main():
@@ -55,19 +43,6 @@ def main():
         symmetry_mode=args.symmetry_mode,
         symmetry_threshold=args.symmetry_threshold,
     )
-
-
-__all__ = [
-    "export_shearwall_coords",
-    "export_structural_input_json",
-    "fem_result_to_fem_input",
-    "load_ensemble_model",
-    "main",
-    "predict_shear_walls",
-    "run_case_study",
-    "visualize_prediction_comparison",
-    "visualize_wall_layout",
-]
 
 
 if __name__ == "__main__":

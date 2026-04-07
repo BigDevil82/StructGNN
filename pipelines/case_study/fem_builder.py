@@ -830,6 +830,8 @@ def visualize_fem_result(
     title: str = "FEM Members",
     save_path: Optional[str] = None,
     figsize: Tuple[int, int] = (10, 8),
+    show_node: bool = False,
+    show_exceptions: bool = True,
 ):
     """
     可视化FEM解析结果
@@ -840,6 +842,9 @@ def visualize_fem_result(
         title: 图标题
         save_path: 保存路径
         figsize: 图尺寸
+        show_node: 是否显示节点
+        show_exceptions: 是否显示异常构件
+
     """
     _, ax = plt.subplots(figsize=figsize)
 
@@ -867,64 +872,66 @@ def visualize_fem_result(
             linewidth = 4
             zorder = 10
         else:  # beam
-            color = "blue" if member.get("beam_role") == "primary" else "cyan"
+            color = "blue"  # if member.get("beam_role") == "primary" else "cyan"
             linewidth = 4
             zorder = 2
 
         ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=linewidth, zorder=zorder)
 
-    # 叠加绘制异常构件高亮
-    for member in members:
-        mid = member.get("id")
-        if mid in floating_member_ids:
-            start = member["start_coord"]
-            end = member["end_coord"]
-            ax.plot(
-                [start[0], end[0]],
-                [start[1], end[1]],
-                color="orange",
-                linewidth=5,
-                linestyle="--",
-                alpha=0.9,
-                zorder=30,
-            )
+    if show_exceptions:
+        # 叠加绘制异常构件高亮
+        for member in members:
+            mid = member.get("id")
+            if mid in floating_member_ids:
+                start = member["start_coord"]
+                end = member["end_coord"]
+                ax.plot(
+                    [start[0], end[0]],
+                    [start[1], end[1]],
+                    color="orange",
+                    linewidth=5,
+                    linestyle="--",
+                    alpha=0.9,
+                    zorder=30,
+                )
 
-    for member in members:
-        mid = member.get("id")
-        if mid in dangling_member_ids:
-            start = member["start_coord"]
-            end = member["end_coord"]
-            ax.plot(
-                [start[0], end[0]],
-                [start[1], end[1]],
-                color="magenta",
-                linewidth=5,
-                linestyle=":",
-                alpha=0.95,
-                zorder=35,
-            )
+        for member in members:
+            mid = member.get("id")
+            if mid in dangling_member_ids:
+                start = member["start_coord"]
+                end = member["end_coord"]
+                ax.plot(
+                    [start[0], end[0]],
+                    [start[1], end[1]],
+                    color="magenta",
+                    linewidth=5,
+                    linestyle=":",
+                    alpha=0.95,
+                    zorder=35,
+                )
 
-            # 标记悬挑自由端
-            info = dangling_member_map[mid]
-            if info["start_degree"] <= 1 and info["end_degree"] > 1:
-                free_pt = start
-            elif info["end_degree"] <= 1 and info["start_degree"] > 1:
-                free_pt = end
-            else:
-                free_pt = None
+                # 标记悬挑自由端
+                info = dangling_member_map[mid]
+                if info["start_degree"] <= 1 and info["end_degree"] > 1:
+                    free_pt = start
+                elif info["end_degree"] <= 1 and info["start_degree"] > 1:
+                    free_pt = end
+                else:
+                    free_pt = None
 
-            if free_pt is not None:
-                ax.scatter([free_pt[0]], [free_pt[1]], color="magenta", marker="x", s=70, zorder=40)
+                if free_pt is not None:
+                    ax.scatter([free_pt[0]], [free_pt[1]], color="magenta", marker="x", s=70, zorder=40)
 
-    # 绘制节点
-    node_x = [n[0] for n in nodes]
-    node_y = [n[1] for n in nodes]
-    ax.scatter(node_x, node_y, color="black", s=20, zorder=20)
+    if show_node:
+        # 绘制节点
+        node_x = [n[0] for n in nodes]
+        node_y = [n[1] for n in nodes]
+        ax.scatter(node_x, node_y, color="black", s=20, zorder=20)
 
-    # # 添加节点编号（可选）
-    # if len(nodes) <= 100:
-    #     for i, (x, y) in enumerate(nodes):
-    #         ax.annotate(str(i), (x, y), fontsize=6, ha="center", va="bottom")
+        # # 添加节点编号（可选）
+        # if len(nodes) <= 100:
+        #     for i, (x, y) in enumerate(nodes):
+        #         ax.annotate(str(i), (x, y), fontsize=6, ha="center", va="bottom")
 
     # 图例
     legend_elements = [
@@ -945,32 +952,30 @@ def visualize_fem_result(
             linewidth=2,
             label=f'Secondary Beam ({result["statistics"]["num_secondary_beams"]})',
         ),
-        Line2D(
-            [0],
-            [0],
-            color="magenta",
-            linewidth=4,
-            linestyle=":",
-            label=f"Cantilever ({len(dangling_member_ids)})",
-        ),
-        Line2D(
-            [0],
-            [0],
-            color="orange",
-            linewidth=4,
-            linestyle="--",
-            label=f"Floating ({len(floating_member_ids)})",
-        ),
-        # Line2D(
-        #     [0],
-        #     [0],
-        #     marker="o",
-        #     color="w",
-        #     markerfacecolor="black",
-        #     markersize=6,
-        #     label=f'Nodes ({result["statistics"]["num_nodes"]})',
-        # ),
     ]
+    if show_exceptions:
+        legend_elements += [
+            Line2D(
+                [0],
+                [0],
+                color="magenta",
+                linewidth=4,
+                linestyle=":",
+                label=f"Cantilever ({len(dangling_member_ids)})",
+            ),
+            Line2D(
+                [0],
+                [0],
+                color="orange",
+                linewidth=4,
+                linestyle="--",
+                label=f"Floating ({len(floating_member_ids)})",
+            ),
+        ]
+    if show_node:
+        legend_elements.append(
+            Line2D([0],[0],marker="o",color="w",markerfacecolor="black",markersize=6,label=f'Nodes ({result["statistics"]["num_nodes"]})') 
+        ) # fmt: skip
     ax.legend(handles=legend_elements, loc="upper right")
 
     ax.set_aspect("equal")
