@@ -31,7 +31,11 @@ class DesignDemandExtractor:
         combined_walls = self._combine_wall_demands(gravity_walls, seismic_walls)
         return combined_beams, combined_walls
 
-    def _run_gravity_case(self) -> tuple[dict[tuple[int, int], tuple[float, float, float]], dict[tuple[int, int], tuple[float, float, float]]]:
+    def _run_gravity_case(
+        self,
+    ) -> tuple[
+        dict[tuple[int, int], tuple[float, float, float]], dict[tuple[int, int], tuple[float, float, float]]
+    ]:
         ts_tag = 81001
         pat_tag = 81001
         floor_area = self.build_result.floor_area
@@ -41,7 +45,10 @@ class DesignDemandExtractor:
         ops.pattern("Plain", pat_tag, ts_tag)
         for story_index, floor_nodes in enumerate(self.build_result.floor_story_nodes):
             floor_force_n = (
-                (story_profiles[story_index].mass_source.dead_kpa + 0.5 * story_profiles[story_index].mass_source.live_kpa)
+                (
+                    story_profiles[story_index].mass_source.dead_kpa
+                    + 0.5 * story_profiles[story_index].mass_source.live_kpa
+                )
                 * 1000.0
                 * floor_area
             )
@@ -72,7 +79,10 @@ class DesignDemandExtractor:
 
     def _run_response_spectrum_case(
         self,
-    ) -> tuple[dict[tuple[int, int], tuple[float, float, float]], dict[tuple[int, int], tuple[float, float, float, float]]]:
+    ) -> tuple[
+        dict[tuple[int, int], tuple[float, float, float]],
+        dict[tuple[int, int], tuple[float, float, float, float]],
+    ]:
         ops.wipeAnalysis()
         ops.constraints("Transformation")
         ops.numberer("RCM")
@@ -82,14 +92,18 @@ class DesignDemandExtractor:
         ops.integrator("LoadControl", 0.0)
         ops.analysis("Static")
 
-        eigen_values = ops.eigen("-genBandArpack", min(self.config.num_modes, len(self.build_result.master_nodes) * 2))
+        eigen_values = ops.eigen(
+            "-genBandArpack", min(self.config.num_modes, len(self.build_result.master_nodes) * 2)
+        )
         if isinstance(eigen_values, (int, float)):
             eigen_values = [float(eigen_values)]
         else:
             eigen_values = [float(value) for value in eigen_values if float(value) > 1.0e-12]
 
-        beam_modal: dict[tuple[int, int], dict[str, list[float]]] = {}
-        wall_modal: dict[tuple[int, int], dict[str, list[float]]] = {}
+        ops.modalProperties("-return")
+
+        beam_modal: dict[tuple[int, int], dict[str, dict[str, list[float]]]] = {}
+        wall_modal: dict[tuple[int, int], dict[str, dict[str, list[float]]]] = {}
         for dir_idx, dir_name in ((1, "X"), (2, "Y")):
             for mode_index in range(1, len(eigen_values) + 1):
                 ops.responseSpectrumAnalysis(
@@ -104,34 +118,69 @@ class DesignDemandExtractor:
                 for unit in self.build_result.beam_element_units:
                     key = (unit.beam_id, unit.story)
                     pos_m, neg_m, shear_v = self._extract_beam_force_tuple(unit)
-                    store = beam_modal.setdefault(key, {"pos": [], "neg": [], "shear": []})
+                    store = beam_modal.setdefault(
+                        key,
+                        {
+                            "X": {"pos": [], "neg": [], "shear": []},
+                            "Y": {"pos": [], "neg": [], "shear": []},
+                        },
+                    )[dir_name]
                     store["pos"].append(pos_m)
                     store["neg"].append(neg_m)
                     store["shear"].append(shear_v)
                 for unit in self.build_result.wall_story_element_units:
                     key = (unit.wall_id, unit.story)
                     axial_n, moment_m, shear_v = self._extract_wall_force_tuple(unit, direction=dir_name)
-                    store = wall_modal.setdefault(key, {"axial": [], "moment": [], "shear": [], "ratio": []})
+                    store = wall_modal.setdefault(
+                        key,
+                        {
+                            "X": {"axial": [], "moment": [], "shear": []},
+                            "Y": {"axial": [], "moment": [], "shear": []},
+                        },
+                    )[dir_name]
                     store["axial"].append(axial_n)
                     store["moment"].append(moment_m)
                     store["shear"].append(shear_v)
 
-        beam_demands = {
-            key: (
-                _combine_modal_values(store["pos"], self.config, eigen_values),
-                _combine_modal_values(store["neg"], self.config, eigen_values),
-                _combine_modal_values(store["shear"], self.config, eigen_values),
+        beam_demands = {}
+        for key, directional_store in beam_modal.items():
+            positive_moment = max(
+                _combine_modal_values(direction_store["pos"], self.config, eigen_values)
+                for direction_store in directional_store.values()
             )
-            for key, store in beam_modal.items()
-        }
+            negative_moment = max(
+                _combine_modal_values(direction_store["neg"], self.config, eigen_values)
+                for direction_store in directional_store.values()
+            )
+            shear_force = max(
+                _combine_modal_values(direction_store["shear"], self.config, eigen_values)
+                for direction_store in directional_store.values()
+            )
+            beam_demands[key] = (positive_moment, negative_moment, shear_force)
+
         wall_demands = {}
         for unit in self.build_result.wall_story_element_units:
             key = (unit.wall_id, unit.story)
-            store = wall_modal.get(key, {"axial": [], "moment": [], "shear": []})
+            store = wall_modal.get(
+                key,
+                {
+                    "X": {"axial": [], "moment": [], "shear": []},
+                    "Y": {"axial": [], "moment": [], "shear": []},
+                },
+            )
             wall_demands[key] = (
-                _combine_modal_values(store["axial"], self.config, eigen_values) if store["axial"] else 0.0,
-                _combine_modal_values(store["moment"], self.config, eigen_values) if store["moment"] else 0.0,
-                _combine_modal_values(store["shear"], self.config, eigen_values) if store["shear"] else 0.0,
+                max(
+                    _combine_modal_values(direction_store["axial"], self.config, eigen_values)
+                    for direction_store in store.values()
+                ),
+                max(
+                    _combine_modal_values(direction_store["moment"], self.config, eigen_values)
+                    for direction_store in store.values()
+                ),
+                max(
+                    _combine_modal_values(direction_store["shear"], self.config, eigen_values)
+                    for direction_store in store.values()
+                ),
                 0.0,
             )
         return beam_demands, wall_demands
@@ -179,7 +228,9 @@ class DesignDemandExtractor:
         bending_moment = 0.0
         shear_force = 0.0
         for node in unit.bottom_nodes:
-            values = [item / max(node_force_count.get(node, 1), 1) for item in node_force_sum.get(node, [0.0] * 6)]
+            values = [
+                item / max(node_force_count.get(node, 1), 1) for item in node_force_sum.get(node, [0.0] * 6)
+            ]
             x, y, _ = unit.node_coords[node]
             axial_force += abs(values[2])
             arm_m = (x - centroid_x) * axis_x + (y - centroid_y) * axis_y
