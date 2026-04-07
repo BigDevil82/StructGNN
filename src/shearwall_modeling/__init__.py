@@ -10,6 +10,7 @@ from .core.config import (
     StoryProfile,
 )
 from .core.domain import BeamMember, BeamRole, FEMInput, PlanMember, Point2D
+from .design import ReinforcementDesignConstants, ReinforcementDesignPipeline, ReinforcementDesignSummary
 from .geometry.scaling import load_and_scale_input
 from .parametric.generator import (
     ParametricModelParams,
@@ -27,6 +28,9 @@ __all__ = [
     "PlanMember",
     "Point2D",
     "ParametricModelParams",
+    "ReinforcementDesignConstants",
+    "ReinforcementDesignPipeline",
+    "ReinforcementDesignSummary",
     "ResponseSpectrum",
     "ResponseSpectrumBuilder",
     "SectionConfig",

@@ -8,7 +8,7 @@ import openseespy.opensees as ops
 from ..core.config import MaterialConfig, ModelConfig, StoryProfile
 from ..core.domain import BeamRole, FEMInput
 from ..geometry.mass_estimation import estimate_floor_area, estimate_structural_self_mass_per_floor
-from .base import ModelBuildResult, StructuralModelBuilder, WallBaseCheckUnit
+from .base import BeamElementUnit, ModelBuildResult, StructuralModelBuilder, WallBaseCheckUnit, WallStoryElementUnit
 
 
 def _beam_section_props(width: float, depth: float) -> tuple[float, float, float, float]:
@@ -88,6 +88,8 @@ class _ElementBuildResult:
     shell_count: int
     beam_count: int
     beam_count_by_role: dict[BeamRole, int]
+    beam_element_units: list[BeamElementUnit]
+    wall_story_element_units: list[WallStoryElementUnit]
 
 
 class DetailedShellBuilder(StructuralModelBuilder):
@@ -176,6 +178,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 floor_area=floor_area,
                 wall_base_units=wall_base_units,
                 floor_story_nodes=floor_story_nodes,
+                beam_element_units=element_result.beam_element_units,
+                wall_story_element_units=element_result.wall_story_element_units,
             )
 
     def _calc_floor_masses(
@@ -244,9 +248,10 @@ class DetailedShellBuilder(StructuralModelBuilder):
         fixed_base_nodes: set[int] = set()
         floor_nodes: dict[int, set[int]] = {story: set() for story in range(1, num_stories + 1)}
         wall_base_nodes: list[list[int]] = []
+        wall_story_element_units: list[WallStoryElementUnit] = []
 
         shell_count = 0
-        for wall in input_data.walls:
+        for wall_id, wall in enumerate(input_data.walls, start=1):
             if wall.length < 1.0e-6:
                 continue
             div = max(1, int(math.ceil(wall.length / self.wall_mesh_size_m)))
@@ -271,21 +276,37 @@ class DetailedShellBuilder(StructuralModelBuilder):
             wall_base_nodes.append(sorted(set(wall_grid[0])))
 
             for level in range(num_stories):
+                story_element_tags: list[int] = []
                 for i in range(div):
                     n1 = wall_grid[level][i]
                     n2 = wall_grid[level][i + 1]
                     n3 = wall_grid[level + 1][i + 1]
                     n4 = wall_grid[level + 1][i]
-                    self.model.create_element("ShellMITC4", n1, n2, n3, n4, shell_section_by_story[level + 1])
+                    tag = self.model.create_element("ShellMITC4", n1, n2, n3, n4, shell_section_by_story[level + 1])
+                    story_element_tags.append(tag)
                     shell_count += 1
+                wall_story_element_units.append(
+                    WallStoryElementUnit(
+                        wall_id=wall_id,
+                        story=level + 1,
+                        element_tags=story_element_tags,
+                        bottom_nodes=sorted(set(wall_grid[level])),
+                        top_nodes=sorted(set(wall_grid[level + 1])),
+                        node_coords=dict(self.model.node_coords),
+                        member=wall,
+                        thickness=story_profiles[level].section.wall_thickness,
+                        story_height=story_profiles[level].story_height,
+                    )
+                )
 
         beam_count = 0
         beam_count_by_role: dict[BeamRole, int] = {BeamRole.PRIMARY: 0, BeamRole.SECONDARY: 0}
+        beam_element_units: list[BeamElementUnit] = []
 
         for story, profile in enumerate(story_profiles, start=1):
             z = profile.z_top
             e, g, _ = _material_props(profile.material)
-            for beam in input_data.beams:
+            for beam_id, beam in enumerate(input_data.beams, start=1):
                 beam_w, beam_d = profile.section.get_beam_section(beam.role)
                 beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(beam_w, beam_d)
 
@@ -297,11 +318,23 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 if ni == nj:
                     continue
 
-                self.model.create_element(
+                tag = self.model.create_element(
                     "elasticBeamColumn", ni, nj, beam_area, e, g, beam_j, beam_iy, beam_iz, beam_transf_tag
                 )  # fmt: skip
                 beam_count += 1
                 beam_count_by_role[beam.role] += 1
+                beam_element_units.append(
+                    BeamElementUnit(
+                        beam_id=beam_id,
+                        story=story,
+                        element_tag=tag,
+                        member=beam,
+                        role=beam.role,
+                        width=beam_w,
+                        depth=beam_d,
+                        length=beam.length,
+                    )
+                )
 
         return _ElementBuildResult(
             node_coords=dict(self.model.node_coords),
@@ -310,6 +343,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
             shell_count=shell_count,
             beam_count=beam_count,
             beam_count_by_role=beam_count_by_role,
+            beam_element_units=beam_element_units,
+            wall_story_element_units=wall_story_element_units,
         )
 
     def _create_story_masters(
