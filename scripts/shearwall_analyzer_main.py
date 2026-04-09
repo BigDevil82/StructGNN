@@ -15,12 +15,17 @@ from src.shearwall_modeling import (
     build_model_config_from_params,
     load_and_scale_input,
 )
-from src.shearwall_modeling.builders import DetailedShellBuilder
-from src.shearwall_modeling.evaluation import SeismicCodeChecker
-
-logger = setup_file_logger(
-    "ShearwallAnalyzer", Path("outputs/result/logs/shearwall_analyzer.log"), logging.INFO
+from src.shearwall_modeling.analysis.evaluation import (
+    AnalysisResultBuilder,
+    EvaluationReportPrinter,
+    SeismicEvaluationPipeline,
 )
+from src.shearwall_modeling.builders import DetailedShellBuilder
+from src.shearwall_modeling.builders.base import AnalysisModelContext
+from src.shearwall_modeling.core.domain import FEMInput
+from src.shearwall_modeling.design.pipeline import ReinforcementDesignPipeline
+
+logger = setup_file_logger("ShearwallAnalyzer", Path("outputs/result/logs/shearwall_analyzer.log"), logging.INFO)
 logger.info("\n\n\n\nSHEARWALL ANALYZER STARTED\n")
 
 
@@ -79,13 +84,34 @@ def build_single_parametric(json_path: Path, params: ParametricModelParams) -> N
     run_with_config(input_data, config)
 
 
-def run_with_config(input_data, config: ModelConfig) -> None:
+def run_with_config(input_data: FEMInput, config: ModelConfig) -> None:
     builder = DetailedShellBuilder(logger)
     build_result = builder.build(input_data, config)
 
-    checker = SeismicCodeChecker(build_result, config, logger)
-    _, res = checker.run_analysis_and_evaluate()
-    checker._print_report(res)
+    context = AnalysisModelContext(build_result=build_result, config=config, logger=logger)
+    analysis_result = AnalysisResultBuilder(context).build()
+
+    checker = SeismicEvaluationPipeline(config)
+    overall_results, dir_chk_results = checker.evaluate(analysis_result)
+
+    report_printer = EvaluationReportPrinter(logger)
+    report_printer.print(config, analysis_result, overall_results, dir_chk_results)
+
+    design_pipeline = ReinforcementDesignPipeline(build_result, analysis_result, config, logger)
+    design_summary = design_pipeline.run()
+
+    print("Is passed:", design_summary.is_passed)
+    print("Total Concrete Usage(t):", design_summary.total_concrete_kg / 1000)
+    print("Total Steel Usage(t):", design_summary.total_steel_kg / 1000)
+
+    print("failed beams:", len(design_summary.failed_beams))
+    print("failed walls:", len(design_summary.failed_walls))
+
+    for wall in design_summary.failed_walls:
+        wall_id = wall.wall_id
+        print(
+            f"Failed Wall - ID: {wall.wall_id}, Story: {wall.story}, Messages: {wall.messages}, length: {input_data.walls[wall_id].length:.2f}m"
+        )
 
     ops.wipe()
 
@@ -146,8 +172,10 @@ def main() -> None:
     #         seismic_group=1,
     #     ),
     # )
-    build_single(Path(r"data\dxf\cad_json_data\fem_raw_tmp\L1L28_10.json"))
-    # build_single(Path(r"outputs\result\case_study\archi_comp_fem_data.json"))
+    print("Starting single model analysis...")
+    with Timer(prefix="Single model analysis time:"):
+        build_single(Path(r"data\dxf\cad_json_data\fem_raw_tmp\L1L28_10.json"))
+        # build_single(Path(r"outputs\result\case_study\archi_comp_fem_data.json"))
 
 
 if __name__ == "__main__":

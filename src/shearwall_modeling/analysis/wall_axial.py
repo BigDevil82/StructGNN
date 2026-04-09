@@ -2,7 +2,7 @@ import openseespy.opensees as ops
 
 from ..builders.base import AnalysisModelContext
 from .member_forces import collect_wall_axial_metrics, extract_beam_force_tuple, extract_wall_force_tuple
-from .results import GravityCaseResult, WallAxialMetric
+from .results import GravityCaseResult
 
 
 class GravityCaseAnalyzer:
