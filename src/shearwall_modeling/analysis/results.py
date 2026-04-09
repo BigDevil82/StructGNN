@@ -92,7 +92,7 @@ class AnalysisResult:
     gravity_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
     gravity_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
     seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
-    seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float, float]]
+    seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
     wall_axial_metrics: list[WallAxialMetric]
 
 
@@ -104,7 +104,7 @@ class ResponseSpectrumCaseResult:
     story_weights: list[float]
     direction_responses: dict[str, DirectionResponse]
     seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
-    seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float, float]]
+    seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
 
 
 @dataclass

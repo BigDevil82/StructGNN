@@ -314,13 +314,13 @@ class ResponseSpectrumAnalyzer:
 
     def _envelope_wall_forces(
         self, wall_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]]
-    ) -> dict[tuple[int, int], tuple[float, float, float, float]]:
+    ) -> dict[tuple[int, int], tuple[float, float, float]]:
         """Take the design envelope of wall effects over X/Y directional RSA.
 
         Each directional entry is the modal-combined wall result
-        `(axial_force, bending_moment, shear_force)`. The returned tuple keeps
-        the existing four-value shape expected by the design pipeline, so the
-        last `0.0` remains a compatibility placeholder.
+        `(axial_force, bending_moment, shear_force)`. This step only takes the
+        component-wise maximum over horizontal directions for downstream wall
+        design.
         """
         keys = {key for values in wall_forces_by_dir.values() for key in values}
         return {
@@ -328,7 +328,6 @@ class ResponseSpectrumAnalyzer:
                 max(wall_forces_by_dir[dir_name][key][0] for dir_name in wall_forces_by_dir),
                 max(wall_forces_by_dir[dir_name][key][1] for dir_name in wall_forces_by_dir),
                 max(wall_forces_by_dir[dir_name][key][2] for dir_name in wall_forces_by_dir),
-                0.0,
             )
             for key in keys
         }
