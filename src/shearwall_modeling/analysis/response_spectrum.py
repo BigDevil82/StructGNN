@@ -6,9 +6,9 @@ from typing import Any
 
 import openseespy.opensees as ops
 
-from ..builders.base import ModelBuildResult
+from ..builders.base import ModelBuildResult, WallStoryElementUnit
 from ..core.config import ModelConfig
-from ..core.constants import CONCRETE_COMPRESSIVE_STRENGTH_PA
+from ..core.constants import concrete_fc_pa
 from .combinations import cqc, srss
 from .modal import identify_dominant_modes, modal_periods_from_eigenvalues
 from .results import AnalysisSnapshot, DirectionResponse, ModalSummary, StoryMetric, WallAxialMetric
@@ -219,25 +219,17 @@ class ResponseSpectrumAnalyzer:
             store["moment"].append(moment_m)
             store["shear"].append(shear_v)
 
-    def _update_story_stiffness_ratios(
-        self, metrics: list[StoryMetric], stiffness_values: list[float]
-    ) -> None:
+    def _update_story_stiffness_ratios(self, metrics: list[StoryMetric], stiffness_values: list[float]) -> None:
         for story_index, metric in enumerate(metrics):
             current_stiffness = stiffness_values[story_index]
-            next_stiffness = (
-                stiffness_values[story_index + 1] if story_index < len(metrics) - 1 else current_stiffness
-            )
+            next_stiffness = stiffness_values[story_index + 1] if story_index < len(metrics) - 1 else current_stiffness
             upper_stiffness = [
-                stiffness_values[story_index + offset]
-                for offset in range(1, 4)
-                if story_index + offset < len(metrics)
+                stiffness_values[story_index + offset] for offset in range(1, 4) if story_index + offset < len(metrics)
             ]
             average_upper_stiffness = (
                 sum(upper_stiffness) / len(upper_stiffness) if upper_stiffness else current_stiffness
             )
-            metric.stiffness_ratio_adjacent = (
-                current_stiffness / next_stiffness if next_stiffness > 1.0e-9 else 1.0
-            )
+            metric.stiffness_ratio_adjacent = current_stiffness / next_stiffness if next_stiffness > 1.0e-9 else 1.0
             metric.stiffness_ratio_average = (
                 current_stiffness / average_upper_stiffness if average_upper_stiffness > 1.0e-9 else 1.0
             )
@@ -422,7 +414,7 @@ class ResponseSpectrumAnalyzer:
         shear = max(abs(force[2]), abs(force[8]))
         return positive_moment, negative_moment, shear
 
-    def _extract_wall_force_tuple(self, unit, dir_name: str | None) -> tuple[float, float, float]:
+    def _extract_wall_force_tuple(self, unit: WallStoryElementUnit, dir_name: str | None) -> tuple[float, float, float]:
         node_force_sum: dict[int, list[float]] = {}
         node_force_count: dict[int, int] = {}
         for tag in unit.element_tags:
@@ -453,9 +445,7 @@ class ResponseSpectrumAnalyzer:
         bending_moment = 0.0
         shear_force = 0.0
         for node in unit.bottom_nodes:
-            values = [
-                item / max(node_force_count.get(node, 1), 1) for item in node_force_sum.get(node, [0.0] * 6)
-            ]
+            values = [item / max(node_force_count.get(node, 1), 1) for item in node_force_sum.get(node, [0.0] * 6)]
             x, y, _ = unit.node_coords[node]
             axial_force += abs(values[2])
             arm_m = (x - centroid_x) * axis_x + (y - centroid_y) * axis_y
@@ -527,7 +517,7 @@ class ResponseSpectrumAnalyzer:
             for node in unit.base_nodes:
                 node_share[node] += 1
 
-        fc_pa = self._concrete_fc_pa(self.context.story_profiles[0].material.concrete_grade)
+        fc_pa = concrete_fc_pa(self.context.story_profiles[0].material.concrete_grade)
         ratio_limit = self.context.config.seismic.axial_compression_ratio_limit
         metrics: list[WallAxialMetric] = []
         for unit in self.context.wall_base_units:
@@ -547,9 +537,3 @@ class ResponseSpectrumAnalyzer:
                 )
             )
         return metrics
-
-    def _concrete_fc_pa(self, concrete_grade: str) -> float:
-        grade = concrete_grade.strip().upper()
-        if grade not in CONCRETE_COMPRESSIVE_STRENGTH_PA:
-            raise ValueError(f"Unsupported concrete grade for axial check: {concrete_grade}")
-        return CONCRETE_COMPRESSIVE_STRENGTH_PA[grade]

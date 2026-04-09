@@ -1,6 +1,6 @@
 import openseespy.opensees as ops
 
-from ..core.constants import CONCRETE_COMPRESSIVE_STRENGTH_PA
+from ..core.constants import concrete_fc_pa
 from .response_spectrum import AnalysisModelContext
 from .results import WallAxialMetric
 
@@ -8,12 +8,6 @@ from .results import WallAxialMetric
 class WallAxialCompressionChecker:
     def __init__(self, context: AnalysisModelContext):
         self.context = context
-
-    def _concrete_fc_pa(self, concrete_grade: str) -> float:
-        grade = concrete_grade.strip().upper()
-        if grade not in CONCRETE_COMPRESSIVE_STRENGTH_PA:
-            raise ValueError(f"Unsupported concrete grade for axial check: {concrete_grade}")
-        return CONCRETE_COMPRESSIVE_STRENGTH_PA[grade]
 
     def check(self) -> list[WallAxialMetric]:
         snapshot = self.context.build_result.analysis_snapshot
@@ -54,7 +48,7 @@ class WallAxialCompressionChecker:
             for node in unit.base_nodes:
                 node_share[node] += 1
 
-        fc_pa = self._concrete_fc_pa(self.context.story_profiles[0].material.concrete_grade)
+        fc_pa = concrete_fc_pa(self.context.story_profiles[0].material.concrete_grade)
         ratio_limit = self.context.config.seismic.axial_compression_ratio_limit
         metrics: list[WallAxialMetric] = []
         for unit in self.context.wall_base_units:

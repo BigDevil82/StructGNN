@@ -57,3 +57,9 @@ class RectSlabFilterBounds:
     min_depth_floor: float = 1.0
     min_area_floor: float = 2.0
 
+
+def concrete_fc_pa(concrete_grade: str) -> float:
+    grade = concrete_grade.strip().upper()
+    if grade not in CONCRETE_COMPRESSIVE_STRENGTH_PA:
+        raise ValueError(f"Unsupported concrete grade for axial check: {concrete_grade}")
+    return CONCRETE_COMPRESSIVE_STRENGTH_PA[grade]
