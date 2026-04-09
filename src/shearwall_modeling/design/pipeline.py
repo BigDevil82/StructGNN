@@ -1,6 +1,6 @@
 import logging
 
-from ..analysis.results import AnalysisSnapshot
+from ..analysis.results import AnalysisResult
 from ..builders.base import ModelBuildResult
 from ..core.config import ModelConfig
 from ..core.constants import MIN_WALL_LEN_CHECK_THRESHOLD_M
@@ -15,7 +15,7 @@ class ReinforcementDesignPipeline:
     def __init__(
         self,
         build_result: ModelBuildResult,
-        analysis_result: AnalysisSnapshot,
+        analysis_result: AnalysisResult,
         config: ModelConfig,
         logger: logging.Logger,
         constants: ReinforcementDesignConstants | None = None,

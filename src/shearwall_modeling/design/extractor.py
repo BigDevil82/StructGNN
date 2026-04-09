@@ -1,7 +1,7 @@
 import logging
 
 from ..analysis.evaluation import AnalysisResultBuilder
-from ..analysis.results import AnalysisSnapshot
+from ..analysis.results import AnalysisResult
 from ..builders.base import AnalysisModelContext, ModelBuildResult
 from ..core.config import ModelConfig
 from .constants import CONCRETE_COMPRESSIVE_STRENGTH_MPA
@@ -16,7 +16,7 @@ class DesignDemandExtractor:
         context = AnalysisModelContext(build_result=build_result, config=config, logger=logger)
         self.snapshot_builder = AnalysisResultBuilder(context)
 
-    def extract(self, analysis_result: AnalysisSnapshot) -> tuple[list[BeamDesignDemand], list[WallDesignDemand]]:
+    def extract(self, analysis_result: AnalysisResult) -> tuple[list[BeamDesignDemand], list[WallDesignDemand]]:
         combined_beams = self._combine_beam_demands(
             analysis_result.gravity_beam_forces,
             analysis_result.seismic_beam_forces,

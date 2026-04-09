@@ -83,7 +83,7 @@ class WallAxialMetric:
 
 
 @dataclass
-class AnalysisSnapshot:
+class AnalysisResult:
     eigen_values: list[float]
     modal_periods: list[float]
     modal_summary: ModalSummary

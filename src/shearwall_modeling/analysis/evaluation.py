@@ -12,7 +12,7 @@ from .checkers import (
 )
 from .response_spectrum import ResponseSpectrumAnalyzer
 from .results import (
-    AnalysisSnapshot,
+    AnalysisResult,
     DirectionCheckResult,
     DirectionResponse,
     GravityCaseResult,
@@ -31,7 +31,7 @@ class EvaluationReportPrinter:
 
     def print(
         self,
-        analysis_result: AnalysisSnapshot,
+        analysis_result: AnalysisResult,
         overall_result: OverallCheckResult,
         dir_results: dict[str, DirectionCheckResult],
         wall_axial_metrics: list[WallAxialMetric],
@@ -122,7 +122,7 @@ class SeismicEvaluationPipeline:
 
         return result
 
-    def evaluate(self, anysis_result: AnalysisSnapshot) -> tuple[OverallCheckResult, dict[str, DirectionCheckResult]]:
+    def evaluate(self, anysis_result: AnalysisResult) -> tuple[OverallCheckResult, dict[str, DirectionCheckResult]]:
 
         overall_result = OverallCheckResult()
         dir_chk_results: dict[str, DirectionCheckResult] = {}
@@ -150,15 +150,15 @@ class AnalysisResultBuilder:
         self.rsa_analyzer = ResponseSpectrumAnalyzer(context)
         self.gravity_analyzer = GravityCaseAnalyzer(context)
 
-    def build(self) -> AnalysisSnapshot:
+    def build(self) -> AnalysisResult:
         rsa_result = self.rsa_analyzer.run()
         gravity_result = self.gravity_analyzer.run()
         return self._compose_snapshot(rsa_result, gravity_result)
 
     def _compose_snapshot(
         self, rsa_result: ResponseSpectrumCaseResult, gravity_result: GravityCaseResult
-    ) -> AnalysisSnapshot:
-        return AnalysisSnapshot(
+    ) -> AnalysisResult:
+        return AnalysisResult(
             eigen_values=rsa_result.eigen_values,
             modal_periods=rsa_result.modal_periods,
             modal_summary=rsa_result.modal_summary,
