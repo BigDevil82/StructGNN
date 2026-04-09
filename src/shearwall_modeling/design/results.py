@@ -93,10 +93,6 @@ class ReinforcementDesignSummary:
         )
 
     @property
-    def total_material_kg(self) -> float:
-        return self.total_concrete_kg + self.total_steel_kg
-
-    @property
     def failed_beams(self) -> list[BeamReinforcementResult]:
         return [item for item in self.beam_results if not item.is_passed]
 
@@ -107,4 +103,3 @@ class ReinforcementDesignSummary:
     @property
     def is_passed(self) -> bool:
         return not self.failed_beams and not self.failed_walls
-
