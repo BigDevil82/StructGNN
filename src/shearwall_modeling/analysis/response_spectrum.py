@@ -1,17 +1,16 @@
 import logging
-import math
 from dataclasses import dataclass
 from time import time
 from typing import Any
 
 import openseespy.opensees as ops
 
-from ..builders.base import ModelBuildResult, WallStoryElementUnit
+from ..builders.base import ModelBuildResult
 from ..core.config import ModelConfig
-from ..core.constants import concrete_fc_pa
 from .combinations import cqc, srss
+from .member_forces import extract_beam_force_tuple, extract_wall_force_tuple
 from .modal import identify_dominant_modes, modal_periods_from_eigenvalues
-from .results import AnalysisSnapshot, DirectionResponse, ModalSummary, StoryMetric, WallAxialMetric
+from .results import DirectionResponse, ModalSummary, ResponseSpectrumCaseResult, StoryMetric
 
 
 @dataclass(frozen=True)
@@ -83,7 +82,7 @@ class ResponseSpectrumAnalyzer:
             return cqc(modal_values, eigen_values, damping, scale_factors)
         return srss(modal_values, scale_factors)
 
-    def build_snapshot(self) -> AnalysisSnapshot:
+    def run(self) -> ResponseSpectrumCaseResult:
         eigen_values, modal_periods, modal_summary = self.run_modal_case()
         story_weights = self.compute_story_weights()
 
@@ -103,18 +102,14 @@ class ResponseSpectrumAnalyzer:
             beam_forces_by_dir[dir_name] = beam_forces
             wall_forces_by_dir[dir_name] = wall_forces
 
-        gravity_beam_forces, gravity_wall_forces, wall_axial_metrics = self._run_gravity_case()
-        return AnalysisSnapshot(
+        return ResponseSpectrumCaseResult(
             eigen_values=eigen_values,
             modal_periods=modal_periods,
             modal_summary=modal_summary,
             story_weights=story_weights,
             direction_responses=direction_responses,
-            gravity_beam_forces=gravity_beam_forces,
-            gravity_wall_forces=gravity_wall_forces,
             seismic_beam_forces=self._envelope_beam_forces(beam_forces_by_dir),
             seismic_wall_forces=self._envelope_wall_forces(wall_forces_by_dir),
-            wall_axial_metrics=wall_axial_metrics,
         )
 
     def extract_modal_summary(self, modal_periods: list[float], modal_props: dict[str, Any]) -> ModalSummary:
@@ -202,7 +197,7 @@ class ResponseSpectrumAnalyzer:
 
         for unit in self.context.beam_element_units:
             key = (unit.beam_id, unit.story)
-            pos_m, neg_m, shear_v = self._extract_beam_force_tuple(unit.element_tag)
+            pos_m, neg_m, shear_v = extract_beam_force_tuple(unit.element_tag)
             store = beam_modal_forces.setdefault(key, {"pos": [], "neg": [], "shear": []})
             store["pos"].append(pos_m)
             store["neg"].append(neg_m)
@@ -210,7 +205,7 @@ class ResponseSpectrumAnalyzer:
 
         for unit in self.context.wall_story_element_units:
             key = (unit.wall_id, unit.story)
-            axial_n, moment_m, shear_v = self._extract_wall_force_tuple(unit, dir_name)
+            axial_n, moment_m, shear_v = extract_wall_force_tuple(unit, dir_name)
             store = wall_modal_forces.setdefault(key, {"axial": [], "moment": [], "shear": []})
             store["axial"].append(axial_n)
             store["moment"].append(moment_m)
@@ -337,107 +332,6 @@ class ResponseSpectrumAnalyzer:
             self._combine_wall_modal_forces(wall_modal_forces, eigen_values),
         )
 
-    def _configure_gravity_analysis(self) -> None:
-        ops.wipeAnalysis()
-        ops.constraints("Transformation")
-        ops.numberer("RCM")
-        ops.system("UmfPack")
-        ops.test("NormDispIncr", 1.0e-6, 20)
-        ops.algorithm("Newton")
-        ops.integrator("LoadControl", 1.0)
-        ops.analysis("Static")
-
-    def _story_gravity_force_n(self, story_index: int) -> float:
-        profile = self.context.story_profiles[story_index]
-        return self.context.floor_masses[story_index] * profile.mass_source.gravity
-
-    def _run_gravity_case(
-        self,
-    ) -> tuple[
-        dict[tuple[int, int], tuple[float, float, float]],
-        dict[tuple[int, int], tuple[float, float, float]],
-        list[WallAxialMetric],
-    ]:
-        ts_tag = 81001
-        pat_tag = 81001
-
-        ops.timeSeries("Linear", ts_tag)
-        ops.pattern("Plain", pat_tag, ts_tag)
-        for story_index, floor_nodes in enumerate(self.context.floor_story_nodes):
-            floor_force_n = self._story_gravity_force_n(story_index)
-            nodal_force = floor_force_n / len(floor_nodes)
-            for node in floor_nodes:
-                ops.load(node, 0.0, 0.0, -nodal_force, 0.0, 0.0, 0.0)
-
-        self._configure_gravity_analysis()
-        if ops.analyze(1) != 0:
-            raise RuntimeError("Gravity analysis failed while extracting analysis snapshot.")
-
-        beam_forces = {
-            (unit.beam_id, unit.story): self._extract_beam_force_tuple(unit.element_tag)
-            for unit in self.context.beam_element_units
-        }
-        wall_forces = {
-            (unit.wall_id, unit.story): self._extract_wall_force_tuple(unit, dir_name=None)
-            for unit in self.context.wall_story_element_units
-        }
-        ops.reactions()
-        return beam_forces, wall_forces, self._collect_wall_axial_metrics()
-
-    def _extract_beam_force_tuple(self, element_tag: int) -> tuple[float, float, float]:
-        force = [float(value) for value in ops.eleForce(element_tag)]
-        if len(force) < 12:
-            return 0.0, 0.0, 0.0
-        end_moments = [force[4], force[10]]
-        positive_moment = max([value for value in end_moments if value > 0.0] + [0.0])
-        negative_moment = max([abs(value) for value in end_moments if value < 0.0] + [0.0])
-        shear = max(abs(force[2]), abs(force[8]))
-        return positive_moment, negative_moment, shear
-
-    def _extract_wall_force_tuple(self, unit: WallStoryElementUnit, dir_name: str | None) -> tuple[float, float, float]:
-        node_force_sum: dict[int, list[float]] = {}
-        node_force_count: dict[int, int] = {}
-        for tag in unit.element_tags:
-            raw = ops.eleResponse(tag, "forces")
-            values = [float(value) for value in raw] if raw else [float(value) for value in ops.eleForce(tag)]
-            if len(values) < 24:
-                continue
-            for local_index, node in enumerate((unit.bottom_nodes + unit.top_nodes)[:4]):
-                start = local_index * 6
-                force_slice = values[start : start + 6]
-                node_force_sum.setdefault(node, [0.0] * 6)
-                node_force_count[node] = node_force_count.get(node, 0) + 1
-                for idx, value in enumerate(force_slice):
-                    node_force_sum[node][idx] += value
-
-        if not node_force_sum:
-            return 0.0, 0.0, 0.0
-
-        centroid_x = 0.5 * (unit.member.start.x + unit.member.end.x)
-        centroid_y = 0.5 * (unit.member.start.y + unit.member.end.y)
-        axis_x = unit.member.end.x - unit.member.start.x
-        axis_y = unit.member.end.y - unit.member.start.y
-        axis_len = max(math.hypot(axis_x, axis_y), 1.0e-9)
-        axis_x /= axis_len
-        axis_y /= axis_len
-
-        axial_force = 0.0
-        bending_moment = 0.0
-        shear_force = 0.0
-        for node in unit.bottom_nodes:
-            values = [item / max(node_force_count.get(node, 1), 1) for item in node_force_sum.get(node, [0.0] * 6)]
-            x, y, _ = unit.node_coords[node]
-            axial_force += abs(values[2])
-            arm_m = (x - centroid_x) * axis_x + (y - centroid_y) * axis_y
-            bending_moment += abs(values[2] * arm_m)
-            if dir_name == "X":
-                shear_force += abs(values[0])
-            elif dir_name == "Y":
-                shear_force += abs(values[1])
-            else:
-                shear_force += max(abs(values[0]), abs(values[1]))
-        return axial_force, bending_moment, shear_force
-
     def _combine_beam_modal_forces(
         self, beam_modal_forces: dict[tuple[int, int], dict[str, list[float]]], eigen_values: list[float]
     ) -> dict[tuple[int, int], tuple[float, float, float]]:
@@ -488,32 +382,3 @@ class ResponseSpectrumAnalyzer:
             )
             for key in keys
         }
-
-    def _collect_wall_axial_metrics(self) -> list[WallAxialMetric]:
-        base_nodes = sorted({node for unit in self.context.wall_base_units for node in unit.base_nodes})
-        node_reactions = {node: ops.nodeReaction(node, 3) for node in base_nodes}
-        node_share = {node: 0 for node in base_nodes}
-        for unit in self.context.wall_base_units:
-            for node in unit.base_nodes:
-                node_share[node] += 1
-
-        fc_pa = concrete_fc_pa(self.context.story_profiles[0].material.concrete_grade)
-        ratio_limit = self.context.config.seismic.axial_compression_ratio_limit
-        metrics: list[WallAxialMetric] = []
-        for unit in self.context.wall_base_units:
-            axial_force_n = sum(node_reactions[node] / node_share[node] for node in unit.base_nodes)
-            area_m2 = unit.length * unit.thickness
-            stress_pa = axial_force_n / area_m2
-            axial_ratio = stress_pa / fc_pa
-            metrics.append(
-                WallAxialMetric(
-                    wall_id=unit.wall_id,
-                    axial_force_n=axial_force_n,
-                    area_m2=area_m2,
-                    axial_stress_mpa=stress_pa / 1.0e6,
-                    axial_ratio=axial_ratio,
-                    ratio_limit=ratio_limit,
-                    is_passed=axial_ratio <= ratio_limit,
-                )
-            )
-        return metrics

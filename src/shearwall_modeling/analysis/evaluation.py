@@ -11,7 +11,16 @@ from .checkers import (
     TorsionChecker,
 )
 from .response_spectrum import AnalysisModelContext, ResponseSpectrumAnalyzer
-from .results import AnalysisSnapshot, DirectionCheckResult, DirectionResponse, WallAxialMetric, init_direction_check_result
+from .results import (
+    AnalysisSnapshot,
+    DirectionCheckResult,
+    DirectionResponse,
+    GravityCaseResult,
+    ResponseSpectrumCaseResult,
+    WallAxialMetric,
+    init_direction_check_result,
+)
+from .wall_axial import WallAxialCompressionChecker
 
 
 class EvaluationReportPrinter:
@@ -19,9 +28,7 @@ class EvaluationReportPrinter:
         self.logger = logger
         self.min_shear_ratio = min_shear_ratio
 
-    def print(
-        self, results: dict[str, DirectionCheckResult], wall_axial_metrics: list[WallAxialMetric]
-    ) -> None:
+    def print(self, results: dict[str, DirectionCheckResult], wall_axial_metrics: list[WallAxialMetric]) -> None:
         self.logger.info("\n" + "=" * 50)
         self.logger.info("结构抗震规范核心指标综合校核报告")
         self.logger.info("=" * 50)
@@ -49,16 +56,12 @@ class EvaluationReportPrinter:
 
         for dir_name, result in results.items():
             self.logger.info(f"\n【{dir_name}向校核结果】")
-            self.logger.info(
-                f" -> 扭转不规则 (限值 1.2/1.5): {'✅通过' if result.is_torsion_passed else '❌超限'}"
-            )
+            self.logger.info(f" -> 扭转不规则 (限值 1.2/1.5): {'✅通过' if result.is_torsion_passed else '❌超限'}")
             self.logger.info(
                 f" -> 最小剪重比 (限值 {self.min_shear_ratio}): "
                 f"{'✅通过' if result.is_shear_weight_passed else '❌超限'}"
             )
-            self.logger.info(
-                f" -> 刚度突变 (限值 0.7/0.8): {'✅通过' if result.is_stiffness_passed else '❌超限'}"
-            )
+            self.logger.info(f" -> 刚度突变 (限值 0.7/0.8): {'✅通过' if result.is_stiffness_passed else '❌超限'}")
             self.logger.info(
                 " -> 最大层间位移角 "
                 f"(限值 1/{int(round(1.0 / result.interstory_drift_limit))}): "
@@ -67,11 +70,11 @@ class EvaluationReportPrinter:
                 f"{'✅通过' if result.is_interstory_drift_passed else '❌超限'}"
             )
             self.logger.info("楼层 | 层间位移角Max | 位移比(Max/Avg) | 剪重比(%) | 刚度比γ1 | 刚度比γ2")
-            self.logger.info("-" * 78)
+            self.logger.info("-" * 60)
             for metric in reversed(result.metrics):
                 self.logger.info(
-                    f"  {metric.story:02d}  |    {metric.drift_max:.6f}   |     {metric.torsion_ratio:.3f}     "
-                    f"|   {metric.shear_weight_ratio*100:.2f}   |  {metric.gamma1:.2f}   |  {metric.gamma2:.2f}"
+                    f"  {metric.story:02d} | {metric.drift_max:.6f} | {metric.torsion_ratio:.3f} "
+                    f"| {metric.shear_weight_ratio*100:.2f} | {metric.gamma1:.2f} | {metric.gamma2:.2f}"
                 )
 
         if wall_axial_metrics:
@@ -81,13 +84,14 @@ class EvaluationReportPrinter:
                 f" 控制墙肢: #{worst.wall_id}, 轴压比={worst.axial_ratio:.3f}, "
                 f"限值={worst.ratio_limit:.3f}, {'✅通过' if worst.is_passed else '❌超限'}"
             )
-            self.logger.info("墙ID | 轴力(kN) | 面积(m2) | 轴应力(MPa) | 轴压比")
-            self.logger.info("-" * 64)
-            for item in wall_axial_metrics:
-                self.logger.info(
-                    f" {item.wall_id:03d} | {item.axial_force_n/1e3:8.2f} | {item.area_m2:7.3f} | "
-                    f" {item.axial_stress_mpa:9.3f} | {item.axial_ratio:6.3f}"
-                )
+            if not worst.is_passed:
+                self.logger.info("墙ID | 轴力(kN) | 面积(m2) | 轴应力(MPa) | 轴压比")
+                self.logger.info("-" * 64)
+                for item in [m for m in wall_axial_metrics if not m.is_passed]:
+                    self.logger.info(
+                        f" {item.wall_id:03d} | {item.axial_force_n/1e3:8.2f} | {item.area_m2:7.3f} | "
+                        f" {item.axial_stress_mpa:9.3f} | {item.axial_ratio:6.3f}"
+                    )
 
 
 class SeismicEvaluationPipeline:
@@ -95,7 +99,7 @@ class SeismicEvaluationPipeline:
 
     def __init__(self, build_result: ModelBuildResult, config: ModelConfig, logger: logging.Logger):
         self.context = AnalysisModelContext(build_result=build_result, config=config, logger=logger)
-        self.analyzer = ResponseSpectrumAnalyzer(self.context)
+        self.snapshot_builder = AnalysisSnapshotBuilder(self.context)
         shear_weight_checker = ShearWeightRatioChecker.from_intensity(config.seismic.intensity)
         self.direction_checkers: list[DirectionChecker] = [
             TorsionChecker(),
@@ -109,7 +113,7 @@ class SeismicEvaluationPipeline:
     def _get_snapshot(self) -> AnalysisSnapshot:
         snapshot = self.context.build_result.analysis_snapshot
         if snapshot is None:
-            snapshot = self.analyzer.build_snapshot()
+            snapshot = self.snapshot_builder.build()
             self.context.build_result.analysis_snapshot = snapshot
         return snapshot
 
@@ -144,3 +148,31 @@ class SeismicCodeChecker:
 
     def _print_report(self, results: dict[str, DirectionCheckResult]) -> None:
         self.pipeline.report_printer.print(results, self.wall_axial_metrics)
+
+
+class AnalysisSnapshotBuilder:
+    def __init__(self, context: AnalysisModelContext):
+        self.context = context
+        self.rsa_analyzer = ResponseSpectrumAnalyzer(context)
+        self.gravity_analyzer = WallAxialCompressionChecker(context)
+
+    def build(self) -> AnalysisSnapshot:
+        rsa_result = self.rsa_analyzer.run()
+        gravity_result = self.gravity_analyzer.run_gravity_case()
+        return self._compose_snapshot(rsa_result, gravity_result)
+
+    def _compose_snapshot(
+        self, rsa_result: ResponseSpectrumCaseResult, gravity_result: GravityCaseResult
+    ) -> AnalysisSnapshot:
+        return AnalysisSnapshot(
+            eigen_values=rsa_result.eigen_values,
+            modal_periods=rsa_result.modal_periods,
+            modal_summary=rsa_result.modal_summary,
+            story_weights=rsa_result.story_weights,
+            direction_responses=rsa_result.direction_responses,
+            gravity_beam_forces=gravity_result.gravity_beam_forces,
+            gravity_wall_forces=gravity_result.gravity_wall_forces,
+            seismic_beam_forces=rsa_result.seismic_beam_forces,
+            seismic_wall_forces=rsa_result.seismic_wall_forces,
+            wall_axial_metrics=gravity_result.wall_axial_metrics,
+        )

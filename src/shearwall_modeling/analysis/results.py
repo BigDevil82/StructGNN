@@ -37,7 +37,6 @@ class ModalSummary:
     torsional_mode_index: int | None
     torsional_period: float | None
     period_ratio: float | None
-    is_period_ratio_passed: bool
 
 
 @dataclass
@@ -90,6 +89,24 @@ class AnalysisSnapshot:
     gravity_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
     seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
     seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float, float]]
+    wall_axial_metrics: list[WallAxialMetric]
+
+
+@dataclass
+class ResponseSpectrumCaseResult:
+    eigen_values: list[float]
+    modal_periods: list[float]
+    modal_summary: ModalSummary
+    story_weights: list[float]
+    direction_responses: dict[str, DirectionResponse]
+    seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
+    seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float, float]]
+
+
+@dataclass
+class GravityCaseResult:
+    gravity_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
+    gravity_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
     wall_axial_metrics: list[WallAxialMetric]
 
 

@@ -1,6 +1,7 @@
 import logging
 
-from ..analysis.response_spectrum import AnalysisModelContext, ResponseSpectrumAnalyzer
+from ..analysis.evaluation import AnalysisSnapshotBuilder
+from ..analysis.response_spectrum import AnalysisModelContext
 from ..builders.base import ModelBuildResult
 from ..core.config import ModelConfig
 from .constants import CONCRETE_COMPRESSIVE_STRENGTH_MPA
@@ -13,7 +14,7 @@ class DesignDemandExtractor:
         self.config = config
         self.logger = logger
         context = AnalysisModelContext(build_result=build_result, config=config, logger=logger)
-        self.analyzer = ResponseSpectrumAnalyzer(context)
+        self.snapshot_builder = AnalysisSnapshotBuilder(context)
 
     def extract(self) -> tuple[list[BeamDesignDemand], list[WallDesignDemand]]:
         snapshot = self._get_snapshot()
@@ -30,7 +31,7 @@ class DesignDemandExtractor:
     def _get_snapshot(self):
         snapshot = self.build_result.analysis_snapshot
         if snapshot is None:
-            snapshot = self.analyzer.build_snapshot()
+            snapshot = self.snapshot_builder.build()
             self.build_result.analysis_snapshot = snapshot
         return snapshot
 
