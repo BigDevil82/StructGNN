@@ -84,14 +84,14 @@ class ResponseSpectrumAnalyzer:
         return srss(modal_values, scale_factors)
 
     def build_snapshot(self) -> AnalysisSnapshot:
-        eigen_values, modal_periods, modal_summary = self.extract_global_modal_data()
+        eigen_values, modal_periods, modal_summary = self.run_modal_case()
         story_weights = self.compute_story_weights()
 
         direction_responses: dict[str, DirectionResponse] = {}
         beam_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]] = {}
         wall_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]] = {}
         for dir_idx, dir_name in ((1, "X"), (2, "Y")):
-            response, beam_forces, wall_forces = self._analyze_direction_case(
+            response, beam_forces, wall_forces = self._run_rsa_analysis(
                 dir_idx=dir_idx,
                 dir_name=dir_name,
                 eigen_values=eigen_values,
@@ -131,17 +131,14 @@ class ResponseSpectrumAnalyzer:
             else None
         )
         period_ratio = None
-        is_period_ratio_passed = False
         if translational_period and torsional_period:
             period_ratio = torsional_period / translational_period
-            is_period_ratio_passed = period_ratio < 0.9
         return ModalSummary(
             translational_mode_index=translational_mode_index,
             translational_period=translational_period,
             torsional_mode_index=torsional_mode_index,
             torsional_period=torsional_period,
             period_ratio=period_ratio,
-            is_period_ratio_passed=is_period_ratio_passed,
         )
 
     def compute_story_weights(self) -> list[float]:
@@ -234,7 +231,7 @@ class ResponseSpectrumAnalyzer:
                 current_stiffness / average_upper_stiffness if average_upper_stiffness > 1.0e-9 else 1.0
             )
 
-    def extract_global_modal_data(self) -> tuple[list[float], list[float], ModalSummary]:
+    def run_modal_case(self) -> tuple[list[float], list[float], ModalSummary]:
         ops.constraints("Transformation")
         ops.numberer("RCM")
         ops.system("UmfPack")
@@ -263,26 +260,7 @@ class ResponseSpectrumAnalyzer:
         self.context.logger.info(f"Modal periods (s): {[round(period, 4) for period in modal_periods]}")
         return eigen_values, modal_periods, self.extract_modal_summary(modal_periods, returned)
 
-    def analyze_direction(
-        self,
-        dir_idx: int,
-        dir_name: str,
-        eigen_values: list[float],
-        modal_periods: list[float],
-        modal_summary: ModalSummary,
-        story_weights: list[float],
-    ) -> DirectionResponse:
-        response, _, _ = self._analyze_direction_case(
-            dir_idx=dir_idx,
-            dir_name=dir_name,
-            eigen_values=eigen_values,
-            modal_periods=modal_periods,
-            modal_summary=modal_summary,
-            story_weights=story_weights,
-        )
-        return response
-
-    def _analyze_direction_case(
+    def _run_rsa_analysis(
         self,
         dir_idx: int,
         dir_name: str,
@@ -369,6 +347,10 @@ class ResponseSpectrumAnalyzer:
         ops.integrator("LoadControl", 1.0)
         ops.analysis("Static")
 
+    def _story_gravity_force_n(self, story_index: int) -> float:
+        profile = self.context.story_profiles[story_index]
+        return self.context.floor_masses[story_index] * profile.mass_source.gravity
+
     def _run_gravity_case(
         self,
     ) -> tuple[
@@ -378,13 +360,11 @@ class ResponseSpectrumAnalyzer:
     ]:
         ts_tag = 81001
         pat_tag = 81001
-        floor_area = self.context.floor_area
 
         ops.timeSeries("Linear", ts_tag)
         ops.pattern("Plain", pat_tag, ts_tag)
         for story_index, floor_nodes in enumerate(self.context.floor_story_nodes):
-            profile = self.context.story_profiles[story_index]
-            floor_force_n = (profile.mass_source.dead_kpa + 0.5 * profile.mass_source.live_kpa) * 1000.0 * floor_area
+            floor_force_n = self._story_gravity_force_n(story_index)
             nodal_force = floor_force_n / len(floor_nodes)
             for node in floor_nodes:
                 ops.load(node, 0.0, 0.0, -nodal_force, 0.0, 0.0, 0.0)

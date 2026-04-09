@@ -204,7 +204,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 density_kg_m3=prf.material.density_kg_m3,
                 floor_area=floor_area,
             )
-            self_mass = self_mass_info["total_mass"] if prf.mass_source.include_structural_self_weight else 0.0
+            self_mass = self_mass_info["total_self_mass"] if prf.mass_source.include_structural_self_weight else 0.0
 
             masses.append(load_mass + self_mass)
             total_load_mass += load_mass

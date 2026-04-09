@@ -9,6 +9,10 @@ class WallAxialCompressionChecker:
     def __init__(self, context: AnalysisModelContext):
         self.context = context
 
+    def _story_gravity_force_n(self, story_index: int) -> float:
+        profile = self.context.story_profiles[story_index]
+        return self.context.floor_masses[story_index] * profile.mass_source.gravity
+
     def check(self) -> list[WallAxialMetric]:
         snapshot = self.context.build_result.analysis_snapshot
         if snapshot is not None:
@@ -16,10 +20,7 @@ class WallAxialCompressionChecker:
 
         ts_tag = 70001
         pat_tag = 70001
-        floor_gravity_forces = [
-            (profile.mass_source.dead_kpa + 0.5 * profile.mass_source.live_kpa) * 1000.0 * self.context.floor_area
-            for profile in self.context.story_profiles
-        ]
+        floor_gravity_forces = [self._story_gravity_force_n(story_index) for story_index in range(self.context.num_stories)]
 
         ops.timeSeries("Linear", ts_tag)
         ops.pattern("Plain", pat_tag, ts_tag)
