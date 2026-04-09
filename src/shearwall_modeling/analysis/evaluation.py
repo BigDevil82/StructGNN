@@ -1,6 +1,6 @@
 import logging
 
-from ..builders.base import ModelBuildResult
+from ..builders.base import AnalysisModelContext, ModelBuildResult
 from ..core.config import ModelConfig
 from .checkers import (
     DirectionChecker,
@@ -10,17 +10,18 @@ from .checkers import (
     StiffnessChecker,
     TorsionChecker,
 )
-from .response_spectrum import AnalysisModelContext, ResponseSpectrumAnalyzer
+from .response_spectrum import ResponseSpectrumAnalyzer
 from .results import (
     AnalysisSnapshot,
     DirectionCheckResult,
     DirectionResponse,
     GravityCaseResult,
+    OverallCheckResult,
     ResponseSpectrumCaseResult,
     WallAxialMetric,
     init_direction_check_result,
 )
-from .wall_axial import WallAxialCompressionChecker
+from .wall_axial import GravityCaseAnalyzer
 
 
 class EvaluationReportPrinter:
@@ -28,33 +29,40 @@ class EvaluationReportPrinter:
         self.logger = logger
         self.min_shear_ratio = min_shear_ratio
 
-    def print(self, results: dict[str, DirectionCheckResult], wall_axial_metrics: list[WallAxialMetric]) -> None:
+    def print(
+        self,
+        analysis_result: AnalysisSnapshot,
+        overall_result: OverallCheckResult,
+        dir_results: dict[str, DirectionCheckResult],
+        wall_axial_metrics: list[WallAxialMetric],
+    ) -> None:
         self.logger.info("\n" + "=" * 50)
         self.logger.info("结构抗震规范核心指标综合校核报告")
         self.logger.info("=" * 50)
 
-        first_result = next(iter(results.values()), None)
-        if first_result is not None:
+        modal_summary = analysis_result.modal_summary
+
+        if modal_summary is not None:
             self.logger.info("\n【模态结果】")
             self.logger.info(" 前n阶周期:")
-            for idx, period in enumerate(first_result.modal_periods, start=1):
+            for idx, period in enumerate(modal_summary.periods, start=1):
                 self.logger.info(f"  第{idx}阶: {period:.4f} s")
 
-            if first_result.period_ratio is not None:
+            if modal_summary.period_ratio is not None:
                 self.logger.info(
                     " 首个平动周期/首个扭转周期: "
-                    f"第{first_result.translational_mode_index}阶 {first_result.translational_period:.4f} s / "
-                    f"第{first_result.torsional_mode_index}阶 {first_result.torsional_period:.4f} s"
+                    f"第{modal_summary.translational_mode_index}阶 {modal_summary.translational_period:.4f} s / "
+                    f"第{modal_summary.torsional_mode_index}阶 {modal_summary.torsional_period:.4f} s"
                 )
                 self.logger.info(
                     " 周期比 T_torsion / T_translation < 0.9: "
-                    f"{first_result.period_ratio:.3f} "
-                    f"({'✅通过' if first_result.is_period_ratio_passed else '❌超限'})"
+                    f"{modal_summary.period_ratio:.3f} "
+                    f"({'✅通过' if overall_result.is_period_ratio_passed else '❌超限'})"
                 )
             else:
                 self.logger.info(" 首个平动或扭转主导模态未识别，周期比无法校核。")
 
-        for dir_name, result in results.items():
+        for dir_name, result in dir_results.items():
             self.logger.info(f"\n【{dir_name}向校核结果】")
             self.logger.info(f" -> 扭转不规则 (限值 1.2/1.5): {'✅通过' if result.is_torsion_passed else '❌超限'}")
             self.logger.info(
@@ -97,68 +105,54 @@ class EvaluationReportPrinter:
 class SeismicEvaluationPipeline:
     """Coordinate modal response extraction and code checks."""
 
-    def __init__(self, build_result: ModelBuildResult, config: ModelConfig, logger: logging.Logger):
-        self.context = AnalysisModelContext(build_result=build_result, config=config, logger=logger)
-        self.snapshot_builder = AnalysisSnapshotBuilder(self.context)
+    def __init__(self, config: ModelConfig):
         shear_weight_checker = ShearWeightRatioChecker.from_intensity(config.seismic.intensity)
         self.direction_checkers: list[DirectionChecker] = [
             TorsionChecker(),
             shear_weight_checker,
             StiffnessChecker(),
-            PeriodRatioChecker(),
             InterstoryDriftChecker(),
         ]
-        self.report_printer = EvaluationReportPrinter(logger, shear_weight_checker.min_ratio)
-
-    def _get_snapshot(self) -> AnalysisSnapshot:
-        snapshot = self.context.build_result.analysis_snapshot
-        if snapshot is None:
-            snapshot = self.snapshot_builder.build()
-            self.context.build_result.analysis_snapshot = snapshot
-        return snapshot
+        self.period_ratio_checker = PeriodRatioChecker()
 
     def _evaluate_direction(self, response: DirectionResponse) -> DirectionCheckResult:
         result = init_direction_check_result(response)
         for checker in self.direction_checkers:
             checker.apply(response, result)
+
         return result
 
-    def evaluate(
-        self,
-    ) -> tuple[dict[str, DirectionCheckResult], list[WallAxialMetric]]:
-        snapshot = self._get_snapshot()
-        check_results: dict[str, DirectionCheckResult] = {}
+    def evaluate(self, anysis_result: AnalysisSnapshot) -> tuple[OverallCheckResult, dict[str, DirectionCheckResult]]:
+
+        overall_result = OverallCheckResult()
+        dir_chk_results: dict[str, DirectionCheckResult] = {}
         for dir_name in ("X", "Y"):
-            response = snapshot.direction_responses[dir_name]
-            check_results[dir_name] = self._evaluate_direction(response)
-        return check_results, snapshot.wall_axial_metrics
+            response = anysis_result.direction_responses[dir_name]
+            dir_chk_results[dir_name] = self._evaluate_direction(response)
+
+        # aggregate directional results to overall result
+        overall_result.is_torsion_passed = all(result.is_torsion_passed for result in dir_chk_results.values())
+        overall_result.is_shear_weight_passed = all(
+            result.is_shear_weight_passed for result in dir_chk_results.values()
+        )
+        overall_result.is_stiffness_passed = all(result.is_stiffness_passed for result in dir_chk_results.values())
+        overall_result.is_interstory_drift_passed = all(
+            result.is_interstory_drift_passed for result in dir_chk_results.values()
+        )
+
+        self.period_ratio_checker.apply(anysis_result.modal_summary, overall_result)
+        return overall_result, dir_chk_results
 
 
-class SeismicCodeChecker:
-    """Backward-compatible facade over the evaluation pipeline."""
-
-    def __init__(self, build_result: ModelBuildResult, config: ModelConfig, logger: logging.Logger):
-        self.pipeline = SeismicEvaluationPipeline(build_result, config, logger)
-        self.wall_axial_metrics: list[WallAxialMetric] = []
-
-    def run_analysis_and_evaluate(self) -> dict[str, DirectionCheckResult]:
-        check_results, wall_axial_metrics = self.pipeline.evaluate()
-        self.wall_axial_metrics = wall_axial_metrics
-        return check_results
-
-    def _print_report(self, results: dict[str, DirectionCheckResult]) -> None:
-        self.pipeline.report_printer.print(results, self.wall_axial_metrics)
-
-
-class AnalysisSnapshotBuilder:
+class AnalysisResultBuilder:
     def __init__(self, context: AnalysisModelContext):
         self.context = context
         self.rsa_analyzer = ResponseSpectrumAnalyzer(context)
-        self.gravity_analyzer = WallAxialCompressionChecker(context)
+        self.gravity_analyzer = GravityCaseAnalyzer(context)
 
     def build(self) -> AnalysisSnapshot:
         rsa_result = self.rsa_analyzer.run()
-        gravity_result = self.gravity_analyzer.run_gravity_case()
+        gravity_result = self.gravity_analyzer.run()
         return self._compose_snapshot(rsa_result, gravity_result)
 
     def _compose_snapshot(

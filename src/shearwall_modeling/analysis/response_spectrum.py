@@ -1,70 +1,13 @@
-import logging
-from dataclasses import dataclass
 from time import time
 from typing import Any
 
 import openseespy.opensees as ops
 
-from ..builders.base import ModelBuildResult
-from ..core.config import ModelConfig
+from ..builders.base import AnalysisModelContext
 from .combinations import cqc, srss
 from .member_forces import extract_beam_force_tuple, extract_wall_force_tuple
 from .modal import identify_dominant_modes, modal_periods_from_eigenvalues
 from .results import DirectionResponse, ModalSummary, ResponseSpectrumCaseResult, StoryMetric
-
-
-@dataclass(frozen=True)
-class AnalysisModelContext:
-    build_result: ModelBuildResult
-    config: ModelConfig
-    logger: logging.Logger
-
-    @property
-    def master_nodes(self) -> list[int]:
-        return self.build_result.master_nodes
-
-    @property
-    def floor_area(self) -> float:
-        return self.build_result.floor_area
-
-    @property
-    def wall_base_units(self):
-        return self.build_result.wall_base_units
-
-    @property
-    def beam_element_units(self):
-        return self.build_result.beam_element_units
-
-    @property
-    def wall_story_element_units(self):
-        return self.build_result.wall_story_element_units
-
-    @property
-    def floor_story_nodes(self) -> list[list[int]]:
-        return self.build_result.floor_story_nodes
-
-    @property
-    def num_stories(self) -> int:
-        return len(self.master_nodes)
-
-    @property
-    def story_heights(self) -> list[float]:
-        return self.config.get_story_heights()
-
-    @property
-    def story_profiles(self):
-        return self.config.resolve_story_profiles()
-
-    @property
-    def floor_masses(self) -> list[float]:
-        return [ops.nodeMass(node, 1) for node in self.master_nodes]
-
-    @property
-    def bbox(self) -> tuple[float, float, float, float]:
-        nodes = ops.getNodeTags()
-        xs = [ops.nodeCoord(node, 1) for node in nodes]
-        ys = [ops.nodeCoord(node, 2) for node in nodes]
-        return min(xs), max(xs), min(ys), max(ys)
 
 
 class ResponseSpectrumAnalyzer:
@@ -94,8 +37,6 @@ class ResponseSpectrumAnalyzer:
                 dir_idx=dir_idx,
                 dir_name=dir_name,
                 eigen_values=eigen_values,
-                modal_periods=modal_periods,
-                modal_summary=modal_summary,
                 story_weights=story_weights,
             )
             direction_responses[dir_name] = response
@@ -129,6 +70,7 @@ class ResponseSpectrumAnalyzer:
         if translational_period and torsional_period:
             period_ratio = torsional_period / translational_period
         return ModalSummary(
+            periods=modal_periods,
             translational_mode_index=translational_mode_index,
             translational_period=translational_period,
             torsional_mode_index=torsional_mode_index,
@@ -260,8 +202,6 @@ class ResponseSpectrumAnalyzer:
         dir_idx: int,
         dir_name: str,
         eigen_values: list[float],
-        modal_periods: list[float],
-        modal_summary: ModalSummary,
         story_weights: list[float],
     ) -> tuple[
         DirectionResponse,
@@ -320,12 +260,7 @@ class ResponseSpectrumAnalyzer:
             )
 
         self._update_story_stiffness_ratios(metrics, stiffness_values)
-        response = DirectionResponse(
-            direction=dir_name,
-            modal_periods=modal_periods,
-            modal_summary=modal_summary,
-            metrics=metrics,
-        )
+        response = DirectionResponse(direction=dir_name, metrics=metrics)
         return (
             response,
             self._combine_beam_modal_forces(beam_modal_forces, eigen_values),

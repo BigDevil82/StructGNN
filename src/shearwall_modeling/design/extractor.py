@@ -1,8 +1,8 @@
 import logging
 
-from ..analysis.evaluation import AnalysisSnapshotBuilder
-from ..analysis.response_spectrum import AnalysisModelContext
-from ..builders.base import ModelBuildResult
+from ..analysis.evaluation import AnalysisResultBuilder
+from ..analysis.results import AnalysisSnapshot
+from ..builders.base import AnalysisModelContext, ModelBuildResult
 from ..core.config import ModelConfig
 from .constants import CONCRETE_COMPRESSIVE_STRENGTH_MPA
 from .results import BeamDesignDemand, WallDesignDemand
@@ -14,26 +14,18 @@ class DesignDemandExtractor:
         self.config = config
         self.logger = logger
         context = AnalysisModelContext(build_result=build_result, config=config, logger=logger)
-        self.snapshot_builder = AnalysisSnapshotBuilder(context)
+        self.snapshot_builder = AnalysisResultBuilder(context)
 
-    def extract(self) -> tuple[list[BeamDesignDemand], list[WallDesignDemand]]:
-        snapshot = self._get_snapshot()
+    def extract(self, analysis_result: AnalysisSnapshot) -> tuple[list[BeamDesignDemand], list[WallDesignDemand]]:
         combined_beams = self._combine_beam_demands(
-            snapshot.gravity_beam_forces,
-            snapshot.seismic_beam_forces,
+            analysis_result.gravity_beam_forces,
+            analysis_result.seismic_beam_forces,
         )
         combined_walls = self._combine_wall_demands(
-            snapshot.gravity_wall_forces,
-            snapshot.seismic_wall_forces,
+            analysis_result.gravity_wall_forces,
+            analysis_result.seismic_wall_forces,
         )
         return combined_beams, combined_walls
-
-    def _get_snapshot(self):
-        snapshot = self.build_result.analysis_snapshot
-        if snapshot is None:
-            snapshot = self.snapshot_builder.build()
-            self.build_result.analysis_snapshot = snapshot
-        return snapshot
 
     def _combine_beam_demands(
         self,

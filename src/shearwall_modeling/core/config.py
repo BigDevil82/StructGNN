@@ -38,7 +38,9 @@ def _gb50011_spectrum_shape_params(damping_ratio: float) -> tuple[float, float, 
     return gamma, eta1, eta2
 
 
-def _calculate_gb50011_alpha(period: float, alpha_max: float, characteristic_period: float, damping_ratio: float) -> float:
+def _calculate_gb50011_alpha(
+    period: float, alpha_max: float, characteristic_period: float, damping_ratio: float
+) -> float:
     """Calculate the GB50011 seismic influence coefficient for a vibration period."""
     gamma, eta1, eta2 = _gb50011_spectrum_shape_params(damping_ratio)
 
@@ -120,9 +122,7 @@ class ResponseSpectrumBuilder:
 
     def build(self, config: "SeismicConfig") -> ResponseSpectrum:
         if config.design_code.upper() != "GB50011":
-            raise ValueError(
-                f"Unsupported design_code={config.design_code}. Currently only GB50011 is implemented."
-            )
+            raise ValueError(f"Unsupported design_code={config.design_code}. Currently only GB50011 is implemented.")
 
         alpha_max, characteristic_period = _resolve_gb50011_design_params(
             intensity=config.intensity,
@@ -144,7 +144,7 @@ class ResponseSpectrumBuilder:
 
 @dataclass
 class MaterialConfig:
-    concrete_grade: str = "C30"
+    concrete_grade: str = "C40"
     E: Optional[float] = None
     G: Optional[float] = None
     density_kg_m3: float = 2550.0
@@ -159,7 +159,7 @@ class MaterialConfig:
 
 @dataclass
 class SectionConfig:
-    wall_thickness: float = 0.2
+    wall_thickness: float = 0.20
     beam_width: float = 0.3
     beam_depth: float = 0.5
     secondary_beam_width: Optional[float] = None
@@ -208,10 +208,12 @@ class SeismicConfig:
 
 @dataclass
 class MassSourceConfig:
+    # `dead_kpa` represents the full floor dead load, including slab self-weight.
     dead_kpa: float = 5.0
     live_kpa: float = 2.0
     dead_factor: float = 1.0
     live_factor: float = 0.5
+    # When enabled, only wall/beam self-weight is added separately.
     include_structural_self_weight: bool = True
     gravity: float = 9.81
 
@@ -228,7 +230,7 @@ class ModelConfig:
     material: MaterialConfig = field(default_factory=MaterialConfig)
     section: SectionConfig = field(default_factory=SectionConfig)
     seismic: SeismicConfig = field(default_factory=SeismicConfig)
-    num_modes: int = 6
+    num_modes: int = 12
 
     def __post_init__(self) -> None:
         if not self.standard_story_groups:

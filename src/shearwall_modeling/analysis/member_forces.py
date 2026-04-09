@@ -2,7 +2,8 @@ import math
 
 import openseespy.opensees as ops
 
-from ..core.constants import concrete_fc_pa
+from ..builders.base import AnalysisModelContext, WallStoryElementUnit
+from ..core.constants import MIN_WALL_LEN_CHECK_THRESHOLD_M, concrete_fc_pa
 from .results import WallAxialMetric
 
 
@@ -17,7 +18,7 @@ def extract_beam_force_tuple(element_tag: int) -> tuple[float, float, float]:
     return positive_moment, negative_moment, shear
 
 
-def extract_wall_force_tuple(unit, dir_name: str | None) -> tuple[float, float, float]:
+def extract_wall_force_tuple(unit: WallStoryElementUnit, dir_name: str | None) -> tuple[float, float, float]:
     node_force_sum: dict[int, list[float]] = {}
     node_force_count: dict[int, int] = {}
     for tag in unit.element_tags:
@@ -62,7 +63,7 @@ def extract_wall_force_tuple(unit, dir_name: str | None) -> tuple[float, float, 
     return axial_force, bending_moment, shear_force
 
 
-def collect_wall_axial_metrics(context) -> list[WallAxialMetric]:
+def collect_wall_axial_metrics(context: AnalysisModelContext) -> list[WallAxialMetric]:
     base_nodes = sorted({node for unit in context.wall_base_units for node in unit.base_nodes})
     node_reactions = {node: ops.nodeReaction(node, 3) for node in base_nodes}
     node_share = {node: 0 for node in base_nodes}
@@ -74,6 +75,8 @@ def collect_wall_axial_metrics(context) -> list[WallAxialMetric]:
     ratio_limit = context.config.seismic.axial_compression_ratio_limit
     metrics: list[WallAxialMetric] = []
     for unit in context.wall_base_units:
+        if unit.length < MIN_WALL_LEN_CHECK_THRESHOLD_M:
+            continue
         axial_force_n = sum(node_reactions[node] / node_share[node] for node in unit.base_nodes)
         area_m2 = unit.length * unit.thickness
         stress_pa = axial_force_n / area_m2

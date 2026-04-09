@@ -46,6 +46,7 @@ def estimate_structural_self_mass_per_floor(
     slab_mass = slab_vol * density_kg_m3
     # Slab self-weight is assumed to be included in floor dead load (`dead_kpa`).
     total_self_mass = wall_mass + beam_mass
+    # print(f"Estimated self mass - total: {total_self_mass:.1f} kg")
     return {
         "floor_area": area,
         "wall_mass": wall_mass,

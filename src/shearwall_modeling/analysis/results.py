@@ -32,6 +32,7 @@ class StoryMetric:
 
 @dataclass
 class ModalSummary:
+    periods: list[float]
     translational_mode_index: int | None
     translational_period: float | None
     torsional_mode_index: int | None
@@ -42,8 +43,6 @@ class ModalSummary:
 @dataclass
 class DirectionResponse:
     direction: str
-    modal_periods: list[float]
-    modal_summary: ModalSummary
     metrics: list[StoryMetric]
 
 
@@ -51,12 +50,6 @@ class DirectionResponse:
 class DirectionCheckResult:
     direction: str
     metrics: list[StoryMetric]
-    modal_periods: list[float]
-    translational_mode_index: int | None
-    translational_period: float | None
-    torsional_mode_index: int | None
-    torsional_period: float | None
-    period_ratio: float | None
     is_torsion_passed: bool
     is_shear_weight_passed: bool
     is_stiffness_passed: bool
@@ -65,6 +58,17 @@ class DirectionCheckResult:
     max_interstory_drift_story: int
     interstory_drift_limit: float
     is_interstory_drift_passed: bool
+
+
+@dataclass
+class OverallCheckResult:
+    # direction-specific
+    is_torsion_passed: bool = False
+    is_shear_weight_passed: bool = False
+    is_stiffness_passed: bool = False
+    is_interstory_drift_passed: bool = False
+    # not direction-specific
+    is_period_ratio_passed: bool = False
 
 
 @dataclass
@@ -111,16 +115,9 @@ class GravityCaseResult:
 
 
 def init_direction_check_result(response: DirectionResponse) -> DirectionCheckResult:
-    summary = response.modal_summary
     return DirectionCheckResult(
         direction=response.direction,
         metrics=response.metrics,
-        modal_periods=response.modal_periods.copy(),
-        translational_mode_index=summary.translational_mode_index,
-        translational_period=summary.translational_period,
-        torsional_mode_index=summary.torsional_mode_index,
-        torsional_period=summary.torsional_period,
-        period_ratio=summary.period_ratio,
         is_torsion_passed=False,
         is_shear_weight_passed=False,
         is_stiffness_passed=False,

@@ -1,11 +1,11 @@
 import openseespy.opensees as ops
 
+from ..builders.base import AnalysisModelContext
 from .member_forces import collect_wall_axial_metrics, extract_beam_force_tuple, extract_wall_force_tuple
-from .response_spectrum import AnalysisModelContext
 from .results import GravityCaseResult, WallAxialMetric
 
 
-class WallAxialCompressionChecker:
+class GravityCaseAnalyzer:
     def __init__(self, context: AnalysisModelContext):
         self.context = context
 
@@ -23,10 +23,12 @@ class WallAxialCompressionChecker:
         ops.integrator("LoadControl", 1.0)
         ops.analysis("Static")
 
-    def run_gravity_case(self) -> GravityCaseResult:
+    def run(self) -> GravityCaseResult:
         ts_tag = 70001
         pat_tag = 70001
-        floor_gravity_forces = [self._story_gravity_force_n(story_index) for story_index in range(self.context.num_stories)]
+        floor_gravity_forces = [
+            self._story_gravity_force_n(story_index) for story_index in range(self.context.num_stories)
+        ]
 
         ops.timeSeries("Linear", ts_tag)
         ops.pattern("Plain", pat_tag, ts_tag)
@@ -53,10 +55,3 @@ class WallAxialCompressionChecker:
             gravity_wall_forces=gravity_wall_forces,
             wall_axial_metrics=collect_wall_axial_metrics(self.context),
         )
-
-    def check(self) -> list[WallAxialMetric]:
-        snapshot = self.context.build_result.analysis_snapshot
-        if snapshot is not None:
-            return snapshot.wall_axial_metrics
-
-        return self.run_gravity_case().wall_axial_metrics

@@ -4,8 +4,7 @@ from typing import Union
 
 from ..core.constants import RectSlabFilterBounds
 from ..core.domain import FEMInput
-from .mass_estimation import estimate_floor_area, estimate_structural_self_mass_per_floor
-from .primitives import polygon_area, rect_slab_span_depth
+from .primitives import rect_slab_span_depth
 
 
 def _median(values: list[float]) -> float:

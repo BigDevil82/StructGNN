@@ -42,6 +42,8 @@ MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY: dict[float, float] = {
     9.0: 0.064,
 }
 
+MIN_WALL_LEN_CHECK_THRESHOLD_M = 0.2
+
 
 @dataclass(frozen=True)
 class RectSlabFilterBounds:

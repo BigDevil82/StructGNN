@@ -1,3 +1,5 @@
+from ..builders.base import AnalysisModelContext
+from ..core.config import ResponseSpectrum, ResponseSpectrumBuilder
 from .checkers import (
     InterstoryDriftChecker,
     PeriodRatioChecker,
@@ -6,12 +8,11 @@ from .checkers import (
     TorsionChecker,
 )
 from .combinations import combine_story_drifts, cqc, srss
-from ..core.config import ResponseSpectrum, ResponseSpectrumBuilder
-from .evaluation import SeismicCodeChecker, SeismicEvaluationPipeline
+from .evaluation import SeismicEvaluationPipeline
 from .modal import identify_dominant_modes, modal_periods_from_eigenvalues
+from .response_spectrum import ResponseSpectrumAnalyzer
 from .results import AnalysisSnapshot, DirectionCheckResult, ModalSummary, StoryMetric, WallAxialMetric
-from .response_spectrum import AnalysisModelContext, ResponseSpectrumAnalyzer
-from .wall_axial import WallAxialCompressionChecker
+from .wall_axial import GravityCaseAnalyzer
 
 __all__ = [
     "AnalysisSnapshot",
@@ -23,13 +24,12 @@ __all__ = [
     "ResponseSpectrum",
     "ResponseSpectrumBuilder",
     "ResponseSpectrumAnalyzer",
-    "SeismicCodeChecker",
     "SeismicEvaluationPipeline",
     "ShearWeightRatioChecker",
     "StiffnessChecker",
     "StoryMetric",
     "TorsionChecker",
-    "WallAxialCompressionChecker",
+    "GravityCaseAnalyzer",
     "WallAxialMetric",
     "combine_story_drifts",
     "cqc",
