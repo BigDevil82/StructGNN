@@ -32,7 +32,8 @@ class ReinforcementDesignPipeline:
             self.beam_designer.design(demand, story_profiles[demand.story].material) for demand in beam_demands
         ]
         wall_results = [
-            self.wall_designer.design(demand, story_profiles[demand.story].material) for demand in wall_demands
+            self.wall_designer.design(demand, story_profiles[demand.story].material)
+            for demand in wall_demands
+            if demand.length_m > 0.2  # filter out negligible walls
         ]
         return ReinforcementDesignSummary(beam_results=beam_results, wall_results=wall_results)
-

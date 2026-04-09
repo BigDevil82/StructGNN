@@ -23,11 +23,13 @@ class WallReinforcementDesigner:
         vertical_area = self.constants.wall_vertical_min_ratio * bw_mm * 1000.0
         horizontal_area = self._design_horizontal_distributed_steel(demand, bw_mm, h0_mm, ft_mpa)
         boundary_type = self._resolve_boundary_type(demand.axial_ratio, demand.is_bottom_reinforced_zone)
-        boundary_longitudinal, boundary_stirrup_area, boundary_spacing, over_reinforced, messages = (
+        boundary_longitudinal, boundary_stirrup_area, boundary_spacing, sec_insufficient, messages = (
             self._design_boundary_steel(demand, bc_mm, hc_mm, h0_mm, fc_mpa, boundary_type)
         )
 
-        concrete_kg = demand.thickness_m * demand.length_m * demand.story_height_m * self.constants.concrete_density_kg_m3
+        concrete_kg = (
+            demand.thickness_m * demand.length_m * demand.story_height_m * self.constants.concrete_density_kg_m3
+        )
         vertical_kg = (
             vertical_area * demand.length_m * demand.story_height_m * self.constants.steel_density_kg_m3 * 1.0e-6
         )
@@ -57,8 +59,8 @@ class WallReinforcementDesigner:
                 concrete_kg=concrete_kg,
                 steel_kg=vertical_kg + horizontal_kg + boundary_kg,
             ),
-            is_over_reinforced=over_reinforced,
-            is_section_insufficient=False,
+            is_over_reinforced=False,
+            is_section_insufficient=sec_insufficient,
             messages=messages,
         )
 
@@ -90,44 +92,77 @@ class WallReinforcementDesigner:
         effective_length_mm: float,
         fc_mpa: float,
         boundary_type: str,
-    ) -> tuple[float, float, float, bool, list[str]]:
+    ) -> tuple[float, float, float, bool, list[str]]:  # 第4个返回值改为 section_insufficient
         messages: list[str] = []
         design_axial_n = self.constants.gamma_re_bending * abs(demand.axial_force_n)
         design_moment_n_mm = self.constants.gamma_re_bending * abs(demand.moment_n_m) * 1000.0
-        x_mm = design_axial_n / max(self.constants.alpha_1 * fc_mpa * boundary_width_mm, 1.0e-9)
-        xi = x_mm / max(effective_length_mm, 1.0e-9)
-        over_reinforced = xi > self.constants.xi_b
-        if over_reinforced:
-            messages.append("boundary_over_reinforced")
 
-        numerator = design_moment_n_mm - self.constants.alpha_1 * fc_mpa * boundary_width_mm * x_mm * (
-            effective_length_mm - 0.5 * x_mm
-        )
-        longitudinal_area = max(
-            numerator / max(self.constants.fy_mpa * (effective_length_mm - self.constants.cover_to_centroid_mm), 1.0e-9),
-            0.0,
-        )
+        b = boundary_width_mm
+        h = boundary_height_mm
+        h0 = effective_length_mm
+        a_s = self.constants.cover_to_centroid_mm
+        fy = self.constants.fy_mpa
+        alpha1 = self.constants.alpha_1
+        xi_b = self.constants.xi_b
+        beta1 = getattr(self.constants, "beta1", 0.8)
+
+        # 最大配筋率（全截面纵筋率限值，例如4%）
+        max_reinforcement_ratio = getattr(self.constants, "boundary_max_ratio", 0.04)
+
+        # 初始假设截面足够
+        section_insufficient = False
+
+        # 计算相对受压区高度（大偏心假定）
+        x_mm = design_axial_n / max(alpha1 * fc_mpa * b, 1.0e-9)
+        xi = x_mm / max(h0, 1.0e-9)
+
+        if xi > xi_b:
+            # 小偏心受压
+            e0 = design_moment_n_mm / max(design_axial_n, 1.0e-9)
+            ea = max(20.0, h / 30.0)
+            ei = e0 + ea
+            e = ei + h / 2.0 - a_s
+            numerator_xi = design_axial_n - xi_b * alpha1 * fc_mpa * b * h0
+            denominator_xi = (design_axial_n * e - 0.43 * alpha1 * fc_mpa * b * h0 * h0) / ((beta1 - xi_b) * (h0 - a_s))
+            xi = numerator_xi / denominator_xi + xi_b
+            xi = max(xi_b, min(xi, h / h0))
+
+            numerator = design_axial_n * e - alpha1 * fc_mpa * b * h0 * h0 * xi * (1 - 0.5 * xi)
+            denominator = fy * (h0 - a_s)
+            longitudinal_area = max(numerator / max(denominator, 1.0e-9), 0.0)
+        else:
+            numerator = design_moment_n_mm - alpha1 * fc_mpa * b * x_mm * (h0 - 0.5 * x_mm)
+            longitudinal_area = max(numerator / max(fy * (h0 - a_s), 1.0e-9), 0.0)
+
+        # 最小配筋率控制
         min_ratio = (
             self.constants.boundary_constrained_min_ratio
             if boundary_type == "constrained"
             else self.constants.boundary_constructive_min_ratio
         )
-        longitudinal_area = max(longitudinal_area, min_ratio * boundary_width_mm * boundary_height_mm)
-        if longitudinal_area == min_ratio * boundary_width_mm * boundary_height_mm:
+        min_area = min_ratio * b * h
+        if longitudinal_area < min_area - 1e-6:
+            longitudinal_area = min_area
             messages.append("minimum_boundary_longitudinal_steel_governs")
 
+        # 1. 计算配筋率，判断是否超过最大配筋率
+        calculated_ratio = longitudinal_area / (b * h)
+        if calculated_ratio > max_reinforcement_ratio:
+            section_insufficient = True
+            messages.append("boundary_steel_ratio_exceeds_max")
+
+        # 2. 相对受压区高度过大（超过 0.9 或 1.0 表示混凝土可能压碎）
+        if xi > 0.9:
+            section_insufficient = True
+            messages.append("xi_too_large")
+
+        # 箍筋计算（不变）
         volume_ratio = 0.006 if boundary_type == "constrained" else 0.004
         spacing_mm = (
             self.constants.boundary_stirrup_spacing_constrained_mm
             if boundary_type == "constrained"
             else self.constants.boundary_stirrup_spacing_constructive_mm
         )
-        stirrup_area = (
-            volume_ratio
-            * boundary_width_mm
-            * boundary_height_mm
-            * spacing_mm
-            / max(self.constants.boundary_stirrup_limb_spacing_mm, 1.0e-9)
-        )
-        return longitudinal_area, stirrup_area, spacing_mm, over_reinforced, messages
+        stirrup_area = volume_ratio * b * h * spacing_mm / max(self.constants.boundary_stirrup_limb_spacing_mm, 1.0e-9)
 
+        return longitudinal_area, stirrup_area, spacing_mm, section_insufficient, messages
