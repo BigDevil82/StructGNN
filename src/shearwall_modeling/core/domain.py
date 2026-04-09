@@ -33,6 +33,8 @@ def _parse_point(raw: Any, xy_scale_to_m: float) -> Point2D:
 
 @dataclass
 class PlanMember:
+    m_id: int
+    cate: str
     start: Point2D
     end: Point2D
 
@@ -41,7 +43,7 @@ class PlanMember:
         return self.start.distance_to(self.end)
 
     def scaled(self, factor: float) -> "PlanMember":
-        return PlanMember(start=self.start.scaled(factor), end=self.end.scaled(factor))
+        return PlanMember(m_id=self.m_id, cate=self.cate, start=self.start.scaled(factor), end=self.end.scaled(factor))
 
 
 class BeamRole(str, Enum):
@@ -68,7 +70,9 @@ class BeamMember(PlanMember):
     role: BeamRole = BeamRole.PRIMARY
 
     def scaled(self, factor: float) -> "BeamMember":
-        return BeamMember(start=self.start.scaled(factor), end=self.end.scaled(factor), role=self.role)
+        return BeamMember(
+            m_id=self.m_id, cate=self.cate, start=self.start.scaled(factor), end=self.end.scaled(factor), role=self.role
+        )
 
 
 @dataclass
@@ -84,19 +88,23 @@ class FEMInput:
 
         walls = [
             PlanMember(
+                m_id=i,
+                cate="shearwall",
                 start=_parse_point(w["start"], xy_scale_to_m),
                 end=_parse_point(w["end"], xy_scale_to_m),
             )
-            for w in data.get("shearwalls", [])
+            for i, w in enumerate(data.get("shearwalls", []))
         ]
 
         beams = [
             BeamMember(
+                m_id=i,
+                cate="beam",
                 start=_parse_point(b["start"], xy_scale_to_m),
                 end=_parse_point(b["end"], xy_scale_to_m),
                 role=BeamRole.from_raw(b.get("beam_role")),
             )
-            for b in data.get("beams", [])
+            for i, b in enumerate(data.get("beams", []))
         ]
 
         slabs = [

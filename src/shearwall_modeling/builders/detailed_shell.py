@@ -204,9 +204,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 density_kg_m3=prf.material.density_kg_m3,
                 floor_area=floor_area,
             )
-            self_mass = (
-                self_mass_info["total_mass"] if prf.mass_source.include_structural_self_weight else 0.0
-            )
+            self_mass = self_mass_info["total_mass"] if prf.mass_source.include_structural_self_weight else 0.0
 
             masses.append(load_mass + self_mass)
             total_load_mass += load_mass
@@ -251,7 +249,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
         wall_story_element_units: list[WallStoryElementUnit] = []
 
         shell_count = 0
-        for wall_id, wall in enumerate(input_data.walls, start=1):
+        for wall in input_data.walls:
             if wall.length < 1.0e-6:
                 continue
             div = max(1, int(math.ceil(wall.length / self.wall_mesh_size_m)))
@@ -287,7 +285,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
                     shell_count += 1
                 wall_story_element_units.append(
                     WallStoryElementUnit(
-                        wall_id=wall_id,
+                        wall_id=wall.m_id,
                         story=level + 1,
                         element_tags=story_element_tags,
                         bottom_nodes=sorted(set(wall_grid[level])),
@@ -306,7 +304,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
         for story, profile in enumerate(story_profiles, start=1):
             z = profile.z_top
             e, g, _ = _material_props(profile.material)
-            for beam_id, beam in enumerate(input_data.beams, start=1):
+            for beam in input_data.beams:
                 beam_w, beam_d = profile.section.get_beam_section(beam.role)
                 beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(beam_w, beam_d)
 
@@ -325,7 +323,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 beam_count_by_role[beam.role] += 1
                 beam_element_units.append(
                     BeamElementUnit(
-                        beam_id=beam_id,
+                        beam_id=beam.m_id,
                         story=story,
                         element_tag=tag,
                         member=beam,
@@ -372,8 +370,7 @@ class DetailedShellBuilder(StructuralModelBuilder):
             floor_mass = floor_masses[story - 1]
             nodal_mass = floor_mass / len(level_nodes)
             rot_mass = sum(
-                nodal_mass * ((node_coords[n][0] - com_x) ** 2 + (node_coords[n][1] - com_y) ** 2)
-                for n in level_nodes
+                nodal_mass * ((node_coords[n][0] - com_x) ** 2 + (node_coords[n][1] - com_y) ** 2) for n in level_nodes
             )
 
             ops.mass(master, floor_mass, floor_mass, 0.0, 0.0, 0.0, rot_mass)
