@@ -294,12 +294,20 @@ class ResponseSpectrumAnalyzer:
     def _envelope_beam_forces(
         self, beam_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]]
     ) -> dict[tuple[int, int], tuple[float, float, float]]:
+        """Take the design envelope of beam effects over X/Y directional RSA.
+
+        `beam_forces_by_dir` stores already-combined directional results for each
+        beam as `(positive_moment, negative_moment, shear)`. This step does not
+        perform another modal combination. It only takes the component-wise
+        maximum across directions so downstream design uses the governing beam
+        demand.
+        """
         keys = {key for values in beam_forces_by_dir.values() for key in values}
         return {
             key: (
-                max(beam_forces_by_dir[dir_name].get(key, (0.0, 0.0, 0.0))[0] for dir_name in beam_forces_by_dir),
-                max(beam_forces_by_dir[dir_name].get(key, (0.0, 0.0, 0.0))[1] for dir_name in beam_forces_by_dir),
-                max(beam_forces_by_dir[dir_name].get(key, (0.0, 0.0, 0.0))[2] for dir_name in beam_forces_by_dir),
+                max(beam_forces_by_dir[dir_name][key][0] for dir_name in beam_forces_by_dir),
+                max(beam_forces_by_dir[dir_name][key][1] for dir_name in beam_forces_by_dir),
+                max(beam_forces_by_dir[dir_name][key][2] for dir_name in beam_forces_by_dir),
             )
             for key in keys
         }
@@ -307,12 +315,19 @@ class ResponseSpectrumAnalyzer:
     def _envelope_wall_forces(
         self, wall_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]]
     ) -> dict[tuple[int, int], tuple[float, float, float, float]]:
+        """Take the design envelope of wall effects over X/Y directional RSA.
+
+        Each directional entry is the modal-combined wall result
+        `(axial_force, bending_moment, shear_force)`. The returned tuple keeps
+        the existing four-value shape expected by the design pipeline, so the
+        last `0.0` remains a compatibility placeholder.
+        """
         keys = {key for values in wall_forces_by_dir.values() for key in values}
         return {
             key: (
-                max(wall_forces_by_dir[dir_name].get(key, (0.0, 0.0, 0.0))[0] for dir_name in wall_forces_by_dir),
-                max(wall_forces_by_dir[dir_name].get(key, (0.0, 0.0, 0.0))[1] for dir_name in wall_forces_by_dir),
-                max(wall_forces_by_dir[dir_name].get(key, (0.0, 0.0, 0.0))[2] for dir_name in wall_forces_by_dir),
+                max(wall_forces_by_dir[dir_name][key][0] for dir_name in wall_forces_by_dir),
+                max(wall_forces_by_dir[dir_name][key][1] for dir_name in wall_forces_by_dir),
+                max(wall_forces_by_dir[dir_name][key][2] for dir_name in wall_forces_by_dir),
                 0.0,
             )
             for key in keys
