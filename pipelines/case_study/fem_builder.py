@@ -86,6 +86,9 @@ class FEMTopologyBuilder:
         # 5. 再次过滤打断后的短构件
         # segments = [s for s in segments if s["length"] >= self.min_length]
 
+        # 5.1 修复打断后由预测误差导致的短构件误分类，并与相邻长构件回并
+        segments = self._repair_short_misclassified_segments(segments, short_threshold=200.0)
+
         # 6. 构建节点拓扑
         self._build_topology(segments)
         self._classify_beams_by_length_distribution()
@@ -273,12 +276,10 @@ class FEMTopologyBuilder:
         current = 0.0
 
         for w_start, w_end in wall_intervals:
-            if w_start > current + 0.01:
-                beam_intervals.append((current, w_start))
+            beam_intervals.append((current, w_start))
             current = max(current, w_end)
 
-        if current < 0.99:
-            beam_intervals.append((current, 1.0))
+        beam_intervals.append((current, 1.0))
 
         # 转换为线段
         coords = list(skel_line.coords)
@@ -390,7 +391,7 @@ class FEMTopologyBuilder:
             # 去重并排序
             ratios = sorted(set(ratios))
             # 去掉过于接近端点的打断点
-            ratios = [r for r in ratios if 0.01 < r < 0.99]
+            # ratios = [r for r in ratios if 0.01 < r < 0.99]
             if not ratios:
                 result.append(seg)
                 continue
@@ -422,9 +423,7 @@ class FEMTopologyBuilder:
 
         return result
 
-    def _check_collinear_splits(
-        self, pi1, pi2, len_i, pj1, pj2, len_j, is_horizontal, tolerance, split_ratios, i, j
-    ):
+    def _check_collinear_splits(self, pi1, pi2, len_i, pj1, pj2, len_j, is_horizontal, tolerance, split_ratios, i, j):
         """检查共线线段的端点是否落在对方内部，若是则添加打断点"""
         if is_horizontal:
             # 水平线段：检查y是否相同
@@ -478,9 +477,7 @@ class FEMTopologyBuilder:
             v_ymin, v_ymax = min(pi1[1], pi2[1]), max(pi1[1], pi2[1])
 
         # 检查交点是否在两条线段的范围内（不含端点附近）
-        if not (
-            h_xmin + tolerance < v_x < h_xmax - tolerance and v_ymin + tolerance < h_y < v_ymax - tolerance
-        ):
+        if not (h_xmin + tolerance < v_x < h_xmax - tolerance and v_ymin + tolerance < h_y < v_ymax - tolerance):
             # 交点不在两条线段的严格内部 → 可能是T字或端点连接
             # 仍需检查：交点是否至少在一条线段内部（T字情况）
             in_h = h_xmin - tolerance <= v_x <= h_xmax + tolerance
@@ -494,14 +491,170 @@ class FEMTopologyBuilder:
         # 计算交点在 i 上的ratio
         if len_i > 1:
             ri = np.dot(np.array([cross_x, cross_y]) - pi1, vec_i) / (len_i * len_i)
-            if 0.01 < ri < 0.99:
-                split_ratios[i].append(ri)
+            split_ratios[i].append(ri)
 
         # 计算交点在 j 上的ratio
         if len_j > 1:
             rj = np.dot(np.array([cross_x, cross_y]) - pj1, vec_j) / (len_j * len_j)
-            if 0.01 < rj < 0.99:
-                split_ratios[j].append(rj)
+            split_ratios[j].append(rj)
+
+    def _repair_short_misclassified_segments(self, segments: List[dict], short_threshold: float = 200.0) -> List[dict]:
+        """
+        修复短构件误分类并回并为完整长构件。
+
+        规则：
+        1. 先识别候选短构件（长度 < short_threshold）；
+        2. 对短构件任一端点，若仅连接 1 个其它构件且该构件类型与其相反，则将该短构件标记为“需翻转类型”；
+        3. 所有候选识别完成后统一翻转，避免边遍历边修改导致漏检；
+        4. 再按“端点度数=2 + 共线 + 同类型”迭代合并，消除零碎段。
+        """
+        if not segments:
+            return segments
+
+        endpoint_map = self._build_endpoint_segment_map(segments)
+        flip_type: Dict[int, str] = {}
+
+        for idx, seg in enumerate(segments):
+            seg_type = seg.get("type")
+            seg_len = float(seg.get("length", 0.0))
+            if seg_type not in ("beam", "shearwall") or seg_len >= short_threshold:
+                continue
+
+            target_type = "beam" if seg_type == "shearwall" else "shearwall"
+            p0_key, p1_key = self._segment_endpoint_keys(seg["geometry"])
+
+            for endpoint_key in (p0_key, p1_key):
+                neighbors = [n for n in endpoint_map.get(endpoint_key, []) if n != idx]
+                if len(neighbors) != 1:
+                    continue
+
+                neighbor_idx = neighbors[0]
+                neighbor_type = segments[neighbor_idx].get("type")
+                if neighbor_type == target_type:
+                    flip_type[idx] = target_type
+                    break
+
+        if not flip_type:
+            return segments
+
+        repaired_segments = []
+        for idx, seg in enumerate(segments):
+            new_seg = dict(seg)
+            if idx in flip_type:
+                new_seg["type"] = flip_type[idx]
+            repaired_segments.append(new_seg)
+
+        merged_segments = self._merge_collinear_same_type_segments(repaired_segments)
+
+        print("    短构件修复: " f"翻转={len(flip_type)} 段, " f"合并后段数 {len(segments)} -> {len(merged_segments)}")
+        return merged_segments
+
+    def _segment_endpoint_keys(self, line: LineString) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+        """将线段端点离散化为整数网格键值，便于拓扑判断。"""
+        coords = list(line.coords)
+        p0 = (round(coords[0][0]), round(coords[0][1]))
+        p1 = (round(coords[-1][0]), round(coords[-1][1]))
+        return p0, p1
+
+    def _build_endpoint_segment_map(self, segments: List[dict]) -> Dict[Tuple[int, int], List[int]]:
+        """构建端点到构件索引的映射。"""
+        endpoint_map: Dict[Tuple[int, int], List[int]] = {}
+        for idx, seg in enumerate(segments):
+            k0, k1 = self._segment_endpoint_keys(seg["geometry"])
+            endpoint_map.setdefault(k0, []).append(idx)
+            endpoint_map.setdefault(k1, []).append(idx)
+        return endpoint_map
+
+    def _merge_collinear_same_type_segments(self, segments: List[dict]) -> List[dict]:
+        """按端点度数=2且共线同类型的条件，迭代合并构件。"""
+        merged = list(segments)
+
+        while True:
+            endpoint_map = self._build_endpoint_segment_map(merged)
+            consumed = set()
+            next_segments = []
+
+            for endpoint_key, idxs in endpoint_map.items():
+                if len(idxs) != 2:
+                    continue
+
+                i, j = idxs[0], idxs[1]
+                if i in consumed or j in consumed:
+                    continue
+
+                seg_i = merged[i]
+                seg_j = merged[j]
+
+                if seg_i.get("type") != seg_j.get("type"):
+                    continue
+                if not self._are_segments_collinear(seg_i["geometry"], seg_j["geometry"]):
+                    continue
+
+                new_line = self._merge_two_segments(seg_i["geometry"], seg_j["geometry"], endpoint_key)
+                next_segments.append(
+                    {
+                        "geometry": new_line,
+                        "type": seg_i["type"],
+                        "length": new_line.length,
+                    }
+                )
+                consumed.add(i)
+                consumed.add(j)
+
+            if not consumed:
+                break
+
+            for idx, seg in enumerate(merged):
+                if idx not in consumed:
+                    next_segments.append(seg)
+
+            merged = next_segments
+
+        return merged
+
+    def _are_segments_collinear(self, line_a: LineString, line_b: LineString) -> bool:
+        """判断两条线段是否近似共线（支持水平/垂直）。"""
+        tol = self.snap_tolerance
+        a0, a1 = np.array(line_a.coords[0]), np.array(line_a.coords[-1])
+        b0, b1 = np.array(line_b.coords[0]), np.array(line_b.coords[-1])
+        va = a1 - a0
+        vb = b1 - b0
+
+        is_h_a = abs(va[1]) < tol
+        is_v_a = abs(va[0]) < tol
+        is_h_b = abs(vb[1]) < tol
+        is_v_b = abs(vb[0]) < tol
+
+        if is_h_a and is_h_b:
+            return abs(a0[1] - b0[1]) < tol
+        if is_v_a and is_v_b:
+            return abs(a0[0] - b0[0]) < tol
+        return False
+
+    def _merge_two_segments(self, line_a: LineString, line_b: LineString, shared_key: Tuple[int, int]) -> LineString:
+        """合并两条共享端点的共线线段为一条最长线段。"""
+        points = [
+            tuple(line_a.coords[0]),
+            tuple(line_a.coords[-1]),
+            tuple(line_b.coords[0]),
+            tuple(line_b.coords[-1]),
+        ]
+
+        remaining = [pt for pt in points if (round(pt[0]), round(pt[1])) != shared_key]
+        if len(remaining) >= 2:
+            p_start, p_end = remaining[0], remaining[1]
+        else:
+            # 兜底：取最远点对
+            max_dist = -1.0
+            p_start, p_end = points[0], points[1]
+            for i in range(len(points)):
+                for j in range(i + 1, len(points)):
+                    dist = float(np.linalg.norm(np.array(points[i]) - np.array(points[j])))
+                    if dist > max_dist:
+                        max_dist = dist
+                        p_start, p_end = points[i], points[j]
+
+        return LineString([p_start, p_end])
 
     def _build_topology(self, segments: List[dict]):
         """构建节点和构件列表"""
@@ -713,9 +866,7 @@ class FEMTopologyBuilder:
                 components.append(comp_nodes)
 
         largest_comp_nodes: Set[int] = max(components, key=len) if components else set()
-        floating_node_ids = sorted(
-            [n for n in range(num_nodes) if degree[n] > 0 and n not in largest_comp_nodes]
-        )
+        floating_node_ids = sorted([n for n in range(num_nodes) if degree[n] > 0 and n not in largest_comp_nodes])
 
         floating_member_ids = []
         for member in members:
@@ -863,20 +1014,34 @@ def visualize_fem_result(
             ax.fill(x, y, alpha=0.1, color="lightblue", edgecolor="gray", linestyle="--", linewidth=0.5)
 
     # 绘制构件
+    short_mem = 0
     for member in members:
         start = member["start_coord"]
         end = member["end_coord"]
+        length = member["length"]
 
         if member["type"] == "shearwall":
             color = "red"
-            linewidth = 4
+            linewidth = 2
             zorder = 10
+            if length < 200:
+                linewidth = 4
+                color = "green"
+                short_mem += 1
+
         else:  # beam
             color = "blue"  # if member.get("beam_role") == "primary" else "cyan"
-            linewidth = 4
+            linewidth = 2
             zorder = 2
+            if length < 200:
+                color = "orange"
+                short_mem += 1
+                linewidth = 4
+                zorder = 10
 
         ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=linewidth, zorder=zorder)
+
+    title += f" (Short members: {short_mem})" if short_mem > 0 else ""
 
     if show_exceptions:
         # 叠加绘制异常构件高亮
@@ -935,9 +1100,7 @@ def visualize_fem_result(
 
     # 图例
     legend_elements = [
-        Line2D(
-            [0], [0], color="red", linewidth=4, label=f'Shear Wall ({result["statistics"]["num_shearwalls"]})'
-        ),
+        Line2D([0], [0], color="red", linewidth=4, label=f'Shear Wall ({result["statistics"]["num_shearwalls"]})'),
         Line2D(
             [0],
             [0],
