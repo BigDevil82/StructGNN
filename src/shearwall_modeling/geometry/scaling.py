@@ -1,3 +1,4 @@
+import json
 import math
 from pathlib import Path
 from typing import Union
@@ -173,7 +174,12 @@ def load_and_scale_input(
     if manual_factor is not None:
         factor = manual_factor
     elif enable_auto_scale:
-        factor = choose_scale_factor(input_data, low=low, high=high, seed=seed)
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("metadata", {}).get("scale_factor") is not None:
+            factor = data["metadata"]["scale_factor"]
+        else:
+            factor = choose_scale_factor(input_data, low=low, high=high, seed=seed)
     else:
         factor = 1.0
 

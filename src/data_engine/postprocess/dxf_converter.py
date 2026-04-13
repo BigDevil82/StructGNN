@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from typing import Optional, Tuple
@@ -11,6 +12,8 @@ from src.data_engine.postprocess.symmetry_postprocess import (
 )
 from src.misc.parallel import run_batch
 from src.misc.timer import Timer
+from src.shearwall_modeling.core.domain import FEMInput
+from src.shearwall_modeling.geometry.scaling import choose_scale_factor
 from src.shearwall_pred.utils import build_graph_from_dxf
 
 DEFAULT_SYMMETRY_THRESHOLD = 0.85
@@ -209,6 +212,19 @@ def _build_fem_result(room_polys: list, masks_list: list, sw_vectors: list) -> d
     return fem_builder.build()
 
 
+def add_scale_factor(result_json_path):
+    input_data = FEMInput.from_json(json_path=result_json_path)
+    if not input_data.all_members():
+        raise ValueError("No beams/walls found in JSON.")
+
+    factor = choose_scale_factor(input_data)
+    with open(result_json_path, "r") as f:
+        data = json.load(f)
+        data["metadata"]["scale_factor"] = factor
+    with open(result_json_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
 def convert_dxf_to_fem_topology(dxf_path: str, output_path: str) -> dict:
     room_polys, masks_list, sw_vectors, _ = _prepare_graph_inputs(dxf_path)
 
@@ -216,6 +232,7 @@ def convert_dxf_to_fem_topology(dxf_path: str, output_path: str) -> dict:
     print("processing:", os.path.basename(dxf_path))
     result = _build_fem_result(room_polys, masks_list, sw_vectors)
     export_to_json(result, output_path)
+    add_scale_factor(output_path)
 
     # check if short members exist
     short_members = [mem for mem in result["members"] if mem["length"] < 200.0]
@@ -291,6 +308,8 @@ def convert_dxf_to_left_half_topology(
         )
 
     export_to_json(left_result, left_output_path)
+    add_scale_factor(left_output_path)
+
     save_path = Path(left_output_path).with_suffix(".png")
     visualize_fem_result(
         left_result, left_room_polys, title=os.path.basename(dxf_path), save_path=save_path, show_node=False

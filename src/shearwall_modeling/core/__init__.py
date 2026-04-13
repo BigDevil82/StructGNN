@@ -14,7 +14,6 @@ from .constants import (
     CONCRETE_ELASTIC_MODULUS_MPA,
     GB50011_TG_BY_SITE_CLASS,
     MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY,
-    RectSlabFilterBounds,
     SEISMIC_ALPHA_MAX_BY_INTENSITY,
 )
 from .domain import BeamMember, BeamRole, FEMInput, PlanMember, Point2D
@@ -32,7 +31,6 @@ __all__ = [
     "ModelConfig",
     "PlanMember",
     "Point2D",
-    "RectSlabFilterBounds",
     "ResponseSpectrum",
     "ResponseSpectrumBuilder",
     "SEISMIC_ALPHA_MAX_BY_INTENSITY",
@@ -41,4 +39,3 @@ __all__ = [
     "StandardStoryGroupConfig",
     "StoryProfile",
 ]
-
