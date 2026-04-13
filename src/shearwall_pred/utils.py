@@ -3,7 +3,6 @@
 提取重复使用的函数，避免代码冗余
 """
 
-import math
 from typing import List, Tuple
 
 import numpy as np
@@ -73,41 +72,10 @@ def extract_dxf_geometry(dxf_path: str) -> Tuple[List[Polygon], List[Polygon], L
     extractor = DXFExtractor()
     extractor.extract_from_file(dxf_path)
 
-    # 转换为 Shapely 房间几何体，并输出可定位的异常原因
-    raw_rooms: List[Polygon] = []
-    for idx, room in enumerate(extractor.rooms):
-        pts = [(float(p.x), float(p.y)) for p in room.polygon]
-
-        if len(pts) < 4:
-            print(
-                f"Warning: ROOM[{idx}] skipped (point_count={len(pts)} < 4), "
-                f"sample_points={pts[:4]}"
-            )
-            continue
-
-        has_non_finite = any((not math.isfinite(x) or not math.isfinite(y)) for x, y in pts)
-        if has_non_finite:
-            print(f"Warning: ROOM[{idx}] skipped (contains non-finite coords), sample_points={pts[:4]}")
-            continue
-
-        poly = Polygon(pts)
-        if poly.is_empty or (not poly.is_valid):
-            print(
-                f"Warning: ROOM[{idx}] invalid polygon skipped, "
-                f"area={poly.area:.6f}, bounds={poly.bounds}, sample_points={pts[:6]}"
-            )
-            continue
-
-        if poly.area < 1e-6:
-            print(f"Warning: ROOM[{idx}] skipped (near-zero area={poly.area:.6f}), sample_points={pts[:6]}")
-            continue
-
-        raw_rooms.append(poly)
-
-    if not raw_rooms:
-        print(f"Warning: No valid rooms parsed from DXF: {dxf_path}")
-    sw_polys = [Polygon([(p.x, p.y) for p in w if len(w) >= 4]) for w in extractor.shear_walls]
-    infill_polys = [Polygon([(p.x, p.y) for p in w if len(w) >= 4]) for w in extractor.infill_walls]
+    # 转换为Shapely几何体
+    raw_rooms = [Polygon([(p.x, p.y) for p in r.polygon]) for r in extractor.rooms if len(r.polygon) >= 4]
+    sw_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.shear_walls if len(w) >= 4]
+    infill_polys = [Polygon([(p.x, p.y) for p in w]) for w in extractor.infill_walls if len(w) >= 4]
 
     return raw_rooms, sw_polys, infill_polys
 

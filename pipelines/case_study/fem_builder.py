@@ -1041,6 +1041,18 @@ def visualize_fem_result(
 
         ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=linewidth, zorder=zorder)
 
+        # 在短构件外边画一个圆圈标记
+        if length < 200:
+            ax.scatter(
+                [(start[0] + end[0]) / 2],
+                [(start[1] + end[1]) / 2],
+                color="none",
+                edgecolor="green",
+                marker="o",
+                s=100,
+                linewidth=1.5,
+                zorder=zorder + 1,
+            )
     title += f" (Short members: {short_mem})" if short_mem > 0 else ""
 
     if show_exceptions:
