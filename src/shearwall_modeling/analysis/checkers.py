@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from ..core.constants import MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY
-from .results import DirectionCheckResult, DirectionResponse, ModalSummary, OverallCheckResult
+from .results import DirectionCheckResult, DirectionResponse, ModalSummary, OverallCheckResult, WallAxialMetric
 
 
 class DirectionChecker(ABC):
@@ -66,3 +66,9 @@ class PeriodRatioChecker:
         result.is_period_ratio_passed = (
             modal_summary.period_ratio is not None and modal_summary.period_ratio < self.limit_ratio
         )
+
+
+@dataclass(frozen=True)
+class WallAxialChecker:
+    def apply(self, wall_axial_metrics: list[WallAxialMetric], result: OverallCheckResult) -> None:
+        result.is_wall_axial_passed = all(metric.is_passed for metric in wall_axial_metrics)

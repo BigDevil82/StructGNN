@@ -21,25 +21,51 @@ def safe_abs_float_list(values: Any, max_len: int) -> list[float]:
     return result
 
 
-def identify_dominant_modes(modal_props: dict[str, Any]) -> tuple[int | None, int | None]:
-    num_modes = len(modal_props.get("eigenLambda", []))
-    if num_modes <= 0:
-        return None, None
+def identify_dominant_modes(modal_prop: dict[str, Any]) -> tuple[int | None, int | None]:
+    """
+    针对3D结构，根据模态质量参与比判别第一平动振型和第一扭转振型。
 
-    mass_x = safe_abs_float_list(modal_props.get("partiMassRatiosMX"), num_modes)
-    mass_y = safe_abs_float_list(modal_props.get("partiMassRatiosMY"), num_modes)
-    mass_rz = safe_abs_float_list(modal_props.get("partiMassRatiosRMZ"), num_modes)
+    参数
+    ----------
+    modal_prop : dict
+        必须包含以下键：
+        - "eigenLambda" 或 "eigenOmega" 等 (用于确定模态数量)
+        - "partiMassRatiosMX" : List[float]  MX方向质量参与比 (%)
+        - "partiMassRatiosMY" : List[float]  MY方向质量参与比 (%)
+        - "partiMassRatiosRMZ": List[float]  绕Z轴扭转质量参与比 (%)
 
-    translational_mode_index = None
-    torsional_mode_index = None
-    for index in range(num_modes):
-        translational_ratio = max(mass_x[index], mass_y[index])
-        torsional_ratio = mass_rz[index]
-        if translational_mode_index is None and translational_ratio >= torsional_ratio and translational_ratio > 0.0:
-            translational_mode_index = index + 1
-        if torsional_mode_index is None and torsional_ratio > translational_ratio and torsional_ratio > 0.0:
-            torsional_mode_index = index + 1
-        if translational_mode_index is not None and torsional_mode_index is not None:
+    返回
+    -------
+    tuple[Optional[int], Optional[int]]
+        (第一平动模态编号, 第一扭转模态编号)，编号从1开始，未找到则为None
+    """
+    # 获取模态数量
+    n_modes = len(modal_prop.get("eigenLambda", []))
+    if n_modes == 0:
+        raise ValueError("无法确定模态数量，缺少 eigenLambda/eigenOmega 等键")
+
+    # 提取三个关键参与比数组
+    rat_mx = modal_prop["partiMassRatiosMX"]
+    rat_my = modal_prop["partiMassRatiosMY"]
+    rat_rmz = modal_prop["partiMassRatiosRMZ"]
+
+    first_trans = None
+    first_tors = None
+
+    for i in range(n_modes):
+        trans_ratio = rat_mx[i] + rat_my[i]
+        # 扭转参与比
+        tors_ratio = rat_rmz[i]
+
+        # 判断：扭转 > 平动
+        if tors_ratio > trans_ratio:
+            if first_tors is None:
+                first_tors = i + 1
+        else:
+            if first_trans is None:
+                first_trans = i + 1
+
+        if first_trans is not None and first_tors is not None:
             break
-    return translational_mode_index, torsional_mode_index
 
+    return first_trans, first_tors

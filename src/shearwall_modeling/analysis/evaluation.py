@@ -10,6 +10,7 @@ from .checkers import (
     ShearWeightRatioChecker,
     StiffnessChecker,
     TorsionChecker,
+    WallAxialChecker,
 )
 from .response_spectrum import ResponseSpectrumAnalyzer
 from .results import (
@@ -64,6 +65,7 @@ class SeismicEvaluationPipeline:
             InterstoryDriftChecker(),
         ]
         self.period_ratio_checker = PeriodRatioChecker()
+        self.wall_axial_checker = WallAxialChecker()
 
     def _evaluate_direction(self, response: DirectionResponse) -> DirectionCheckResult:
         result = init_direction_check_result(response)
@@ -91,6 +93,9 @@ class SeismicEvaluationPipeline:
         )
 
         self.period_ratio_checker.apply(anysis_result.modal_summary, overall_result)
+
+        self.wall_axial_checker.apply(anysis_result.wall_axial_metrics, overall_result)
+
         return overall_result, dir_chk_results
 
 
@@ -105,16 +110,14 @@ class EvaluationReportPrinter:
         overall_result: OverallCheckResult,
         dir_results: dict[str, DirectionCheckResult],
     ) -> None:
-        self.logger.info("\n" + "=" * 50)
-        self.logger.info("结构抗震规范核心指标综合校核报告")
-        self.logger.info("=" * 50)
+        self.logger.info("\n" + "=" * 20 + "结构抗震规范核心指标综合校核报告" + "=" * 20)
 
         modal_summary = analysis_result.modal_summary
         wall_axial_metrics = analysis_result.wall_axial_metrics
         self.min_shear_ratio = MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY[config.seismic.intensity]
 
         if modal_summary is not None:
-            self.logger.info("\n【模态结果】")
+            self.logger.info("【模态结果】")
             self.logger.info(" 前n阶周期:")
             for idx, period in enumerate(modal_summary.periods, start=1):
                 self.logger.info(f"  第{idx}阶: {period:.4f} s")
@@ -134,7 +137,7 @@ class EvaluationReportPrinter:
                 self.logger.info(" 首个平动或扭转主导模态未识别，周期比无法校核。")
 
         for dir_name, result in dir_results.items():
-            self.logger.info(f"\n【{dir_name}向校核结果】")
+            self.logger.info(f"【{dir_name}向校核结果】")
             self.logger.info(f" -> 扭转不规则 (限值 1.2/1.5): {'✅通过' if result.is_torsion_passed else '❌超限'}")
             self.logger.info(
                 f" -> 最小剪重比 (限值 {self.min_shear_ratio}): "
@@ -157,7 +160,7 @@ class EvaluationReportPrinter:
                 )
 
         if wall_axial_metrics:
-            self.logger.info("\n【墙肢轴压比校核】")
+            self.logger.info("【墙肢轴压比校核】")
             worst = max(wall_axial_metrics, key=lambda item: item.axial_ratio)
             self.logger.info(
                 f" 控制墙肢: #{worst.wall_id}, 轴压比={worst.axial_ratio:.3f}, "

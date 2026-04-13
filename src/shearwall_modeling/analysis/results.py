@@ -63,12 +63,24 @@ class DirectionCheckResult:
 @dataclass
 class OverallCheckResult:
     # direction-specific
-    is_torsion_passed: bool = False
-    is_shear_weight_passed: bool = False
-    is_stiffness_passed: bool = False
-    is_interstory_drift_passed: bool = False
+    is_torsion_passed: bool = False  # 扭转位移比
+    is_shear_weight_passed: bool = False  # 剪重比
+    is_stiffness_passed: bool = False  # 刚度比
+    is_interstory_drift_passed: bool = False  # 层间位移角
     # not direction-specific
-    is_period_ratio_passed: bool = False
+    is_period_ratio_passed: bool = False  # 周期比
+    is_wall_axial_passed: bool = False  # 墙体轴压比
+
+    @property
+    def is_passed(self) -> bool:
+        return (
+            self.is_torsion_passed
+            and self.is_shear_weight_passed
+            and self.is_stiffness_passed
+            and self.is_interstory_drift_passed
+            and self.is_period_ratio_passed
+            and self.is_wall_axial_passed
+        )
 
 
 @dataclass

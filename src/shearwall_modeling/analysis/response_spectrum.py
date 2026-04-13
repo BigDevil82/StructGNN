@@ -153,17 +153,25 @@ class ResponseSpectrumAnalyzer:
             store["moment"].append(moment_m)
             store["shear"].append(shear_v)
 
-    def _update_story_stiffness_ratios(self, metrics: list[StoryMetric], stiffness_values: list[float]) -> None:
+    def _update_story_stiffness_ratios(
+        self, metrics: list[StoryMetric], stiffness_values: list[float]
+    ) -> None:
         for story_index, metric in enumerate(metrics):
             current_stiffness = stiffness_values[story_index]
-            next_stiffness = stiffness_values[story_index + 1] if story_index < len(metrics) - 1 else current_stiffness
+            next_stiffness = (
+                stiffness_values[story_index + 1] if story_index < len(metrics) - 1 else current_stiffness
+            )
             upper_stiffness = [
-                stiffness_values[story_index + offset] for offset in range(1, 4) if story_index + offset < len(metrics)
+                stiffness_values[story_index + offset]
+                for offset in range(1, 4)
+                if story_index + offset < len(metrics)
             ]
             average_upper_stiffness = (
                 sum(upper_stiffness) / len(upper_stiffness) if upper_stiffness else current_stiffness
             )
-            metric.stiffness_ratio_adjacent = current_stiffness / next_stiffness if next_stiffness > 1.0e-9 else 1.0
+            metric.stiffness_ratio_adjacent = (
+                current_stiffness / next_stiffness if next_stiffness > 1.0e-9 else 1.0
+            )
             metric.stiffness_ratio_average = (
                 current_stiffness / average_upper_stiffness if average_upper_stiffness > 1.0e-9 else 1.0
             )
