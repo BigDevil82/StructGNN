@@ -18,26 +18,23 @@ from .results import (
     AnalysisResult,
     DirectionCheckResult,
     DirectionResponse,
-    GravityCaseResult,
     OverallCheckResult,
     ResponseSpectrumCaseResult,
     init_direction_check_result,
 )
 from .uls_combinations import ULSCombinationAnalyzer
-from .wall_axial import GravityCaseAnalyzer, LinearSuperpositionAnalyzer
+from .wall_axial import LinearSuperpositionAnalyzer
 
 
 class AnalysisResultBuilder:
     def __init__(self, context: AnalysisModelContext):
         self.context = context
         self.rsa_analyzer = ResponseSpectrumAnalyzer(context)
-        self.gravity_analyzer = GravityCaseAnalyzer(context)
         self.basic_case_analyzer = LinearSuperpositionAnalyzer(context)
         self.uls_analyzer = ULSCombinationAnalyzer(context)
 
     def build(self) -> AnalysisResult:
         rsa_result = self.rsa_analyzer.run()
-        gravity_result = self.gravity_analyzer.run()
         basic_case_result = self.basic_case_analyzer.run_basic_cases(rsa_result=rsa_result)
         beam_case_forces = {
             case_name: case_result.get("beam_forces", {})
@@ -50,14 +47,21 @@ class AnalysisResultBuilder:
         uls_result = self.uls_analyzer.run(
             beam_case_forces=beam_case_forces, wall_case_forces=wall_case_forces
         )
+        gravity_beam_forces = basic_case_result.get("Dead", {}).get("beam_forces", {})
+        gravity_wall_forces = basic_case_result.get("Dead", {}).get("wall_forces", {})
         return self._compose_snapshot(
-            rsa_result, gravity_result, uls_result.wall_metrics, uls_result.beam_metrics
+            rsa_result,
+            gravity_beam_forces,
+            gravity_wall_forces,
+            uls_result.wall_metrics,
+            uls_result.beam_metrics,
         )
 
     def _compose_snapshot(
         self,
         rsa_result: ResponseSpectrumCaseResult,
-        gravity_result: GravityCaseResult,
+        gravity_beam_forces,
+        gravity_wall_forces,
         wall_uls_metrics,
         beam_uls_metrics,
     ) -> AnalysisResult:
@@ -67,11 +71,11 @@ class AnalysisResultBuilder:
             modal_summary=rsa_result.modal_summary,
             story_weights=rsa_result.story_weights,
             direction_responses=rsa_result.direction_responses,
-            gravity_beam_forces=gravity_result.gravity_beam_forces,
-            gravity_wall_forces=gravity_result.gravity_wall_forces,
+            gravity_beam_forces=gravity_beam_forces,
+            gravity_wall_forces=gravity_wall_forces,
             seismic_beam_forces=rsa_result.seismic_beam_forces,
             seismic_wall_forces=rsa_result.seismic_wall_forces,
-            wall_axial_metrics=gravity_result.wall_axial_metrics,
+            wall_axial_metrics=[],
             wall_uls_metrics=wall_uls_metrics,
             beam_uls_metrics=beam_uls_metrics,
         )

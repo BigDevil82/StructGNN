@@ -1,60 +1,8 @@
 import openseespy.opensees as ops
 
 from ..builders.base import AnalysisModelContext
-from .member_forces import collect_wall_axial_metrics, extract_beam_force_tuple, extract_wall_force_tuple
-from .results import GravityCaseResult, ResponseSpectrumCaseResult
-
-
-class GravityCaseAnalyzer:
-    def __init__(self, context: AnalysisModelContext):
-        self.context = context
-
-    def _story_gravity_force_n(self, story_index: int) -> float:
-        profile = self.context.story_profiles[story_index]
-        return self.context.floor_masses[story_index] * profile.mass_source.gravity
-
-    def _configure_gravity_analysis(self) -> None:
-        ops.wipeAnalysis()
-        ops.constraints("Transformation")
-        ops.numberer("RCM")
-        ops.system("UmfPack")
-        ops.test("NormDispIncr", 1.0e-6, 20)
-        ops.algorithm("Newton")
-        ops.integrator("LoadControl", 1.0)
-        ops.analysis("Static")
-
-    def run(self) -> GravityCaseResult:
-        ts_tag = 70001
-        pat_tag = 70001
-        floor_gravity_forces = [
-            self._story_gravity_force_n(story_index) for story_index in range(self.context.num_stories)
-        ]
-
-        ops.timeSeries("Linear", ts_tag)
-        ops.pattern("Plain", pat_tag, ts_tag)
-        for story_index, floor_nodes in enumerate(self.context.floor_story_nodes):
-            nodal_force = floor_gravity_forces[story_index] / len(floor_nodes)
-            for node in floor_nodes:
-                ops.load(node, 0.0, 0.0, -nodal_force, 0.0, 0.0, 0.0)
-
-        self._configure_gravity_analysis()
-        if ops.analyze(1) != 0:
-            raise RuntimeError("Static gravity case failed during wall axial check.")
-
-        gravity_beam_forces = {
-            (unit.beam_id, unit.story): extract_beam_force_tuple(unit.element_tag)
-            for unit in self.context.beam_element_units
-        }
-        gravity_wall_forces = {
-            (unit.wall_id, unit.story): extract_wall_force_tuple(unit, dir_name=None)
-            for unit in self.context.wall_story_element_units
-        }
-        ops.reactions()
-        return GravityCaseResult(
-            gravity_beam_forces=gravity_beam_forces,
-            gravity_wall_forces=gravity_wall_forces,
-            wall_axial_metrics=collect_wall_axial_metrics(self.context),
-        )
+from .member_forces import extract_beam_force_tuple, extract_wall_force_tuple
+from .results import ResponseSpectrumCaseResult
 
 
 class LinearSuperpositionAnalyzer:
@@ -177,7 +125,6 @@ class LinearSuperpositionAnalyzer:
     def _run_static_basic_case(self, case_name: str) -> tuple[
         dict[tuple[int, int], tuple[float, float, float]],
         dict[tuple[int, int], tuple[float, float, float]],
-        list,
     ]:
         ts_tag = 71000 + self.basic_cases.index(case_name) + 1
         pat_tag = 71000 + self.basic_cases.index(case_name) + 1
@@ -205,20 +152,18 @@ class LinearSuperpositionAnalyzer:
 
         ops.reactions()
         beam_forces, wall_forces = self._extract_case_forces(wall_dir=wall_dir)
-        wall_metrics = collect_wall_axial_metrics(self.context)
         ops.remove("loadPattern", pat_tag)
         ops.reset()
-        return beam_forces, wall_forces, wall_metrics
+        return beam_forces, wall_forces
 
     def run_basic_cases(self, rsa_result: ResponseSpectrumCaseResult | None = None) -> dict:
         """Run basic static cases and optionally append EqX/EqY from RSA directional results."""
         basic_results: dict[str, dict] = {}
         for case in self.basic_cases:
-            beam_forces, wall_forces, wall_metrics = self._run_static_basic_case(case)
+            beam_forces, wall_forces = self._run_static_basic_case(case)
             basic_results[case] = {
                 "beam_forces": beam_forces,
                 "wall_forces": wall_forces,
-                "wall_axial_metrics": wall_metrics,
             }
 
         if rsa_result is not None:
@@ -231,12 +176,10 @@ class LinearSuperpositionAnalyzer:
                 basic_results["EqX"] = {
                     "beam_forces": beam_by_dir["X"],
                     "wall_forces": wall_by_dir["X"],
-                    "wall_axial_metrics": [],
                 }
                 basic_results["EqY"] = {
                     "beam_forces": beam_by_dir["Y"],
                     "wall_forces": wall_by_dir["Y"],
-                    "wall_axial_metrics": [],
                 }
             else:
                 self.context.logger.warning(
@@ -245,12 +188,10 @@ class LinearSuperpositionAnalyzer:
                 basic_results["EqX"] = {
                     "beam_forces": rsa_result.seismic_beam_forces,
                     "wall_forces": rsa_result.seismic_wall_forces,
-                    "wall_axial_metrics": [],
                 }
                 basic_results["EqY"] = {
                     "beam_forces": rsa_result.seismic_beam_forces,
                     "wall_forces": rsa_result.seismic_wall_forces,
-                    "wall_axial_metrics": [],
                 }
 
         return basic_results
@@ -304,7 +245,6 @@ class LinearSuperpositionAnalyzer:
             combined_results[combo_name] = {
                 "beam_forces": combo_beam_forces,
                 "wall_forces": combo_wall_forces,
-                # 如果还需要组合 wall_axial_metrics，可以用同样的 NumPy 累加逻辑
             }
 
         return combined_results

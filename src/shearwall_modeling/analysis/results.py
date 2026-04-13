@@ -133,13 +133,6 @@ class ResponseSpectrumCaseResult:
     )
 
 
-@dataclass
-class GravityCaseResult:
-    gravity_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
-    gravity_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
-    wall_axial_metrics: list[WallAxialMetric]
-
-
 def init_direction_check_result(response: DirectionResponse) -> DirectionCheckResult:
     return DirectionCheckResult(
         direction=response.direction,

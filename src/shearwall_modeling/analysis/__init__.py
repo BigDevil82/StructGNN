@@ -21,7 +21,7 @@ from .uls_combinations import (
     ULSCombinationResult,
     WallULSMetric,
 )
-from .wall_axial import GravityCaseAnalyzer, LinearSuperpositionAnalyzer
+from .wall_axial import LinearSuperpositionAnalyzer
 
 __all__ = [
     "AnalysisResult",
@@ -44,7 +44,6 @@ __all__ = [
     "ULSCombinationResult",
     "WallULSMetric",
     "BeamULSMetric",
-    "GravityCaseAnalyzer",
     "LinearSuperpositionAnalyzer",
     "WallAxialMetric",
     "DEFAULT_COMBINATIONS",
