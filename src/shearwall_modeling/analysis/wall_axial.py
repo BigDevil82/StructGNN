@@ -65,6 +65,13 @@ class LinearSuperpositionAnalyzer:
         wind_base_shear_ratio_y: float = 0.0,
         wind_story_forces_x: list[float] | None = None,
         wind_story_forces_y: list[float] | None = None,
+        wind_basic_pressure_kpa: float = 0.50,
+        wind_shape_coeff: float = 1.30,
+        wind_vibration_coeff: float = 1.00,
+        wind_importance_coeff: float = 1.00,
+        wind_height_exponent: float = 0.16,
+        wind_ref_height_m: float = 10.0,
+        wind_min_height_coeff: float = 1.0,
     ):
         self.context = context
         self.basic_cases = ["Dead", "Live", "WindX", "WindY"]
@@ -72,6 +79,13 @@ class LinearSuperpositionAnalyzer:
         self.wind_base_shear_ratio_y = max(float(wind_base_shear_ratio_y), 0.0)
         self.wind_story_forces_x = wind_story_forces_x
         self.wind_story_forces_y = wind_story_forces_y
+        self.wind_basic_pressure_kpa = max(float(wind_basic_pressure_kpa), 0.0)
+        self.wind_shape_coeff = max(float(wind_shape_coeff), 0.0)
+        self.wind_vibration_coeff = max(float(wind_vibration_coeff), 0.0)
+        self.wind_importance_coeff = max(float(wind_importance_coeff), 0.0)
+        self.wind_height_exponent = max(float(wind_height_exponent), 0.0)
+        self.wind_ref_height_m = max(float(wind_ref_height_m), 1.0)
+        self.wind_min_height_coeff = max(float(wind_min_height_coeff), 0.1)
 
     def _configure_static_analysis(self) -> None:
         """配置线性静力分析（通用配置）"""
@@ -129,6 +143,31 @@ class LinearSuperpositionAnalyzer:
         base_shear_n = base_shear_ratio * sum(story_weights)
         return [base_shear_n * value / total_weighted for value in weighted]
 
+    def _wind_height_coeff(self, z_m: float) -> float:
+        ratio = max(float(z_m), 0.0) / self.wind_ref_height_m
+        value = ratio**self.wind_height_exponent
+        return max(value, self.wind_min_height_coeff)
+
+    def _wind_story_forces_by_code(self, direction: str) -> list[float]:
+        xmin, xmax, ymin, ymax = self.context.bbox
+        width_m = max(ymax - ymin, 1.0e-9) if direction == "X" else max(xmax - xmin, 1.0e-9)
+        base_pressure_pa = self.wind_basic_pressure_kpa * 1000.0
+
+        story_forces: list[float] = []
+        for profile in self.context.story_profiles:
+            z_mid = 0.5 * (profile.z_bottom + profile.z_top)
+            mu_z = self._wind_height_coeff(z_mid)
+            pressure_pa = (
+                base_pressure_pa
+                * self.wind_importance_coeff
+                * self.wind_vibration_coeff
+                * self.wind_shape_coeff
+                * mu_z
+            )
+            facade_area_m2 = width_m * profile.story_height
+            story_forces.append(pressure_pa * facade_area_m2)
+        return story_forces
+
     def _apply_lateral_load(self, story_forces_n: list[float], direction: str) -> None:
         for story_index, node in enumerate(self.context.master_nodes):
             force = story_forces_n[story_index]
@@ -148,11 +187,23 @@ class LinearSuperpositionAnalyzer:
         self._apply_story_vertical_loads(story_forces_n)
 
     def _apply_wind_x_load(self) -> None:
-        story_forces_n = self._lateral_story_forces(self.wind_base_shear_ratio_x, self.wind_story_forces_x)
+        story_forces_n = (
+            [max(float(value), 0.0) for value in self.wind_story_forces_x]
+            if self.wind_story_forces_x is not None
+            else self._wind_story_forces_by_code(direction="X")
+        )
+        if not any(story_forces_n):
+            story_forces_n = self._lateral_story_forces(self.wind_base_shear_ratio_x, None)
         self._apply_lateral_load(story_forces_n, direction="X")
 
     def _apply_wind_y_load(self) -> None:
-        story_forces_n = self._lateral_story_forces(self.wind_base_shear_ratio_y, self.wind_story_forces_y)
+        story_forces_n = (
+            [max(float(value), 0.0) for value in self.wind_story_forces_y]
+            if self.wind_story_forces_y is not None
+            else self._wind_story_forces_by_code(direction="Y")
+        )
+        if not any(story_forces_n):
+            story_forces_n = self._lateral_story_forces(self.wind_base_shear_ratio_y, None)
         self._apply_lateral_load(story_forces_n, direction="Y")
 
     def _extract_case_forces(self, wall_dir: str | None) -> tuple[
