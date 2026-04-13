@@ -46,6 +46,8 @@ class WallStoryElementUnit:
 class ModelBuildResult:
     master_nodes: list[int]
     floor_area: float
+    floor_load_masses: list[float]
+    floor_self_masses: list[float]
     wall_base_units: list[WallBaseCheckUnit]
     floor_story_nodes: list[list[int]]
     beam_element_units: list[BeamElementUnit]
@@ -73,6 +75,14 @@ class AnalysisModelContext:
     @property
     def floor_area(self) -> float:
         return self.build_result.floor_area
+
+    @property
+    def floor_load_masses(self) -> list[float]:
+        return self.build_result.floor_load_masses
+
+    @property
+    def floor_self_masses(self) -> list[float]:
+        return self.build_result.floor_self_masses
 
     @property
     def wall_base_units(self):

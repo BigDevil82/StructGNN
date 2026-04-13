@@ -8,7 +8,13 @@ import openseespy.opensees as ops
 from ..core.config import MaterialConfig, ModelConfig, StoryProfile
 from ..core.domain import BeamRole, FEMInput
 from ..geometry.mass_estimation import estimate_floor_area, estimate_structural_self_mass_per_floor
-from .base import BeamElementUnit, ModelBuildResult, StructuralModelBuilder, WallBaseCheckUnit, WallStoryElementUnit
+from .base import (
+    BeamElementUnit,
+    ModelBuildResult,
+    StructuralModelBuilder,
+    WallBaseCheckUnit,
+    WallStoryElementUnit,
+)
 
 
 def _beam_section_props(width: float, depth: float) -> tuple[float, float, float, float]:
@@ -124,10 +130,12 @@ class DetailedShellBuilder(StructuralModelBuilder):
             z_levels = [0.0] + [p.z_top for p in profiles]
 
             floor_area = estimate_floor_area(input_data)
-            floor_masses, total_load_mass, total_self_mass = self._calc_floor_masses(
-                input_data=input_data,
-                story_profiles=profiles,
-                floor_area=floor_area,
+            floor_masses, floor_load_masses, floor_self_masses, total_load_mass, total_self_mass = (
+                self._calc_floor_masses(
+                    input_data=input_data,
+                    story_profiles=profiles,
+                    floor_area=floor_area,
+                )
             )
             total_structure_mass = sum(floor_masses)
 
@@ -176,6 +184,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
             return ModelBuildResult(
                 master_nodes=master_nodes,
                 floor_area=floor_area,
+                floor_load_masses=floor_load_masses,
+                floor_self_masses=floor_self_masses,
                 wall_base_units=wall_base_units,
                 floor_story_nodes=floor_story_nodes,
                 beam_element_units=element_result.beam_element_units,
@@ -184,8 +194,10 @@ class DetailedShellBuilder(StructuralModelBuilder):
 
     def _calc_floor_masses(
         self, input_data: FEMInput, story_profiles: list[StoryProfile], floor_area: float
-    ) -> tuple[list[float], float, float]:
+    ) -> tuple[list[float], list[float], list[float], float, float]:
         masses: list[float] = []
+        load_masses: list[float] = []
+        self_masses: list[float] = []
         total_load_mass = 0.0
         total_self_mass = 0.0
 
@@ -204,13 +216,17 @@ class DetailedShellBuilder(StructuralModelBuilder):
                 density_kg_m3=prf.material.density_kg_m3,
                 floor_area=floor_area,
             )
-            self_mass = self_mass_info["total_self_mass"] if prf.mass_source.include_structural_self_weight else 0.0
+            self_mass = (
+                self_mass_info["total_self_mass"] if prf.mass_source.include_structural_self_weight else 0.0
+            )
 
             masses.append(load_mass + self_mass)
+            load_masses.append(load_mass)
+            self_masses.append(self_mass)
             total_load_mass += load_mass
             total_self_mass += self_mass
 
-        return masses, total_load_mass, total_self_mass
+        return masses, load_masses, self_masses, total_load_mass, total_self_mass
 
     def _create_shell_sections(self, story_profiles: list[StoryProfile]) -> dict[int, int]:
         mat_tag = 1
@@ -280,7 +296,9 @@ class DetailedShellBuilder(StructuralModelBuilder):
                     n2 = wall_grid[level][i + 1]
                     n3 = wall_grid[level + 1][i + 1]
                     n4 = wall_grid[level + 1][i]
-                    tag = self.model.create_element("ShellMITC4", n1, n2, n3, n4, shell_section_by_story[level + 1])
+                    tag = self.model.create_element(
+                        "ShellMITC4", n1, n2, n3, n4, shell_section_by_story[level + 1]
+                    )
                     story_element_tags.append(tag)
                     shell_count += 1
                 wall_story_element_units.append(
@@ -370,7 +388,8 @@ class DetailedShellBuilder(StructuralModelBuilder):
             floor_mass = floor_masses[story - 1]
             nodal_mass = floor_mass / len(level_nodes)
             rot_mass = sum(
-                nodal_mass * ((node_coords[n][0] - com_x) ** 2 + (node_coords[n][1] - com_y) ** 2) for n in level_nodes
+                nodal_mass * ((node_coords[n][0] - com_x) ** 2 + (node_coords[n][1] - com_y) ** 2)
+                for n in level_nodes
             )
 
             ops.mass(master, floor_mass, floor_mass, 0.0, 0.0, 0.0, rot_mass)

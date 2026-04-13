@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from .uls_combinations import BeamULSMetric, WallULSMetric
+
 
 @dataclass
 class StoryMetric:
@@ -70,6 +72,8 @@ class OverallCheckResult:
     # not direction-specific
     is_period_ratio_passed: bool = False  # 周期比
     is_wall_axial_passed: bool = False  # 墙体轴压比
+    is_wall_shear_pressure_passed: bool = False  # 墙体剪压比
+    is_beam_shear_pressure_passed: bool = False  # 连梁剪压比
 
     @property
     def is_passed(self) -> bool:
@@ -80,6 +84,8 @@ class OverallCheckResult:
             and self.is_interstory_drift_passed
             and self.is_period_ratio_passed
             and self.is_wall_axial_passed
+            and self.is_wall_shear_pressure_passed
+            and self.is_beam_shear_pressure_passed
         )
 
 
@@ -106,6 +112,8 @@ class AnalysisResult:
     seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
     seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
     wall_axial_metrics: list[WallAxialMetric]
+    wall_uls_metrics: list[WallULSMetric] = field(default_factory=list)
+    beam_uls_metrics: list[BeamULSMetric] = field(default_factory=list)
 
 
 @dataclass
