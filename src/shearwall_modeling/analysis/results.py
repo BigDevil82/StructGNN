@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -117,6 +117,12 @@ class ResponseSpectrumCaseResult:
     direction_responses: dict[str, DirectionResponse]
     seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
     seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
+    seismic_beam_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]] = field(
+        default_factory=dict
+    )
+    seismic_wall_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]] = field(
+        default_factory=dict
+    )
 
 
 @dataclass

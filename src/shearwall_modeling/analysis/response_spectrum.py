@@ -51,6 +51,8 @@ class ResponseSpectrumAnalyzer:
             direction_responses=direction_responses,
             seismic_beam_forces=self._envelope_beam_forces(beam_forces_by_dir),
             seismic_wall_forces=self._envelope_wall_forces(wall_forces_by_dir),
+            seismic_beam_forces_by_dir=beam_forces_by_dir,
+            seismic_wall_forces_by_dir=wall_forces_by_dir,
         )
 
     def extract_modal_summary(self, modal_periods: list[float], modal_props: dict[str, Any]) -> ModalSummary:
