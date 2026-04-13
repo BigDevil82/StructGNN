@@ -2,14 +2,14 @@ import os
 from pathlib import Path
 
 from pipelines.case_study.adapters import export_structural_input_json, fem_result_to_fem_input
-from pipelines.case_study.fem_builder import FEMTopologyBuilder, visualize_fem_result
-from pipelines.case_study.symmetry_postprocess import (
+from pipelines.case_study.visualization import visualize_prediction_comparison, visualize_wall_layout
+from src.data_engine.postprocess.fem_builder import FEMTopologyBuilder, visualize_fem_result
+from src.data_engine.postprocess.symmetry_postprocess import (
     detect_left_right_symmetry,
     load_layout_reference_geometries,
     save_symmetry_detection_debug_plot,
     symmetrize_raw_walls,
 )
-from pipelines.case_study.visualization import visualize_prediction_comparison, visualize_wall_layout
 from src.shearwall_pred.inference import load_ensemble_model, predict_shear_walls, prepare_case_graph
 
 

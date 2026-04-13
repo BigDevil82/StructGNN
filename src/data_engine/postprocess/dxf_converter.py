@@ -4,8 +4,11 @@ from typing import Optional, Tuple
 
 from shapely.geometry import GeometryCollection, Polygon, box
 
-from pipelines.case_study.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
-from pipelines.case_study.symmetry_postprocess import detect_left_right_symmetry, load_layout_reference_geometries
+from src.data_engine.postprocess.fem_builder import FEMTopologyBuilder, export_to_json, visualize_fem_result
+from src.data_engine.postprocess.symmetry_postprocess import (
+    detect_left_right_symmetry,
+    load_layout_reference_geometries,
+)
 from src.misc.parallel import run_batch
 from src.misc.timer import Timer
 from src.shearwall_pred.utils import build_graph_from_dxf
@@ -14,7 +17,9 @@ DEFAULT_SYMMETRY_THRESHOLD = 0.85
 LEFT_AUG_SUFFIX = "_left_aug"
 
 
-def _is_left_right_separable(layout_geometries: dict, axis_x: float, area_tol: float = 1.0e6) -> tuple[bool, int]:
+def _is_left_right_separable(
+    layout_geometries: dict, axis_x: float, area_tol: float = 1.0e6
+) -> tuple[bool, int]:
     """
     判断布局是否“左右可分”。
 
@@ -121,7 +126,9 @@ def _extract_left_half_result(result: dict, axis_x: float, x_tol: float = 100.0)
             "num_members": len(new_members),
             "num_shearwalls": sum(1 for m in new_members if m["type"] == "shearwall"),
             "num_beams": sum(1 for m in new_members if m["type"] == "beam"),
-            "num_primary_beams": sum(1 for m in new_members if m["type"] == "beam" and m.get("beam_role") == "primary"),
+            "num_primary_beams": sum(
+                1 for m in new_members if m["type"] == "beam" and m.get("beam_role") == "primary"
+            ),
             "num_secondary_beams": sum(
                 1 for m in new_members if m["type"] == "beam" and m.get("beam_role") == "secondary"
             ),
@@ -220,7 +227,9 @@ def convert_dxf_to_fem_topology(dxf_path: str, output_path: str) -> dict:
                 )
             )
     save_path = Path(output_path).with_suffix(".png")
-    visualize_fem_result(result, room_polys, title=os.path.basename(dxf_path), save_path=save_path, show_node=False)
+    visualize_fem_result(
+        result, room_polys, title=os.path.basename(dxf_path), save_path=save_path, show_node=False
+    )
 
     ## for debug
     if not result["validation"]["ok"]:
@@ -277,7 +286,9 @@ def convert_dxf_to_left_half_topology(
 
     left_output_path = output_path
     if not left_output_path.endswith(".json"):
-        left_output_path = str(Path(output_path).with_name(Path(output_path).stem + LEFT_AUG_SUFFIX + ".json"))
+        left_output_path = str(
+            Path(output_path).with_name(Path(output_path).stem + LEFT_AUG_SUFFIX + ".json")
+        )
 
     export_to_json(left_result, left_output_path)
     save_path = Path(left_output_path).with_suffix(".png")
@@ -388,7 +399,12 @@ if __name__ == "__main__":
     # os.makedirs(output_folder, exist_ok=True)
     # convert_folder(dxf_folder, output_folder)
 
-    dxf = r"data/dxf/fem_raw/L27_211.dxf"
-    output = r"data\dxf\cad_json_data\fem_raw" + os.sep + os.path.splitext(os.path.basename(dxf))[0] + ".json"
-    # convert_dxf_to_fem_topology(dxf, output)
-    convert_dxf_to_left_half_topology(dxf, output)
+    dxf_folder = r"data/dxf/fem_raw"
+    output_folder = r"data/dxf/cad_json_data/fem_raw_left_aug"
+    os.makedirs(output_folder, exist_ok=True)
+    convert_folder_left_half(dxf_folder, output_folder)
+
+    # dxf = r"data/dxf/fem_raw/L27_211.dxf"
+    # output = r"data\dxf\cad_json_data\fem_raw" + os.sep + os.path.splitext(os.path.basename(dxf))[0] + ".json"
+    # # convert_dxf_to_fem_topology(dxf, output)
+    # convert_dxf_to_left_half_topology(dxf, output)
