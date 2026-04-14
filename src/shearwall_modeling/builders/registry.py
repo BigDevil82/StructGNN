@@ -1,6 +1,7 @@
 from .base import StructuralModelBuilder
 from .detailed_shell import DetailedShellBuilder
 from .equi_frame import EquivalentFrameBuilder
+from .mvlem_frame import MVLEMFrameBuilder
 
 
 class BuilderRegistry:
@@ -23,3 +24,4 @@ class BuilderRegistry:
 DEFAULT_REGISTRY = BuilderRegistry()
 DEFAULT_REGISTRY.register(DetailedShellBuilder(None))
 DEFAULT_REGISTRY.register(EquivalentFrameBuilder(None))
+DEFAULT_REGISTRY.register(MVLEMFrameBuilder(None))
