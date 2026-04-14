@@ -1,5 +1,6 @@
 from ..builders.base import AnalysisModelContext
 from ..core.config import ResponseSpectrum, ResponseSpectrumBuilder
+from .basic_static_case import LinearSuperpositionAnalyzer
 from .checkers import (
     InterstoryDriftChecker,
     PeriodRatioChecker,
@@ -21,7 +22,6 @@ from .uls_combinations import (
     ULSCombinationResult,
     WallULSMetric,
 )
-from .wall_axial import LinearSuperpositionAnalyzer
 
 __all__ = [
     "AnalysisResult",

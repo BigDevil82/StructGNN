@@ -3,6 +3,7 @@ import logging
 from ..builders.base import AnalysisModelContext, ModelBuildResult
 from ..core.config import ModelConfig
 from ..core.constants import MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY
+from .basic_static_case import LinearSuperpositionAnalyzer
 from .checkers import (
     BeamShearPressureChecker,
     DirectionChecker,
@@ -23,7 +24,6 @@ from .results import (
     init_direction_check_result,
 )
 from .uls_combinations import ULSCombinationAnalyzer
-from .wall_axial import LinearSuperpositionAnalyzer
 
 
 class AnalysisResultBuilder:
