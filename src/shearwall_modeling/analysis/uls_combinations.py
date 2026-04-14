@@ -29,6 +29,8 @@ class MemberForceEnvelope:
 class WallULSMetric:
     wall_id: int
     story: int
+    length: float
+    thickness: float
     axial_ratio: float
     axial_ratio_limit: float
     axial_control_combo: str
@@ -44,6 +46,7 @@ class WallULSMetric:
 class BeamULSMetric:
     beam_id: int
     story: int
+    length: float
     shear_pressure_ratio: float
     shear_pressure_ratio_limit: float
     shear_control_combo: str
@@ -157,16 +160,14 @@ class ULSCombinationAnalyzer:
         combo: LoadCombinationDef,
         case_forces: dict[str, dict[tuple[int, int], ForceTuple]],
     ) -> ForceTuple:
-        v0 = 0.0
-        v1 = 0.0
-        v2 = 0.0
+        v0, v1, v2 = 0.0, 0.0, 0.0
         for case_name, factor in combo.factors.items():
             item = case_forces.get(case_name, {})
             a0, a1, a2 = item.get(key, (0.0, 0.0, 0.0))
             scale = abs(float(factor))
-            v0 += scale * abs(float(a0))
-            v1 += scale * abs(float(a1))
-            v2 += scale * abs(float(a2))
+            v0 += scale * float(a0)
+            v1 += scale * float(a1)
+            v2 += scale * float(a2)
         return v0, v1, v2
 
     def _build_envelope(
@@ -211,7 +212,6 @@ class ULSCombinationAnalyzer:
         wall_combo_forces: dict[str, dict[tuple[int, int], ForceTuple]],
     ) -> list[WallULSMetric]:
         story_profiles = {profile.story: profile for profile in self.context.story_profiles}
-        wall_base_by_id = {item.wall_id: item for item in self.context.wall_base_units}
 
         metrics: list[WallULSMetric] = []
         for unit in self.context.wall_story_element_units:
@@ -220,14 +220,11 @@ class ULSCombinationAnalyzer:
                 continue
 
             envelope = wall_envelope[key]
-            base_unit = wall_base_by_id.get(unit.wall_id)
-            if base_unit is None:
-                continue
 
             concrete_grade = story_profiles[unit.story].material.concrete_grade
             fc_pa = concrete_fc_pa(concrete_grade)
 
-            area_m2 = max(base_unit.length * base_unit.thickness, 1.0e-9)
+            area_m2 = max(unit.member.length * unit.thickness, 1.0e-9)
             axial_n, axial_combo = self._select_axial_for_wall(key, wall_combo_forces)
             axial_ratio = axial_n / (fc_pa * area_m2)
             axial_limit = self.context.config.seismic.axial_compression_ratio_limit
@@ -243,6 +240,8 @@ class ULSCombinationAnalyzer:
                 WallULSMetric(
                     wall_id=unit.wall_id,
                     story=unit.story,
+                    length=unit.member.length,
+                    thickness=unit.thickness,
                     axial_ratio=axial_ratio,
                     axial_ratio_limit=axial_limit,
                     axial_control_combo=axial_combo,
@@ -304,6 +303,7 @@ class ULSCombinationAnalyzer:
                 BeamULSMetric(
                     beam_id=unit.beam_id,
                     story=unit.story,
+                    length=unit.length,
                     shear_pressure_ratio=shear_ratio,
                     shear_pressure_ratio_limit=shear_limit,
                     shear_control_combo=envelope.max_shear_combo,
