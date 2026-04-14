@@ -1,25 +1,37 @@
 import math
 
+import numpy as np
+
 
 def cqc(mu: list[float], lambdas: list[float], damping: list[float], scale_factors: list[float]) -> float:
-    total = 0.0
-    nm = len(mu)
-    for i in range(nm):
-        for j in range(nm):
-            di = damping[i]
-            dj = damping[j]
-            bij = lambdas[i] / lambdas[j]
-            rho = (8.0 * math.sqrt(di * dj) * (di + bij * dj) * (bij**1.5)) / (
-                (1.0 - bij**2.0) ** 2.0
-                + 4.0 * di * dj * bij * (1.0 + bij**2.0)
-                + 4.0 * (di**2.0 + dj**2.0) * bij**2.0
-            )
-            total += scale_factors[i] * mu[i] * scale_factors[j] * mu[j] * rho
-    return math.sqrt(max(0.0, total))
+    mu = np.asarray(mu)
+    lam = np.asarray(lambdas)
+    d = np.asarray(damping)
+    sf = np.asarray(scale_factors)
+
+    # 频率比矩阵 β[i,j] = λ[i] / λ[j]，shape (n, n)
+    beta = lam[:, None] / lam[None, :]
+
+    # 阻尼积矩阵，shape (n, n)
+    di = d[:, None]  # 列向量广播
+    dj = d[None, :]  # 行向量广播
+
+    # CQC 相关系数矩阵 ρ
+    numer = 8.0 * np.sqrt(di * dj) * (di + beta * dj) * beta**1.5
+    denom = (1.0 - beta**2) ** 2 + 4.0 * di * dj * beta * (1.0 + beta**2) + 4.0 * (di**2 + dj**2) * beta**2
+    rho = numer / denom  # shape (n, n)
+
+    # 权重向量 w[i] = scale_factors[i] * mu[i]
+    w = sf * mu
+
+    # 二次型：total = wᵀ ρ w
+    total = w @ rho @ w
+
+    return float(np.sqrt(max(0.0, total)))
 
 
 def srss(mu: list[float], scale_factors: list[float]) -> float:
-    return math.sqrt(sum((scale_factors[i] * mu[i]) ** 2.0 for i in range(len(mu))))
+    return float(np.sqrt(np.sum((np.asarray(scale_factors) * np.asarray(mu)) ** 2.0)))
 
 
 def combine_story_drifts(
