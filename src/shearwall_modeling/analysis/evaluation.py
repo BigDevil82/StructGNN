@@ -36,6 +36,7 @@ class AnalysisResultBuilder:
     def build(self) -> AnalysisResult:
         rsa_result = self.rsa_analyzer.run()
         basic_case_result = self.basic_case_analyzer.run_basic_cases(rsa_result=rsa_result)
+        # basic_case_result = {}
         beam_case_forces = {
             case_name: case_result.get("beam_forces", {})
             for case_name, case_result in basic_case_result.items()
@@ -213,7 +214,7 @@ class EvaluationReportPrinter:
             self.logger.info(
                 f" 墙控制构件: #{wall_worst.wall_id}-S{wall_worst.story}, 剪压比={wall_worst.shear_pressure_ratio:.3f}, "
                 f"限值={wall_worst.shear_pressure_ratio_limit:.3f}, "
-                f"组合={wall_worst.shear_control_combo}, {'✅通过' if wall_worst.is_shear_pressure_passed else '❌超限'}"
+                f"组合={wall_worst.shear_control_combo}, {'✅通过' if wall_worst.is_shear_pressure_passed else '❌超限'}, length={wall_worst.length:.2f}m, thickness={wall_worst.thickness:.2f}m"
             )
 
         if beam_uls_metrics:
@@ -221,5 +222,5 @@ class EvaluationReportPrinter:
             self.logger.info(
                 f" 连梁控制构件: #{beam_worst.beam_id}-S{beam_worst.story}, 剪压比={beam_worst.shear_pressure_ratio:.3f}, "
                 f"限值={beam_worst.shear_pressure_ratio_limit:.3f}, "
-                f"组合={beam_worst.shear_control_combo}, {'✅通过' if beam_worst.is_shear_pressure_passed else '❌超限'}"
+                f"组合={beam_worst.shear_control_combo}, {'✅通过' if beam_worst.is_shear_pressure_passed else '❌超限'}, length={beam_worst.length:.2f}m"
             )
