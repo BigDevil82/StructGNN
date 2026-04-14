@@ -29,6 +29,8 @@ def _wall_section_props(length: float, thickness: float) -> tuple[float, float, 
     iz = thickness * (length**3) / 12.0
     iy = length * (thickness**3) / 12.0
     j = (length * thickness**3) / 3.0  # 矩形截面抗扭常数
+    if length > 0.5:
+        assert iz > iy, f"Wall 强弱轴可能对调: length={length}, thickness={thickness}, iz={iz}, iy={iy}"
     return area, j, iy, iz
 
 
@@ -107,7 +109,7 @@ class EquivalentFrameBuilder(StructuralModelBuilder):
 
         for story in range(1, config.num_stories + 1):
             profile = profiles[story - 1]
-            e = float(profile.material.E)
+            e = float(profile.material.E) / 1000
             g = float(profile.material.G)
             z_base = profile.z_bottom
             z_top = profile.z_top
@@ -147,17 +149,20 @@ class EquivalentFrameBuilder(StructuralModelBuilder):
                 vecxz = _safe_vecxz_from_wall(wall)
                 ops.geomTransf("Linear", transf_tag, *vecxz)
 
+                # ops.element( "elasticBeamColumn", elem_tag, base_tag, top_tag, area, e, g, wall_j, wall_iy, wall_iz, transf_tag) # fmt: skip
                 ops.element(
-                    "elasticBeamColumn",
+                    "ElasticTimoshenkoBeam",
                     elem_tag,
                     base_tag,
                     top_tag,
-                    area,
                     e,
                     g,
+                    area,
                     wall_j,
                     wall_iy,
                     wall_iz,
+                    area * 0.833,  # Ay (局部y轴/面内的剪切面积)
+                    area * 0.833,  # Az (局部z轴/面外的剪切面积)
                     transf_tag,
                 )
                 elem_tag += 1
@@ -228,19 +233,7 @@ class EquivalentFrameBuilder(StructuralModelBuilder):
                 beam_w, beam_d = profile.section.get_beam_section(beam.role)
                 beam_area, beam_j, beam_iy, beam_iz = _beam_section_props(beam_w, beam_d)
 
-                ops.element(
-                    "elasticBeamColumn",
-                    elem_tag,
-                    ni,
-                    nj,
-                    beam_area,
-                    e,
-                    g,
-                    beam_j,
-                    beam_iy,
-                    beam_iz,
-                    beam_transf,
-                )
+                ops.element( "elasticBeamColumn", elem_tag, ni, nj, beam_area, e, g, beam_j, beam_iy, beam_iz, beam_transf) # fmt: skip
                 beam_element_units.append(
                     BeamElementUnit(
                         beam_id=beam.m_id,
@@ -270,13 +263,12 @@ class EquivalentFrameBuilder(StructuralModelBuilder):
             nodal_mass = story_mass / max(len(unique_slaves), 1)
             rot_mass = sum(
                 nodal_mass * ((ops.nodeCoord(n, 1) - com_x) ** 2 + (ops.nodeCoord(n, 2) - com_y) ** 2)
-                for n in unique_slaves
+                for n in story_floor_nodes
             )
             ops.mass(master, story_mass, story_mass, 0.0, 0.0, 0.0, rot_mass)
             ops.fix(master, 0, 0, 1, 1, 1, 0)
 
-            if len(unique_slaves) >= 1:
-                ops.rigidDiaphragm(3, master, *unique_slaves)
+            ops.rigidDiaphragm(3, master, *unique_slaves)
 
             master_nodes.append(master)
             floor_story_nodes.append(sorted(story_floor_nodes))

@@ -34,14 +34,13 @@ class MVLEMFrameBuilder(StructuralModelBuilder):
 
     name = "mvlem_frame"
 
-    def __init__(self, logger: Logger | None = None, wall_macro_fibers: int = 8, rebar_ratio: float = 0.01):
+    def __init__(self, logger: Logger | None = None, fiber_width: float = 0.2, rebar_ratio: float = 0.01):
         self.logger = logger
-        self.wall_macro_fibers = max(int(wall_macro_fibers), 4)
+        self.fiber_width = float(fiber_width)
         self.rebar_ratio = max(float(rebar_ratio), 0.0)
 
     def build(self, input_data: FEMInput, config: ModelConfig) -> ModelBuildResult:
-        if self.logger is not None:
-            self.logger.info("Building MVLEM frame model...")
+        self.logger.info("Building MVLEM frame model...")
 
         ops.wipe()
         ops.model("basic", "-ndm", 3, "-ndf", 6)
@@ -139,8 +138,8 @@ class MVLEMFrameBuilder(StructuralModelBuilder):
                 wall_len = max(wall.length, 1.0e-6)
                 t = profile.section.wall_thickness
 
-                ni = floor_node(x1, y1, story - 1, z_bot) if story > 1 else floor_node(x1, y1, 0, z_bot)
-                nj = floor_node(x2, y2, story - 1, z_bot) if story > 1 else floor_node(x2, y2, 0, z_bot)
+                ni = floor_node(x1, y1, story - 1, z_bot)
+                nj = floor_node(x2, y2, story - 1, z_bot)
                 nk = floor_node(x2, y2, story, z_top)
                 nl = floor_node(x1, y1, story, z_top)
 
@@ -152,15 +151,10 @@ class MVLEMFrameBuilder(StructuralModelBuilder):
                         ops.fix(nj, 1, 1, 1, 1, 1, 1)
                         fixed_base_nodes.add(nj)
                     wall_base_units.append(
-                        WallBaseCheckUnit(
-                            wall_id=wall.m_id,
-                            base_nodes=[ni, nj],
-                            length=wall.length,
-                            thickness=t,
-                        )
+                        WallBaseCheckUnit( wall_id=wall.m_id, base_nodes=[ni, nj], length=wall.length, thickness=t) # fmt: skip
                     )
 
-                m = self.wall_macro_fibers
+                m = max(1, int(math.ceil(wall_len / self.fiber_width)))
                 width = [wall_len / m] * m
                 thick = [t] * m
                 rho = [self.rebar_ratio] * m
@@ -169,29 +163,7 @@ class MVLEMFrameBuilder(StructuralModelBuilder):
                 steel_tags = [steel_tag] * m
 
                 # MVLEM_3D wall element (OpenSees extension).
-                ops.element(
-                    "MVLEM_3D",
-                    elem_tag,
-                    ni,
-                    nj,
-                    nk,
-                    nl,
-                    m,
-                    "-thick",
-                    *thick,
-                    "-width",
-                    *width,
-                    "-rho",
-                    *rho,
-                    "-matConcrete",
-                    *concrete_tags,
-                    "-matSteel",
-                    *steel_tags,
-                    "-matShear",
-                    shear_tag,
-                    "-CoR",
-                    0.4,
-                )
+                ops.element( "MVLEM_3D", elem_tag, ni, nj, nk, nl, m, "-thick", *thick, "-width", *width, "-rho", *rho, "-matConcrete", *concrete_tags, "-matSteel", *steel_tags, "-matShear", shear_tag, "-CoR", 0.4) # fmt: skip
 
                 wall_story_element_units.append(
                     WallStoryElementUnit(
@@ -199,12 +171,12 @@ class MVLEMFrameBuilder(StructuralModelBuilder):
                         story=story,
                         element_tags=[elem_tag],
                         bottom_nodes=[ni, nj],
-                        top_nodes=[nl, nk],
+                        top_nodes=[nk, nl],
                         node_coords={
-                            ni: (ops.nodeCoord(ni, 1), ops.nodeCoord(ni, 2), ops.nodeCoord(ni, 3)),
-                            nj: (ops.nodeCoord(nj, 1), ops.nodeCoord(nj, 2), ops.nodeCoord(nj, 3)),
-                            nk: (ops.nodeCoord(nk, 1), ops.nodeCoord(nk, 2), ops.nodeCoord(nk, 3)),
-                            nl: (ops.nodeCoord(nl, 1), ops.nodeCoord(nl, 2), ops.nodeCoord(nl, 3)),
+                            ni: ops.nodeCoord(ni),
+                            nj: ops.nodeCoord(nj),
+                            nk: ops.nodeCoord(nk),
+                            nl: ops.nodeCoord(nl),
                         },
                         member=wall,
                         thickness=t,
@@ -274,13 +246,7 @@ class MVLEMFrameBuilder(StructuralModelBuilder):
             master_nodes.append(master)
             floor_story_nodes.append(unique_slaves)
 
-        if self.logger is not None:
-            self.logger.info(
-                "MVLEM model built: stories=%d, walls=%d, beams=%d",
-                config.num_stories,
-                len(input_data.walls),
-                len(input_data.beams),
-            )
+        self.logger.info( "MVLEM model built: stories=%d, walls=%d, beams=%d", config.num_stories, len(input_data.walls), len(input_data.beams)) # fmt: skip
 
         return ModelBuildResult(
             master_nodes=master_nodes,
