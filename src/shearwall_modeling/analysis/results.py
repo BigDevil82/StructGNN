@@ -107,11 +107,6 @@ class AnalysisResult:
     modal_summary: ModalSummary
     story_weights: list[float]
     direction_responses: dict[str, DirectionResponse]
-    gravity_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
-    gravity_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
-    seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
-    seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
-    wall_axial_metrics: list[WallAxialMetric]
     beam_forces_by_combo: dict[str, dict[tuple[int, int], tuple[float, float, float]]] = field(
         default_factory=dict
     )
