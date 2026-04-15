@@ -2,12 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from ..core.constants import MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY
-from .results import (
-    DirectionCheckResult,
-    DirectionResponse,
-    ModalSummary,
-    OverallCheckResult,
-)
+from .results import DirectionCheckResult, DirectionResponse, ModalSummary, OverallCheckResult
 from .uls_combinations import BeamULSMetric, WallULSMetric
 
 
