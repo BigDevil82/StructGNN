@@ -90,16 +90,6 @@ class OverallCheckResult:
 
 
 @dataclass
-class WallAxialMetric:
-    wall_id: int
-    axial_force_n: float
-    area_m2: float
-    axial_stress_mpa: float
-    axial_ratio: float
-    ratio_limit: float
-    is_passed: bool
-
-
 @dataclass
 class AnalysisResult:
     eigen_values: list[float]

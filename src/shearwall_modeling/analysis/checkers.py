@@ -7,7 +7,6 @@ from .results import (
     DirectionResponse,
     ModalSummary,
     OverallCheckResult,
-    WallAxialMetric,
 )
 from .uls_combinations import BeamULSMetric, WallULSMetric
 
@@ -77,12 +76,6 @@ class PeriodRatioChecker:
         result.is_period_ratio_passed = (
             modal_summary.period_ratio is not None and modal_summary.period_ratio < self.limit_ratio
         )
-
-
-@dataclass(frozen=True)
-class WallAxialChecker:
-    def apply(self, wall_axial_metrics: list[WallAxialMetric], result: OverallCheckResult) -> None:
-        result.is_wall_axial_passed = all(metric.is_passed for metric in wall_axial_metrics)
 
 
 @dataclass(frozen=True)

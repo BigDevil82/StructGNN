@@ -11,7 +11,7 @@ class ModelConfig:
     """YJK 建模参数"""
 
     story_height: int = 3000
-    story_num: int = 20
+    story_num: int = 18
 
     slab_thickness: int = 120
     slab_dead_load: float = 5.0
@@ -28,7 +28,7 @@ class ModelConfig:
     with_beam: bool = True
 
     json_path: Optional[Path] = (
-        "E:/Common/Desktop/Research/deepLearning/codes/Png2Dxf/outputs/result/case_study/building_components_fem_data.json"
+        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\outputs\result\case_study\archi_comp_fem_data.json"
     )
 
 

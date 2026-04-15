@@ -33,7 +33,8 @@ class ReinforcementDesignPipeline:
         beam_demands, wall_demands = self.extractor.extract(self.analysis_result)
         story_profiles = {profile.story: profile for profile in self.config.resolve_story_profiles()}
         beam_results = [
-            self.beam_designer.design(demand, story_profiles[demand.story].material) for demand in beam_demands
+            self.beam_designer.design(demand, story_profiles[demand.story].material)
+            for demand in beam_demands
         ]
         wall_results = [
             self.wall_designer.design(demand, story_profiles[demand.story].material)
