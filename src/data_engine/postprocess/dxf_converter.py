@@ -213,14 +213,15 @@ def _build_fem_result(room_polys: list, masks_list: list, sw_vectors: list) -> d
 
 
 def add_scale_factor(result_json_path):
-    input_data = FEMInput.from_json(json_path=result_json_path)
+    json_path = Path(result_json_path)
+    input_data = FEMInput.from_json(json_path)
     if not input_data.all_members():
         raise ValueError("No beams/walls found in JSON.")
 
     factor = choose_scale_factor(input_data)
     with open(result_json_path, "r") as f:
         data = json.load(f)
-        data["metadata"]["scale_factor"] = factor
+        data["statistics"]["scale_factor"] = factor
     with open(result_json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -235,14 +236,14 @@ def convert_dxf_to_fem_topology(dxf_path: str, output_path: str) -> dict:
     add_scale_factor(output_path)
 
     # check if short members exist
-    short_members = [mem for mem in result["members"] if mem["length"] < 200.0]
-    if short_members:
-        for mem in short_members:
-            print(
-                "  [WARNING] Short member detected: ID={}, Type={}, Length={:.2f}mm, start: {}, end: {}".format(
-                    mem["id"], mem["type"], mem["length"], mem["start_coord"], mem["end_coord"]
-                )
-            )
+    # short_members = [mem for mem in result["members"] if mem["length"] < 200.0]
+    # if short_members:
+    #     for mem in short_members:
+    #         print(
+    #             "  [WARNING] Short member detected: ID={}, Type={}, Length={:.2f}mm, start: {}, end: {}".format(
+    #                 mem["id"], mem["type"], mem["length"], mem["start_coord"], mem["end_coord"]
+    #             )
+    #         )
     save_path = Path(output_path).with_suffix(".png")
     visualize_fem_result(
         result, room_polys, title=os.path.basename(dxf_path), save_path=save_path, show_node=False
@@ -413,15 +414,15 @@ def convert_folder_left_half(dxf_folder: str, output_folder: str, max_workers: O
 
 
 if __name__ == "__main__":
-    # dxf_folder = r"data/dxf/fem_raw"
-    # output_folder = r"data/dxf/cad_json_data/fem_raw"
-    # os.makedirs(output_folder, exist_ok=True)
-    # convert_folder(dxf_folder, output_folder)
-
     dxf_folder = r"data/dxf/fem_raw"
-    output_folder = r"data/dxf/cad_json_data/fem_raw_left_aug"
+    output_folder = r"data/dxf/cad_json_data/fem_raw"
     os.makedirs(output_folder, exist_ok=True)
-    convert_folder_left_half(dxf_folder, output_folder)
+    convert_folder(dxf_folder, output_folder)
+
+    # dxf_folder = r"data/dxf/fem_raw"
+    # output_folder = r"data/dxf/cad_json_data/fem_raw_left_aug"
+    # os.makedirs(output_folder, exist_ok=True)
+    # convert_folder_left_half(dxf_folder, output_folder)
 
     # dxf = r"data/dxf/fem_raw/L27_211.dxf"
     # output = r"data\dxf\cad_json_data\fem_raw" + os.sep + os.path.splitext(os.path.basename(dxf))[0] + ".json"

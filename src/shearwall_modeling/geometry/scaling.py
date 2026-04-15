@@ -176,8 +176,8 @@ def load_and_scale_input(
     elif enable_auto_scale:
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        if data.get("metadata", {}).get("scale_factor") is not None:
-            factor = data["metadata"]["scale_factor"]
+        if data.get("statistics", {}).get("scale_factor") is not None:
+            factor = data["statistics"]["scale_factor"]
         else:
             factor = choose_scale_factor(input_data, low=low, high=high, seed=seed)
     else:
