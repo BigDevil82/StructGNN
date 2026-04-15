@@ -17,6 +17,7 @@ from ..builders import DetailedShellBuilder, EquivalentFrameBuilder, MVLEMFrameB
 from ..builders.base import AnalysisModelContext, StructuralModelBuilder
 from ..core.config import MaterialConfig, ModelConfig, SectionConfig, SeismicConfig, StandardStoryGroupConfig
 from ..core.domain import FEMInput
+from ..design import ReinforcementDesignPipeline
 from ..geometry.scaling import load_and_scale_input
 
 SamplingMethod = Literal["random", "lhs"]
@@ -325,10 +326,21 @@ def _analyze_one_sample(
             beam_shear[metric.beam_id] = max(beam_shear.get(metric.beam_id, 0.0), metric.shear_pressure_ratio)
 
         mass_total_kg = sum(build_result.floor_load_masses) + sum(build_result.floor_self_masses)
+        design_summary = ReinforcementDesignPipeline(
+            build_result=build_result,
+            analysis_result=analysis_result,
+            config=model_cfg,
+            logger=logger,
+        ).run()
         row.update(
             {
                 "converged": True,
                 "feasible": overall_result.is_passed,
+                "design_passed": design_summary.is_passed,
+                "design_failed_beam_count": len(design_summary.failed_beams),
+                "design_failed_wall_count": len(design_summary.failed_walls),
+                "material_concrete_kg": design_summary.total_concrete_kg,
+                "material_steel_kg": design_summary.total_steel_kg,
                 "mass_total_t": mass_total_kg / 1000.0,
                 "T1": periods[0],
                 "T2": periods[1],
@@ -352,6 +364,11 @@ def _analyze_one_sample(
             {
                 "converged": False,
                 "feasible": False,
+                "design_passed": False,
+                "design_failed_beam_count": -1,
+                "design_failed_wall_count": -1,
+                "material_concrete_kg": float("nan"),
+                "material_steel_kg": float("nan"),
                 "mass_total_t": float("nan"),
                 "T1": float("nan"),
                 "T2": float("nan"),
