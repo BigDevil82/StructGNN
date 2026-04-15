@@ -58,8 +58,6 @@ class BeamULSMetric:
 class ULSCombinationResult:
     beam_forces_by_combo: dict[str, dict[tuple[int, int], ForceTuple]]
     wall_forces_by_combo: dict[str, dict[tuple[int, int], ForceTuple]]
-    beam_envelope: dict[tuple[int, int], MemberForceEnvelope]
-    wall_envelope: dict[tuple[int, int], MemberForceEnvelope]
     wall_metrics: list[WallULSMetric]
     beam_metrics: list[BeamULSMetric]
 
@@ -127,8 +125,6 @@ class ULSCombinationAnalyzer:
         return ULSCombinationResult(
             beam_forces_by_combo=beam_combo_forces,
             wall_forces_by_combo=wall_combo_forces,
-            beam_envelope=beam_envelope,
-            wall_envelope=wall_envelope,
             wall_metrics=wall_metrics,
             beam_metrics=beam_metrics,
         )

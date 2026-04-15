@@ -124,8 +124,6 @@ class ResponseSpectrumCaseResult:
     modal_summary: ModalSummary
     story_weights: list[float]
     direction_responses: dict[str, DirectionResponse]
-    seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
-    seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
     seismic_beam_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]] = field(
         default_factory=dict
     )

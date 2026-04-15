@@ -157,7 +157,7 @@ class LinearSuperpositionAnalyzer:
         return beam_forces, wall_forces
 
     def run_basic_cases(self, rsa_result: ResponseSpectrumCaseResult | None = None) -> dict:
-        """Run basic static cases and optionally append EqX/EqY from RSA directional results."""
+        """Run basic static cases and append EqX/EqY from RSA directional results."""
         basic_results: dict[str, dict] = {}
         for case in self.basic_cases:
             beam_forces, wall_forces = self._run_static_basic_case(case)
@@ -166,33 +166,17 @@ class LinearSuperpositionAnalyzer:
                 "wall_forces": wall_forces,
             }
 
-        if rsa_result is not None:
-            beam_by_dir = rsa_result.seismic_beam_forces_by_dir or {}
-            wall_by_dir = rsa_result.seismic_wall_forces_by_dir or {}
-            has_directional = (
-                "X" in beam_by_dir and "Y" in beam_by_dir and "X" in wall_by_dir and "Y" in wall_by_dir
-            )
-            if has_directional:
-                basic_results["EqX"] = {
-                    "beam_forces": beam_by_dir["X"],
-                    "wall_forces": wall_by_dir["X"],
-                }
-                basic_results["EqY"] = {
-                    "beam_forces": beam_by_dir["Y"],
-                    "wall_forces": wall_by_dir["Y"],
-                }
-            else:
-                self.context.logger.warning(
-                    "RSA directional forces are unavailable; fallback to enveloped seismic forces for EqX/EqY."
-                )
-                basic_results["EqX"] = {
-                    "beam_forces": rsa_result.seismic_beam_forces,
-                    "wall_forces": rsa_result.seismic_wall_forces,
-                }
-                basic_results["EqY"] = {
-                    "beam_forces": rsa_result.seismic_beam_forces,
-                    "wall_forces": rsa_result.seismic_wall_forces,
-                }
+        if rsa_result is None:
+            raise RuntimeError("rsa_result is required for EqX/EqY basic cases.")
+
+        basic_results["EqX"] = {
+            "beam_forces": rsa_result.seismic_beam_forces_by_dir["X"],
+            "wall_forces": rsa_result.seismic_wall_forces_by_dir["X"],
+        }
+        basic_results["EqY"] = {
+            "beam_forces": rsa_result.seismic_beam_forces_by_dir["Y"],
+            "wall_forces": rsa_result.seismic_wall_forces_by_dir["Y"],
+        }
 
         return basic_results
 

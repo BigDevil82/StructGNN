@@ -49,8 +49,6 @@ class ResponseSpectrumAnalyzer:
             modal_summary=modal_summary,
             story_weights=story_weights,
             direction_responses=direction_responses,
-            seismic_beam_forces=self._envelope_beam_forces(beam_forces_by_dir),
-            seismic_wall_forces=self._envelope_wall_forces(wall_forces_by_dir),
             seismic_beam_forces_by_dir=beam_forces_by_dir,
             seismic_wall_forces_by_dir=wall_forces_by_dir,
         )
@@ -299,45 +297,4 @@ class ResponseSpectrumAnalyzer:
                 self._combine(store["shear"], eigen_values),
             )
             for key, store in wall_modal_forces.items()
-        }
-
-    def _envelope_beam_forces(
-        self, beam_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]]
-    ) -> dict[tuple[int, int], tuple[float, float, float]]:
-        """Take the design envelope of beam effects over X/Y directional RSA.
-
-        `beam_forces_by_dir` stores already-combined directional results for each
-        beam as `(positive_moment, negative_moment, shear)`. This step does not
-        perform another modal combination. It only takes the component-wise
-        maximum across directions so downstream design uses the governing beam
-        demand.
-        """
-        keys = {key for values in beam_forces_by_dir.values() for key in values}
-        return {
-            key: (
-                max(beam_forces_by_dir[dir_name][key][0] for dir_name in beam_forces_by_dir),
-                max(beam_forces_by_dir[dir_name][key][1] for dir_name in beam_forces_by_dir),
-                max(beam_forces_by_dir[dir_name][key][2] for dir_name in beam_forces_by_dir),
-            )
-            for key in keys
-        }
-
-    def _envelope_wall_forces(
-        self, wall_forces_by_dir: dict[str, dict[tuple[int, int], tuple[float, float, float]]]
-    ) -> dict[tuple[int, int], tuple[float, float, float]]:
-        """Take the design envelope of wall effects over X/Y directional RSA.
-
-        Each directional entry is the modal-combined wall result
-        `(axial_force, bending_moment, shear_force)`. This step only takes the
-        component-wise maximum over horizontal directions for downstream wall
-        design.
-        """
-        keys = {key for values in wall_forces_by_dir.values() for key in values}
-        return {
-            key: (
-                max(wall_forces_by_dir[dir_name][key][0] for dir_name in wall_forces_by_dir),
-                max(wall_forces_by_dir[dir_name][key][1] for dir_name in wall_forces_by_dir),
-                max(wall_forces_by_dir[dir_name][key][2] for dir_name in wall_forces_by_dir),
-            )
-            for key in keys
         }
