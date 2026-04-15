@@ -112,6 +112,12 @@ class AnalysisResult:
     seismic_beam_forces: dict[tuple[int, int], tuple[float, float, float]]
     seismic_wall_forces: dict[tuple[int, int], tuple[float, float, float]]
     wall_axial_metrics: list[WallAxialMetric]
+    beam_forces_by_combo: dict[str, dict[tuple[int, int], tuple[float, float, float]]] = field(
+        default_factory=dict
+    )
+    wall_forces_by_combo: dict[str, dict[tuple[int, int], tuple[float, float, float]]] = field(
+        default_factory=dict
+    )
     wall_uls_metrics: list[WallULSMetric] = field(default_factory=list)
     beam_uls_metrics: list[BeamULSMetric] = field(default_factory=list)
 

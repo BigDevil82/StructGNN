@@ -54,6 +54,8 @@ class AnalysisResultBuilder:
             rsa_result,
             gravity_beam_forces,
             gravity_wall_forces,
+            uls_result.beam_forces_by_combo,
+            uls_result.wall_forces_by_combo,
             uls_result.wall_metrics,
             uls_result.beam_metrics,
         )
@@ -63,6 +65,8 @@ class AnalysisResultBuilder:
         rsa_result: ResponseSpectrumCaseResult,
         gravity_beam_forces,
         gravity_wall_forces,
+        beam_forces_by_combo,
+        wall_forces_by_combo,
         wall_uls_metrics,
         beam_uls_metrics,
     ) -> AnalysisResult:
@@ -76,6 +80,8 @@ class AnalysisResultBuilder:
             gravity_wall_forces=gravity_wall_forces,
             seismic_beam_forces=rsa_result.seismic_beam_forces,
             seismic_wall_forces=rsa_result.seismic_wall_forces,
+            beam_forces_by_combo=beam_forces_by_combo,
+            wall_forces_by_combo=wall_forces_by_combo,
             wall_axial_metrics=[],
             wall_uls_metrics=wall_uls_metrics,
             beam_uls_metrics=beam_uls_metrics,
