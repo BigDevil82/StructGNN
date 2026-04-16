@@ -1,5 +1,6 @@
 import math
 import os
+import threading
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Callable, Generic, List, Literal, Optional, Sequence, TypeVar
@@ -23,6 +24,7 @@ def run_batch(
     worker: Callable[[T], R],
     max_workers: Optional[int] = None,
     backend: Literal["process", "thread"] = "process",
+    on_outcome: Optional[Callable[[TaskOutcome[T, R], int, int], None]] = None,
 ) -> List[TaskOutcome[T, R]]:
     """
     批量执行同构任务，支持多进程/多线程，并返回结构化结果。
@@ -38,26 +40,34 @@ def run_batch(
         outcomes: List[TaskOutcome[T, R]] = []
         for item in items:
             try:
-                outcomes.append(TaskOutcome(item=item, ok=True, result=worker(item)))
+                outcome = TaskOutcome(item=item, ok=True, result=worker(item))
             except Exception as e:
-                outcomes.append(TaskOutcome(item=item, ok=False, error=str(e)))
+                outcome = TaskOutcome(item=item, ok=False, error=str(e))
+            outcomes.append(outcome)
+            if on_outcome is not None:
+                on_outcome(outcome, len(outcomes), len(items))
         return outcomes
 
     if backend == "process" and _need_windows_process_sharding(max_workers):
-        return _run_batch_with_windows_process_shards(items, worker, max_workers)
+        return _run_batch_with_windows_process_shards(items, worker, max_workers, on_outcome)
 
     executor_cls = ProcessPoolExecutor if backend == "process" else ThreadPoolExecutor
     outcomes: List[TaskOutcome[T, R]] = []
 
     with executor_cls(max_workers=max_workers) as executor:
         future_to_item = {executor.submit(worker, item): item for item in items}
+        completed = 0
 
         for future in as_completed(future_to_item):
             item = future_to_item[future]
             try:
-                outcomes.append(TaskOutcome(item=item, ok=True, result=future.result()))
+                outcome = TaskOutcome(item=item, ok=True, result=future.result())
             except Exception as e:
-                outcomes.append(TaskOutcome(item=item, ok=False, error=str(e)))
+                outcome = TaskOutcome(item=item, ok=False, error=str(e))
+            outcomes.append(outcome)
+            completed += 1
+            if on_outcome is not None:
+                on_outcome(outcome, completed, len(items))
 
     return outcomes
 
@@ -73,6 +83,7 @@ def _run_batch_with_windows_process_shards(
     items: Sequence[T],
     worker: Callable[[T], R],
     max_workers: Optional[int],
+    on_outcome: Optional[Callable[[TaskOutcome[T, R], int, int], None]] = None,
 ) -> List[TaskOutcome[T, R]]:
     requested = max_workers if max_workers is not None else (os.cpu_count() or 1)
     shard_count = max(1, int(math.ceil(requested / 61)))
@@ -88,9 +99,20 @@ def _run_batch_with_windows_process_shards(
         shard_workers.append(min(61, base + (1 if i < extra else 0)))
 
     outcomes: List[TaskOutcome[T, R]] = []
+    done = 0
+    lock = threading.Lock()
+
+    def report(outcome: TaskOutcome[T, R]) -> None:
+        nonlocal done
+        if on_outcome is None:
+            return
+        with lock:
+            done += 1
+            on_outcome(outcome, done, len(items))
+
     with ThreadPoolExecutor(max_workers=shard_count) as launcher:
         futures = [
-            launcher.submit(_run_batch_in_one_process_pool, bucket, worker, shard_workers[i])
+            launcher.submit(_run_batch_in_one_process_pool, bucket, worker, shard_workers[i], report)
             for i, bucket in enumerate(buckets)
             if bucket
         ]
@@ -104,6 +126,7 @@ def _run_batch_in_one_process_pool(
     items: Sequence[T],
     worker: Callable[[T], R],
     max_workers: int,
+    report: Optional[Callable[[TaskOutcome[T, R]], None]] = None,
 ) -> List[TaskOutcome[T, R]]:
     outcomes: List[TaskOutcome[T, R]] = []
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -111,7 +134,10 @@ def _run_batch_in_one_process_pool(
         for future in as_completed(future_to_item):
             item = future_to_item[future]
             try:
-                outcomes.append(TaskOutcome(item=item, ok=True, result=future.result()))
+                outcome = TaskOutcome(item=item, ok=True, result=future.result())
             except Exception as e:
-                outcomes.append(TaskOutcome(item=item, ok=False, error=str(e)))
+                outcome = TaskOutcome(item=item, ok=False, error=str(e))
+            outcomes.append(outcome)
+            if report is not None:
+                report(outcome)
     return outcomes

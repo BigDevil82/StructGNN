@@ -12,6 +12,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output-dir", default=r"outputs\result\parametric_dataset")
     p.add_argument("--samples-per-layout", type=int, default=500)
     p.add_argument("--samples-per-task", type=int, default=20)
+    p.add_argument("--progress-log-interval", type=int, default=200)
     p.add_argument("--sampling-method", choices=["random", "lhs"], default="lhs")
     p.add_argument("--storage-format", choices=["parquet", "hdf5"], default="parquet")
     p.add_argument(
@@ -40,6 +41,7 @@ def main() -> None:
         output_dir=args.output_dir,
         samples_per_layout=args.samples_per_layout,
         samples_per_task=args.samples_per_task,
+        progress_log_interval=args.progress_log_interval,
         sampling_method=args.sampling_method,
         storage_format=args.storage_format,
         builder_name=args.builder,

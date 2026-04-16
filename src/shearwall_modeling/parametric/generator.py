@@ -2,7 +2,9 @@ import json
 import logging
 import math
 import random
+import threading
 import zlib
+from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -71,6 +73,7 @@ class DatasetGenerationConfig:
     output_dir: str = r"outputs\result\parametric_dataset"
     samples_per_layout: int = 500
     samples_per_task: int = 20
+    progress_log_interval: int = 200
     sampling_method: SamplingMethod = "lhs"
     storage_format: StorageFormat = "parquet"
     builder_name: BuilderName = "mvlem_frame"
@@ -223,6 +226,7 @@ def generate_structural_dataset(cfg: DatasetGenerationConfig) -> list[LayoutData
     tasks: list[SampleChunkTask] = []
     rows_by_layout: dict[str, list[dict[str, Any]]] = {}
     errors_by_layout: dict[str, list[str]] = {}
+    chunk_total_by_layout: dict[str, int] = defaultdict(int)
     skipped_summaries: dict[str, LayoutDatasetSummary] = {}
     output_path_by_layout: dict[str, str] = {}
 
@@ -254,6 +258,7 @@ def generate_structural_dataset(cfg: DatasetGenerationConfig) -> list[LayoutData
 
         for start in range(0, len(params_list), cfg.samples_per_task):
             chunk = params_list[start : start + cfg.samples_per_task]
+            chunk_total_by_layout[layout_id] += 1
             tasks.append(
                 SampleChunkTask(
                     layout_path=str(layout_path),
@@ -265,7 +270,29 @@ def generate_structural_dataset(cfg: DatasetGenerationConfig) -> list[LayoutData
             )
 
     if cfg.max_workers != 0:
-        outcomes = run_batch(tasks, _generate_one_sample_chunk, max_workers=cfg.max_workers, backend="process")
+        progress_every = max(1, cfg.progress_log_interval)
+        done_chunks_by_layout: dict[str, int] = defaultdict(int)
+        progress_lock = threading.Lock()
+
+        def on_outcome(outcome: Any, done: int, total: int) -> None:
+            with progress_lock:
+                lid = outcome.item.layout_id
+                done_chunks_by_layout[lid] += 1
+                if done == 1 or done == total or done % progress_every == 0:
+                    print(
+                        f"[progress] chunks {done}/{total}, "
+                        f"layouts_done={sum(1 for k, v in done_chunks_by_layout.items() if v >= chunk_total_by_layout[k])}/{len(chunk_total_by_layout)}"
+                    )
+                if done_chunks_by_layout[lid] == chunk_total_by_layout[lid]:
+                    print(f"[progress] layout {lid} chunk stage done ({done_chunks_by_layout[lid]} chunks)")
+
+        outcomes = run_batch(
+            tasks,
+            _generate_one_sample_chunk,
+            max_workers=cfg.max_workers,
+            backend="process",
+            on_outcome=on_outcome,
+        )
         for outcome in outcomes:
             layout_id = outcome.item.layout_id
             if outcome.ok and outcome.result is not None:
