@@ -269,80 +269,96 @@ def generate_structural_dataset(cfg: DatasetGenerationConfig) -> list[LayoutData
                 )
             )
 
-    if cfg.max_workers != 0:
-        progress_every = max(1, cfg.progress_log_interval)
-        done_chunks_by_layout: dict[str, int] = defaultdict(int)
-        progress_lock = threading.Lock()
+    done_chunks_by_layout: dict[str, int] = defaultdict(int)
+    summary_by_layout: dict[str, LayoutDatasetSummary] = {}
+    progress_every = max(1, cfg.progress_log_interval)
+    progress_lock = threading.Lock()
 
+    def finalize_layout_if_ready(layout_id: str) -> None:
+        if layout_id in summary_by_layout:
+            return
+        if done_chunks_by_layout[layout_id] < chunk_total_by_layout[layout_id]:
+            return
+
+        output_path = output_path_by_layout[layout_id]
+        rows = rows_by_layout.get(layout_id, [])
+        errors = errors_by_layout.get(layout_id, [])
+        if not rows:
+            summary_by_layout[layout_id] = LayoutDatasetSummary(
+                layout_id=layout_id,
+                output_path=output_path,
+                total_samples=0,
+                converged_samples=0,
+                feasible_samples=0,
+                error=("; ".join(errors[:3]) if errors else "No rows generated."),
+            )
+            print(f"[progress] layout {layout_id} saved with 0 rows")
+            return
+
+        rows.sort(key=lambda row: int(row["sample_id"]))
+        _write_rows(rows, Path(output_path), cfg.storage_format)
+        converged_count = sum(1 for row in rows if row["converged"])
+        feasible_count = sum(1 for row in rows if row["feasible"])
+        summary_by_layout[layout_id] = LayoutDatasetSummary(
+            layout_id=layout_id,
+            output_path=output_path,
+            total_samples=len(rows),
+            converged_samples=converged_count,
+            feasible_samples=feasible_count,
+            error=("; ".join(errors[:3]) if errors else None),
+        )
+        print(f"[progress] layout {layout_id} saved ({len(rows)} rows)")
+        rows_by_layout.pop(layout_id, None)
+        errors_by_layout.pop(layout_id, None)
+
+    if cfg.max_workers != 0:
         def on_outcome(outcome: Any, done: int, total: int) -> None:
             with progress_lock:
                 lid = outcome.item.layout_id
                 done_chunks_by_layout[lid] += 1
+                if outcome.ok and outcome.result is not None:
+                    rows_by_layout[lid].extend(outcome.result.rows)
+                else:
+                    errors_by_layout[lid].append(outcome.error or "Unknown chunk error")
+
                 if done == 1 or done == total or done % progress_every == 0:
                     print(
                         f"[progress] chunks {done}/{total}, "
-                        f"layouts_done={sum(1 for k, v in done_chunks_by_layout.items() if v >= chunk_total_by_layout[k])}/{len(chunk_total_by_layout)}"
+                        f"layouts_saved={len(summary_by_layout)}/{len(chunk_total_by_layout)}"
                     )
-                if done_chunks_by_layout[lid] == chunk_total_by_layout[lid]:
-                    print(f"[progress] layout {lid} chunk stage done ({done_chunks_by_layout[lid]} chunks)")
 
-        outcomes = run_batch(
+                finalize_layout_if_ready(lid)
+
+        run_batch(
             tasks,
             _generate_one_sample_chunk,
             max_workers=cfg.max_workers,
             backend="process",
             on_outcome=on_outcome,
         )
-        for outcome in outcomes:
-            layout_id = outcome.item.layout_id
-            if outcome.ok and outcome.result is not None:
-                rows_by_layout[layout_id].extend(outcome.result.rows)
-            else:
-                errors_by_layout[layout_id].append(outcome.error or "Unknown chunk error")
     else:
-        for task in tasks:
+        total = len(tasks)
+        for i, task in enumerate(tasks, start=1):
+            lid = task.layout_id
+            done_chunks_by_layout[lid] += 1
             try:
                 chunk_result = _generate_one_sample_chunk(task)
-                rows_by_layout[task.layout_id].extend(chunk_result.rows)
+                rows_by_layout[lid].extend(chunk_result.rows)
             except Exception as exc:
-                errors_by_layout[task.layout_id].append(str(exc))
+                errors_by_layout[lid].append(str(exc))
+
+            if i == 1 or i == total or i % progress_every == 0:
+                print(f"[progress] chunks {i}/{total}, layouts_saved={len(summary_by_layout)}/{len(chunk_total_by_layout)}")
+            finalize_layout_if_ready(lid)
 
     summaries: list[LayoutDatasetSummary] = list(skipped_summaries.values())
     for lp in layout_paths:
         layout_id = Path(lp).stem
         if layout_id in skipped_summaries:
             continue
-
-        output_path = output_path_by_layout[layout_id]
-        rows = rows_by_layout.get(layout_id, [])
-        errors = errors_by_layout.get(layout_id, [])
-        if not rows:
-            summaries.append(
-                LayoutDatasetSummary(
-                    layout_id=layout_id,
-                    output_path=output_path,
-                    total_samples=0,
-                    converged_samples=0,
-                    feasible_samples=0,
-                    error=("; ".join(errors[:3]) if errors else "No rows generated."),
-                )
-            )
-            continue
-
-        rows.sort(key=lambda row: int(row["sample_id"]))
-        _write_rows(rows, Path(output_path), cfg.storage_format)
-        converged_count = sum(1 for row in rows if row["converged"])
-        feasible_count = sum(1 for row in rows if row["feasible"])
-        summaries.append(
-            LayoutDatasetSummary(
-                layout_id=layout_id,
-                output_path=output_path,
-                total_samples=len(rows),
-                converged_samples=converged_count,
-                feasible_samples=feasible_count,
-                error=("; ".join(errors[:3]) if errors else None),
-            )
-        )
+        finalize_layout_if_ready(layout_id)
+        if layout_id in summary_by_layout:
+            summaries.append(summary_by_layout[layout_id])
 
     _write_metadata(cfg, summaries)
     return summaries
