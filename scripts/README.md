@@ -13,3 +13,4 @@
 - `scripts.visualize_dataset_main`
 - `scripts.shearwall_analyzer_main`
 - `scripts.misc_test_main`
+- `scripts.parametric_dataset`

@@ -202,7 +202,7 @@ def generate_structural_dataset(cfg: DatasetGenerationConfig) -> list[LayoutData
     output_dir.mkdir(parents=True, exist_ok=True)
     tasks = [LayoutGenerationTask(layout_path=lp, output_dir=str(output_dir), cfg=cfg) for lp in layout_paths]
 
-    if cfg.max_workers and cfg.max_workers > 1:
+    if cfg.max_workers != 0:
         outcomes = run_batch(
             tasks, _generate_one_layout_dataset, max_workers=cfg.max_workers, backend="process"
         )
