@@ -1,2 +1,2 @@
 # This script generates a parametric dataset for shear wall modeling.
-python -m scripts.generate_parametric_dataset_main --samples-per-layout 50 --overwrite
+python -m scripts.parametric_dataset --samples-per-layout 500 --overwrite
