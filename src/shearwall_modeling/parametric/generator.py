@@ -70,6 +70,7 @@ class DatasetGenerationConfig:
     layout_dir: str = r"data\dxf\cad_json_data\fem_raw"
     output_dir: str = r"outputs\result\parametric_dataset"
     samples_per_layout: int = 500
+    samples_per_task: int = 20
     sampling_method: SamplingMethod = "lhs"
     storage_format: StorageFormat = "parquet"
     builder_name: BuilderName = "mvlem_frame"
@@ -90,6 +91,21 @@ class LayoutGenerationTask:
     layout_path: str
     output_dir: str
     cfg: DatasetGenerationConfig
+
+
+@dataclass(frozen=True)
+class SampleChunkTask:
+    layout_path: str
+    layout_id: str
+    cfg: DatasetGenerationConfig
+    sample_start_idx: int
+    params_chunk: list[ParametricModelParams]
+
+
+@dataclass(frozen=True)
+class SampleChunkResult:
+    layout_id: str
+    rows: list[dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -197,35 +213,138 @@ def generate_structural_dataset(cfg: DatasetGenerationConfig) -> list[LayoutData
     layout_paths = sorted(str(p) for p in Path(cfg.layout_dir).glob("*.json"))
     if not layout_paths:
         raise ValueError(f"No layout json files found in {cfg.layout_dir}.")
+    if cfg.samples_per_task <= 0:
+        raise ValueError("samples_per_task must be >= 1.")
 
     output_dir = Path(cfg.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    tasks = [LayoutGenerationTask(layout_path=lp, output_dir=str(output_dir), cfg=cfg) for lp in layout_paths]
+
+    ext = "parquet" if cfg.storage_format == "parquet" else "h5"
+    tasks: list[SampleChunkTask] = []
+    rows_by_layout: dict[str, list[dict[str, Any]]] = {}
+    errors_by_layout: dict[str, list[str]] = {}
+    skipped_summaries: dict[str, LayoutDatasetSummary] = {}
+    output_path_by_layout: dict[str, str] = {}
+
+    for lp in layout_paths:
+        layout_path = Path(lp)
+        layout_id = layout_path.stem
+        output_path = output_dir / f"{layout_id}.{ext}"
+        output_path_by_layout[layout_id] = str(output_path)
+
+        if output_path.exists() and not cfg.overwrite:
+            skipped_summaries[layout_id] = LayoutDatasetSummary(
+                layout_id=layout_id,
+                output_path=str(output_path),
+                total_samples=0,
+                converged_samples=0,
+                feasible_samples=0,
+                skipped=True,
+            )
+            continue
+
+        layout_seed = cfg.seed + zlib.crc32(layout_id.encode("utf-8"))
+        params_list = sample_parametric_model_params_batch(
+            n=cfg.samples_per_layout,
+            method=cfg.sampling_method,
+            seed=layout_seed,
+        )
+        rows_by_layout[layout_id] = []
+        errors_by_layout[layout_id] = []
+
+        for start in range(0, len(params_list), cfg.samples_per_task):
+            chunk = params_list[start : start + cfg.samples_per_task]
+            tasks.append(
+                SampleChunkTask(
+                    layout_path=str(layout_path),
+                    layout_id=layout_id,
+                    cfg=cfg,
+                    sample_start_idx=start + 1,
+                    params_chunk=chunk,
+                )
+            )
 
     if cfg.max_workers != 0:
-        outcomes = run_batch(
-            tasks, _generate_one_layout_dataset, max_workers=cfg.max_workers, backend="process"
-        )
-        summaries = [
-            (
-                outcome.result
-                if outcome.ok and outcome.result is not None
-                else LayoutDatasetSummary(
-                    layout_id=Path(outcome.item.layout_path).stem,
-                    output_path="",
+        outcomes = run_batch(tasks, _generate_one_sample_chunk, max_workers=cfg.max_workers, backend="process")
+        for outcome in outcomes:
+            layout_id = outcome.item.layout_id
+            if outcome.ok and outcome.result is not None:
+                rows_by_layout[layout_id].extend(outcome.result.rows)
+            else:
+                errors_by_layout[layout_id].append(outcome.error or "Unknown chunk error")
+    else:
+        for task in tasks:
+            try:
+                chunk_result = _generate_one_sample_chunk(task)
+                rows_by_layout[task.layout_id].extend(chunk_result.rows)
+            except Exception as exc:
+                errors_by_layout[task.layout_id].append(str(exc))
+
+    summaries: list[LayoutDatasetSummary] = list(skipped_summaries.values())
+    for lp in layout_paths:
+        layout_id = Path(lp).stem
+        if layout_id in skipped_summaries:
+            continue
+
+        output_path = output_path_by_layout[layout_id]
+        rows = rows_by_layout.get(layout_id, [])
+        errors = errors_by_layout.get(layout_id, [])
+        if not rows:
+            summaries.append(
+                LayoutDatasetSummary(
+                    layout_id=layout_id,
+                    output_path=output_path,
                     total_samples=0,
                     converged_samples=0,
                     feasible_samples=0,
-                    error=outcome.error,
+                    error=("; ".join(errors[:3]) if errors else "No rows generated."),
                 )
             )
-            for outcome in outcomes
-        ]
-    else:
-        summaries = [_generate_one_layout_dataset(task) for task in tasks]
+            continue
+
+        rows.sort(key=lambda row: int(row["sample_id"]))
+        _write_rows(rows, Path(output_path), cfg.storage_format)
+        converged_count = sum(1 for row in rows if row["converged"])
+        feasible_count = sum(1 for row in rows if row["feasible"])
+        summaries.append(
+            LayoutDatasetSummary(
+                layout_id=layout_id,
+                output_path=output_path,
+                total_samples=len(rows),
+                converged_samples=converged_count,
+                feasible_samples=feasible_count,
+                error=("; ".join(errors[:3]) if errors else None),
+            )
+        )
 
     _write_metadata(cfg, summaries)
     return summaries
+
+
+def _generate_one_sample_chunk(task: SampleChunkTask) -> SampleChunkResult:
+    cfg = task.cfg
+    layout_path = Path(task.layout_path)
+    input_data, scale = load_and_scale_input(
+        json_path=layout_path,
+        input_unit_scale_to_m=cfg.input_unit_scale_to_m,
+        enable_auto_scale=cfg.enable_auto_scale,
+        low=cfg.scale_low,
+        high=cfg.scale_high,
+        seed=cfg.scale_seed,
+        manual_factor=cfg.manual_scale_factor,
+    )
+    rows = [
+        _analyze_one_sample(
+            input_data=input_data,
+            params=params,
+            sample_id=task.sample_start_idx + i,
+            layout_id=task.layout_id,
+            geom_scale=scale,
+            cfg=cfg,
+        )
+        for i, params in enumerate(task.params_chunk)
+    ]
+    return SampleChunkResult(layout_id=task.layout_id, rows=rows)
 
 
 def _generate_one_layout_dataset(task: LayoutGenerationTask) -> LayoutDatasetSummary:
