@@ -23,3 +23,9 @@ This ensures optimization and dataset generation use the same physics/check logi
 - Add new algorithm in `algorithms/` by implementing `Optimizer` contract.
 - Add new problem variants in `problems/` (multi-layout, multi-objective, robustness optimization).
 - Add RL in a separate package (recommended: `src/shearwall_optimization_rl/`) while reusing `problems/` and shared analysis API.
+
+## Parallel Evaluation
+
+- GA and PSO support process-parallel candidate evaluation through `evaluate_many`.
+- CLI usage: set `--optimizer-workers N` in `scripts.shearwall_optimize_main`.
+- Keep `--optimizer-workers 0` for sequential mode.

@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from src.misc.parallel import run_batch
 from src.shearwall_modeling.geometry.scaling import load_and_scale_input
 from src.shearwall_modeling.parametric import (
     DatasetGenerationConfig,
@@ -24,6 +25,17 @@ class ShearWallObjectiveConfig:
 class ShearWallConstraintConfig:
     require_analysis_feasible: bool = True
     require_design_passed: bool = True
+
+
+@dataclass(frozen=True)
+class BatchEvaluateTask:
+    request_index: int
+    layout_path: str
+    analysis_cfg: dict[str, Any]
+    fixed_params: dict[str, Any]
+    objective_cfg: dict[str, Any]
+    constraint_cfg: dict[str, Any]
+    decision: dict[str, Any]
 
 
 DEFAULT_DECISION_SPACE: dict[str, list[Any]] = {
@@ -99,48 +111,70 @@ class ShearWallOptimizationProblem(OptimizationProblem):
         if key in self._cache:
             return self._cache[key]
 
-        params = self._to_parametric_params(repaired)
-        analysis_result = analyze_parametric_model(self.input_data, params, self.analysis_cfg)
-
-        objective_raw = (
-            self.objective_cfg.concrete_weight * analysis_result.material_concrete_kg
-            + self.objective_cfg.steel_weight * analysis_result.material_steel_kg
-        )
-
-        constraints: dict[str, float] = {
-            "not_converged": 0.0 if analysis_result.converged else 1.0,
-            "analysis_unfeasible": (
-                0.0
-                if (analysis_result.feasible or not self.constraint_cfg.require_analysis_feasible)
-                else 1.0
-            ),
-            "design_failed": (
-                0.0
-                if (analysis_result.design_passed or not self.constraint_cfg.require_design_passed)
-                else 1.0
-            ),
-        }
-        feasible = all(v <= 0.0 for v in constraints.values())
-
-        objective = objective_raw
-        if not feasible:
-            objective += self.objective_cfg.infeasible_penalty * sum(constraints.values())
-
-        metrics = {
-            "geom_scale": self.geom_scale,
-            **asdict(params),
-            **asdict(analysis_result),
-            "objective_raw": objective_raw,
-            "objective": objective,
-        }
-        out = EvaluationResult(
-            objective=objective,
-            feasible=feasible,
-            constraints=constraints,
-            metrics=metrics,
+        out = _evaluate_decision(
+            input_data=self.input_data,
+            geom_scale=self.geom_scale,
+            decision=repaired,
+            fixed_params=self.fixed_params,
+            analysis_cfg=self.analysis_cfg,
+            objective_cfg=self.objective_cfg,
+            constraint_cfg=self.constraint_cfg,
         )
         self._cache[key] = out
         return out
+
+    def evaluate_many(
+        self, xs: list[dict[str, Any]], max_workers: int | None = None
+    ) -> list[EvaluationResult]:
+        if not xs:
+            return []
+        if not max_workers or max_workers <= 1 or len(xs) < 2:
+            return [self.evaluate(x) for x in xs]
+
+        results: list[EvaluationResult | None] = [None] * len(xs)
+        uncached_items: list[tuple[int, dict[str, Any], tuple[Any, ...]]] = []
+
+        for i, x in enumerate(xs):
+            repaired = self.repair(x)
+            key = tuple((name, repaired[name]) for name in sorted(repaired.keys()))
+            cached = self._cache.get(key)
+            if cached is not None:
+                results[i] = cached
+            else:
+                uncached_items.append((i, repaired, key))
+
+        if uncached_items:
+            tasks = [
+                BatchEvaluateTask(
+                    request_index=item[0],
+                    layout_path=str(self.layout_path),
+                    analysis_cfg=asdict(self.analysis_cfg),
+                    fixed_params=dict(self.fixed_params),
+                    objective_cfg=asdict(self.objective_cfg),
+                    constraint_cfg=asdict(self.constraint_cfg),
+                    decision=item[1],
+                )
+                for item in uncached_items
+            ]
+
+            outcomes = run_batch(tasks, _evaluate_task_worker, max_workers=max_workers, backend="process")
+            key_by_idx = {item[0]: item[2] for item in uncached_items}
+            for outcome in outcomes:
+                idx = outcome.item.request_index
+                key = key_by_idx[idx]
+                if outcome.ok and outcome.result is not None:
+                    res = outcome.result
+                else:
+                    res = EvaluationResult(
+                        objective=float("inf"),
+                        feasible=False,
+                        constraints={"worker_failed": 1.0},
+                        metrics={"error": outcome.error or "Unknown worker error"},
+                    )
+                self._cache[key] = res
+                results[idx] = res
+
+        return [r for r in results if r is not None]
 
     def encode(self, x: dict[str, Any]) -> list[float]:
         encoded: list[float] = []
@@ -182,3 +216,93 @@ class ShearWallOptimizationProblem(OptimizationProblem):
             seismic_group=int(merged["seismic_group"]),
             h_story=float(merged["h_story"]),
         )
+
+
+def _evaluate_task_worker(task: BatchEvaluateTask) -> EvaluationResult:
+    cfg = DatasetGenerationConfig(**task.analysis_cfg)
+    objective_cfg = ShearWallObjectiveConfig(**task.objective_cfg)
+    constraint_cfg = ShearWallConstraintConfig(**task.constraint_cfg)
+    input_data, geom_scale = load_and_scale_input(
+        json_path=Path(task.layout_path),
+        input_unit_scale_to_m=cfg.input_unit_scale_to_m,
+        enable_auto_scale=cfg.enable_auto_scale,
+        low=cfg.scale_low,
+        high=cfg.scale_high,
+        seed=cfg.scale_seed,
+        manual_factor=cfg.manual_scale_factor,
+    )
+    return _evaluate_decision(
+        input_data=input_data,
+        geom_scale=geom_scale,
+        decision=task.decision,
+        fixed_params=task.fixed_params,
+        analysis_cfg=cfg,
+        objective_cfg=objective_cfg,
+        constraint_cfg=constraint_cfg,
+    )
+
+
+def _evaluate_decision(
+    *,
+    input_data,
+    geom_scale: float,
+    decision: dict[str, Any],
+    fixed_params: dict[str, Any],
+    analysis_cfg: DatasetGenerationConfig,
+    objective_cfg: ShearWallObjectiveConfig,
+    constraint_cfg: ShearWallConstraintConfig,
+) -> EvaluationResult:
+    merged = {**fixed_params, **decision}
+    merged.setdefault("conc_mid", merged["conc_bot"])
+    merged.setdefault("conc_top", merged["conc_bot"])
+    params = ParametricModelParams(
+        N=int(merged["N"]),
+        tw_bot=int(merged["tw_bot"]),
+        tw_mid=int(merged["tw_mid"]),
+        tw_top=int(merged["tw_top"]),
+        hb_main=int(merged["hb_main"]),
+        bb_main=int(merged["bb_main"]),
+        hb_sec=int(merged["hb_sec"]),
+        bb_sec=int(merged["bb_sec"]),
+        hs=int(merged["hs"]),
+        conc_bot=str(merged["conc_bot"]),
+        conc_mid=str(merged["conc_mid"]),
+        conc_top=str(merged["conc_top"]),
+        intensity=float(merged["intensity"]),
+        site_class=str(merged["site_class"]),
+        seismic_group=int(merged["seismic_group"]),
+        h_story=float(merged["h_story"]),
+    )
+    analysis_result = analyze_parametric_model(input_data, params, analysis_cfg)
+
+    objective_raw = (
+        objective_cfg.concrete_weight * analysis_result.material_concrete_kg
+        + objective_cfg.steel_weight * analysis_result.material_steel_kg
+    )
+    constraints: dict[str, float] = {
+        "not_converged": 0.0 if analysis_result.converged else 1.0,
+        "analysis_unfeasible": (
+            0.0 if (analysis_result.feasible or not constraint_cfg.require_analysis_feasible) else 1.0
+        ),
+        "design_failed": (
+            0.0 if (analysis_result.design_passed or not constraint_cfg.require_design_passed) else 1.0
+        ),
+    }
+    feasible = all(v <= 0.0 for v in constraints.values())
+
+    objective = objective_raw
+    if not feasible:
+        objective += objective_cfg.infeasible_penalty * sum(constraints.values())
+
+    return EvaluationResult(
+        objective=objective,
+        feasible=feasible,
+        constraints=constraints,
+        metrics={
+            "geom_scale": geom_scale,
+            **asdict(params),
+            **asdict(analysis_result),
+            "objective_raw": objective_raw,
+            "objective": objective,
+        },
+    )

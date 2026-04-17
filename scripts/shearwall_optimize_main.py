@@ -29,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--scale-high", type=float, default=6.0)
     p.add_argument("--scale-seed", type=int, default=42)
     p.add_argument("--manual-scale-factor", type=float, default=None)
+    p.add_argument("--optimizer-workers", type=int, default=0, help="0 means sequential evaluation.")
 
     p.add_argument("--ga-pop", type=int, default=24)
     p.add_argument("--ga-gen", type=int, default=20)
@@ -81,6 +82,7 @@ def main() -> None:
         mutation_rate=args.ga_mutation,
         elite_size=args.ga_elite,
         tournament_size=args.ga_tournament,
+        max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
         seed=args.seed,
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)
@@ -91,6 +93,7 @@ def main() -> None:
         cognitive=args.pso_cognitive,
         social=args.pso_social,
         velocity_clamp=args.pso_vclamp,
+        max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
         seed=args.seed,
     )
 

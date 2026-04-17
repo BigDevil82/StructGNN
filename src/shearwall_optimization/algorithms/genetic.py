@@ -14,6 +14,7 @@ class GeneticAlgorithmConfig:
     mutation_rate: float = 0.2
     elite_size: int = 2
     tournament_size: int = 3
+    max_workers: int | None = None
     seed: int = 42
 
 
@@ -67,6 +68,9 @@ class GeneticAlgorithmOptimizer(Optimizer):
         self, pop: list[dict[str, Any]]
     ) -> list[tuple[dict[str, Any], EvaluationResult]]:
         repaired = [self.problem.repair(x) for x in pop]
+        if hasattr(self.problem, "evaluate_many"):
+            results = self.problem.evaluate_many(repaired, max_workers=self.config.max_workers)
+            return list(zip(repaired, results))
         return [(x, self.problem.evaluate(x)) for x in repaired]
 
     def _tournament_pick(self, scored: list[tuple[dict[str, Any], EvaluationResult]]) -> dict[str, Any]:
