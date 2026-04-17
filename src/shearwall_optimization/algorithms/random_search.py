@@ -43,6 +43,7 @@ class RandomSearchOptimizer(Optimizer):
         return OptimizationResult(
             best_solution=best_x,
             best_objective=best_res.objective,
+            best_objectives=best_res.objectives,
             best_feasible=best_res.feasible,
             best_constraints=best_res.constraints,
             history=history,

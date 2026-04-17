@@ -14,7 +14,12 @@ from ..algorithms import (
     RandomSearchOptimizer,
 )
 from ..core.contracts import OptimizationResult
-from ..problems import ShearWallOptimizationProblem
+from ..problems import (
+    ShearWallConstraintConfig,
+    ShearWallLimitConfig,
+    ShearWallObjectiveConfig,
+    ShearWallOptimizationProblem,
+)
 
 
 def run_shearwall_optimization(
@@ -25,6 +30,9 @@ def run_shearwall_optimization(
     fixed_params: dict[str, Any] | None = None,
     decision_space: dict[str, list[Any]] | None = None,
     analysis_cfg: DatasetGenerationConfig | None = None,
+    objective_cfg: ShearWallObjectiveConfig | None = None,
+    constraint_cfg: ShearWallConstraintConfig | None = None,
+    limit_cfg: ShearWallLimitConfig | None = None,
     ga_cfg: GeneticAlgorithmConfig | None = None,
     pso_cfg: ParticleSwarmConfig | None = None,
     random_cfg: RandomSearchConfig | None = None,
@@ -35,6 +43,9 @@ def run_shearwall_optimization(
         analysis_cfg=cfg,
         fixed_params=fixed_params,
         decision_space=decision_space,
+        objective_cfg=objective_cfg,
+        constraint_cfg=constraint_cfg,
+        limit_cfg=limit_cfg,
     )
 
     if algorithm == "ga":
@@ -54,6 +65,7 @@ def run_shearwall_optimization(
         "analysis_cfg": asdict(cfg),
         "best_solution": result.best_solution,
         "best_objective": result.best_objective,
+        "best_objectives": result.best_objectives,
         "best_feasible": result.best_feasible,
         "best_constraints": result.best_constraints,
         "history": result.history,

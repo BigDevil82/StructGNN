@@ -29,3 +29,12 @@ This ensures optimization and dataset generation use the same physics/check logi
 - GA and PSO support process-parallel candidate evaluation through `evaluate_many`.
 - CLI usage: set `--optimizer-workers N` in `scripts.shearwall_optimize_main`.
 - Keep `--optimizer-workers 0` for sequential mode.
+
+## Multi-objective Interface
+
+- `EvaluationResult.objectives` now includes:
+	- `material_cost`
+	- `margin_penalty`
+- Scalar objective used by GA/PSO is:
+	- `material_cost + margin_weight * margin_penalty + infeasible_penalty * violation_sum`
+- CLI can set `--objective-margin-weight` and limit thresholds to tune this scalarization.

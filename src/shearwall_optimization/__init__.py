@@ -6,6 +6,7 @@ from .problems.shearwall_problem import (
     DEFAULT_DECISION_SPACE,
     DEFAULT_FIXED_PARAMS,
     ShearWallConstraintConfig,
+    ShearWallLimitConfig,
     ShearWallObjectiveConfig,
     ShearWallOptimizationProblem,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "OptimizationResult",
     "ShearWallObjectiveConfig",
     "ShearWallConstraintConfig",
+    "ShearWallLimitConfig",
     "DEFAULT_DECISION_SPACE",
     "DEFAULT_FIXED_PARAMS",
     "ShearWallOptimizationProblem",

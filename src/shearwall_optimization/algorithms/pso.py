@@ -74,6 +74,7 @@ class ParticleSwarmOptimizer(Optimizer):
         return OptimizationResult(
             best_solution=best_solution,
             best_objective=gbest_eval.objective,
+            best_objectives=gbest_eval.objectives,
             best_feasible=gbest_eval.feasible,
             best_constraints=gbest_eval.constraints,
             history=history,

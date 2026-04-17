@@ -12,6 +12,7 @@ class VariableSpec:
 @dataclass(frozen=True)
 class EvaluationResult:
     objective: float
+    objectives: dict[str, float]
     feasible: bool
     constraints: dict[str, float]
     metrics: dict[str, Any]
@@ -21,6 +22,7 @@ class EvaluationResult:
 class OptimizationResult:
     best_solution: dict[str, Any]
     best_objective: float
+    best_objectives: dict[str, float]
     best_feasible: bool
     best_constraints: dict[str, float]
     history: list[dict[str, Any]]

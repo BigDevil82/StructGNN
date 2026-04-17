@@ -18,6 +18,7 @@ from ..core.contracts import EvaluationResult, OptimizationProblem, VariableSpec
 class ShearWallObjectiveConfig:
     steel_weight: float = 1.0
     concrete_weight: float = 1.0
+    margin_weight: float = 0.0
     infeasible_penalty: float = 1.0e12
 
 
@@ -28,6 +29,15 @@ class ShearWallConstraintConfig:
 
 
 @dataclass(frozen=True)
+class ShearWallLimitConfig:
+    max_torsion_ratio: float = 1.5
+    max_drift_ratio: float = 1.0 / 1000.0
+    min_shear_weight_ratio: float = 0.016
+    min_stiffness_ratio: float = 0.7
+    max_period_ratio: float = 0.9
+
+
+@dataclass(frozen=True)
 class BatchEvaluateTask:
     request_index: int
     layout_path: str
@@ -35,6 +45,7 @@ class BatchEvaluateTask:
     fixed_params: dict[str, Any]
     objective_cfg: dict[str, Any]
     constraint_cfg: dict[str, Any]
+    limit_cfg: dict[str, Any]
     decision: dict[str, Any]
 
 
@@ -68,6 +79,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
         decision_space: dict[str, list[Any]] | None = None,
         objective_cfg: ShearWallObjectiveConfig | None = None,
         constraint_cfg: ShearWallConstraintConfig | None = None,
+        limit_cfg: ShearWallLimitConfig | None = None,
         seed: int = 42,
     ):
         self.layout_path = Path(layout_path)
@@ -76,6 +88,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
         self.decision_space = decision_space or DEFAULT_DECISION_SPACE
         self.objective_cfg = objective_cfg or ShearWallObjectiveConfig()
         self.constraint_cfg = constraint_cfg or ShearWallConstraintConfig()
+        self.limit_cfg = limit_cfg or ShearWallLimitConfig()
         self.rng = random.Random(seed)
         self._cache: dict[tuple[Any, ...], EvaluationResult] = {}
 
@@ -119,6 +132,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
             analysis_cfg=self.analysis_cfg,
             objective_cfg=self.objective_cfg,
             constraint_cfg=self.constraint_cfg,
+            limit_cfg=self.limit_cfg,
         )
         self._cache[key] = out
         return out
@@ -152,6 +166,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
                     fixed_params=dict(self.fixed_params),
                     objective_cfg=asdict(self.objective_cfg),
                     constraint_cfg=asdict(self.constraint_cfg),
+                    limit_cfg=asdict(self.limit_cfg),
                     decision=item[1],
                 )
                 for item in uncached_items
@@ -167,6 +182,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
                 else:
                     res = EvaluationResult(
                         objective=float("inf"),
+                        objectives={"material_cost": float("inf"), "margin_penalty": float("inf")},
                         feasible=False,
                         constraints={"worker_failed": 1.0},
                         metrics={"error": outcome.error or "Unknown worker error"},
@@ -175,6 +191,9 @@ class ShearWallOptimizationProblem(OptimizationProblem):
                 results[idx] = res
 
         return [r for r in results if r is not None]
+
+    def evaluate_objectives(self, x: dict[str, Any]) -> dict[str, float]:
+        return dict(self.evaluate(x).objectives)
 
     def encode(self, x: dict[str, Any]) -> list[float]:
         encoded: list[float] = []
@@ -222,6 +241,7 @@ def _evaluate_task_worker(task: BatchEvaluateTask) -> EvaluationResult:
     cfg = DatasetGenerationConfig(**task.analysis_cfg)
     objective_cfg = ShearWallObjectiveConfig(**task.objective_cfg)
     constraint_cfg = ShearWallConstraintConfig(**task.constraint_cfg)
+    limit_cfg = ShearWallLimitConfig(**task.limit_cfg)
     input_data, geom_scale = load_and_scale_input(
         json_path=Path(task.layout_path),
         input_unit_scale_to_m=cfg.input_unit_scale_to_m,
@@ -239,6 +259,7 @@ def _evaluate_task_worker(task: BatchEvaluateTask) -> EvaluationResult:
         analysis_cfg=cfg,
         objective_cfg=objective_cfg,
         constraint_cfg=constraint_cfg,
+        limit_cfg=limit_cfg,
     )
 
 
@@ -251,6 +272,7 @@ def _evaluate_decision(
     analysis_cfg: DatasetGenerationConfig,
     objective_cfg: ShearWallObjectiveConfig,
     constraint_cfg: ShearWallConstraintConfig,
+    limit_cfg: ShearWallLimitConfig,
 ) -> EvaluationResult:
     merged = {**fixed_params, **decision}
     merged.setdefault("conc_mid", merged["conc_bot"])
@@ -275,10 +297,20 @@ def _evaluate_decision(
     )
     analysis_result = analyze_parametric_model(input_data, params, analysis_cfg)
 
-    objective_raw = (
+    material_cost = (
         objective_cfg.concrete_weight * analysis_result.material_concrete_kg
         + objective_cfg.steel_weight * analysis_result.material_steel_kg
     )
+
+    margins = {
+        "torsion_margin": limit_cfg.max_torsion_ratio - analysis_result.torsion_ratio,
+        "drift_margin": limit_cfg.max_drift_ratio - analysis_result.max_drift_ratio,
+        "shear_weight_margin": analysis_result.min_shear_weight_ratio - limit_cfg.min_shear_weight_ratio,
+        "stiffness_margin": analysis_result.min_stiffness_ratio - limit_cfg.min_stiffness_ratio,
+        "period_ratio_margin": limit_cfg.max_period_ratio - analysis_result.period_ratio,
+    }
+    margin_penalty = sum(max(0.0, -v) for v in margins.values())
+
     constraints: dict[str, float] = {
         "not_converged": 0.0 if analysis_result.converged else 1.0,
         "analysis_unfeasible": (
@@ -290,19 +322,26 @@ def _evaluate_decision(
     }
     feasible = all(v <= 0.0 for v in constraints.values())
 
-    objective = objective_raw
+    objective = material_cost + objective_cfg.margin_weight * margin_penalty
     if not feasible:
         objective += objective_cfg.infeasible_penalty * sum(constraints.values())
 
+    objectives = {
+        "material_cost": material_cost,
+        "margin_penalty": margin_penalty,
+    }
+
     return EvaluationResult(
         objective=objective,
+        objectives=objectives,
         feasible=feasible,
         constraints=constraints,
         metrics={
             "geom_scale": geom_scale,
             **asdict(params),
             **asdict(analysis_result),
-            "objective_raw": objective_raw,
+            "constraint_margins": margins,
+            **objectives,
             "objective": objective,
         },
     )

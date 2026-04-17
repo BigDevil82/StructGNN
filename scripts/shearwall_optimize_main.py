@@ -6,6 +6,7 @@ from src.shearwall_optimization.algorithms import (
     ParticleSwarmConfig,
     RandomSearchConfig,
 )
+from src.shearwall_optimization.problems import ShearWallLimitConfig, ShearWallObjectiveConfig
 from src.shearwall_optimization.runners import run_shearwall_optimization
 
 
@@ -30,6 +31,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--scale-seed", type=int, default=42)
     p.add_argument("--manual-scale-factor", type=float, default=None)
     p.add_argument("--optimizer-workers", type=int, default=0, help="0 means sequential evaluation.")
+
+    p.add_argument("--objective-margin-weight", type=float, default=0.0)
+    p.add_argument("--limit-max-torsion", type=float, default=1.5)
+    p.add_argument("--limit-max-drift", type=float, default=1.0 / 1000.0)
+    p.add_argument("--limit-min-shear-weight", type=float, default=0.016)
+    p.add_argument("--limit-min-stiffness", type=float, default=0.7)
+    p.add_argument("--limit-max-period-ratio", type=float, default=0.9)
 
     p.add_argument("--ga-pop", type=int, default=24)
     p.add_argument("--ga-gen", type=int, default=20)
@@ -96,6 +104,14 @@ def main() -> None:
         max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
         seed=args.seed,
     )
+    objective_cfg = ShearWallObjectiveConfig(margin_weight=args.objective_margin_weight)
+    limit_cfg = ShearWallLimitConfig(
+        max_torsion_ratio=args.limit_max_torsion,
+        max_drift_ratio=args.limit_max_drift,
+        min_shear_weight_ratio=args.limit_min_shear_weight,
+        min_stiffness_ratio=args.limit_min_stiffness,
+        max_period_ratio=args.limit_max_period_ratio,
+    )
 
     result = run_shearwall_optimization(
         layout_path=args.layout_path,
@@ -103,12 +119,15 @@ def main() -> None:
         algorithm=args.algorithm,
         fixed_params=fixed,
         analysis_cfg=analysis_cfg,
+        objective_cfg=objective_cfg,
+        limit_cfg=limit_cfg,
         ga_cfg=ga_cfg,
         pso_cfg=pso_cfg,
         random_cfg=random_cfg,
     )
 
     print("best_objective:", result.best_objective)
+    print("best_objectives:", result.best_objectives)
     print("best_feasible:", result.best_feasible)
     print("best_solution:", result.best_solution)
 
