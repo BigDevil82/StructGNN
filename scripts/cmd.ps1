@@ -1,2 +1,2 @@
 # This script generates a parametric dataset for shear wall modeling.
-python -m scripts.parametric_dataset --samples-per-layout 500 --overwrite
+$env:OMP_NUM_THREADS='1'; $env:MKL_NUM_THREADS='1'; $env:OPENBLAS_NUM_THREADS='1'; python -m scripts.parametric_dataset --samples-per-layout 5000 --samples-per-task 50 --progress-log-interval 500 --max-workers 160 --overwrite --output-dir outputs\result\parametric_dataset_5000x143
