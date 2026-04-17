@@ -17,3 +17,4 @@
 - `scripts.parametric_dataset`
 - `scripts.inspect_member_graph`
 - `scripts.shearwall_optimize_main`
+- `scripts.visualize_optimization_result_main`
