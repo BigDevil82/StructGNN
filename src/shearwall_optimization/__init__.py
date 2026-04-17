@@ -1,4 +1,5 @@
 from .algorithms.genetic import GeneticAlgorithmConfig, GeneticAlgorithmOptimizer
+from .algorithms.optuna_bo import OptunaBayesConfig, OptunaBayesOptimizer
 from .algorithms.pso import ParticleSwarmConfig, ParticleSwarmOptimizer
 from .algorithms.random_search import RandomSearchConfig, RandomSearchOptimizer
 from .core.contracts import EvaluationResult, OptimizationProblem, OptimizationResult, VariableSpec
@@ -24,6 +25,8 @@ __all__ = [
     "ShearWallOptimizationProblem",
     "GeneticAlgorithmConfig",
     "GeneticAlgorithmOptimizer",
+    "OptunaBayesConfig",
+    "OptunaBayesOptimizer",
     "ParticleSwarmConfig",
     "ParticleSwarmOptimizer",
     "RandomSearchConfig",

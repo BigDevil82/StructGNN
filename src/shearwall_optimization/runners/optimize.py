@@ -8,6 +8,8 @@ from src.shearwall_modeling.parametric import DatasetGenerationConfig
 from ..algorithms import (
     GeneticAlgorithmConfig,
     GeneticAlgorithmOptimizer,
+    OptunaBayesConfig,
+    OptunaBayesOptimizer,
     ParticleSwarmConfig,
     ParticleSwarmOptimizer,
     RandomSearchConfig,
@@ -34,6 +36,7 @@ def run_shearwall_optimization(
     constraint_cfg: ShearWallConstraintConfig | None = None,
     limit_cfg: ShearWallLimitConfig | None = None,
     ga_cfg: GeneticAlgorithmConfig | None = None,
+    optuna_cfg: OptunaBayesConfig | None = None,
     pso_cfg: ParticleSwarmConfig | None = None,
     random_cfg: RandomSearchConfig | None = None,
 ) -> OptimizationResult:
@@ -50,6 +53,8 @@ def run_shearwall_optimization(
 
     if algorithm == "ga":
         optimizer = GeneticAlgorithmOptimizer(problem, ga_cfg)
+    elif algorithm == "optuna":
+        optimizer = OptunaBayesOptimizer(problem, optuna_cfg)
     elif algorithm == "pso":
         optimizer = ParticleSwarmOptimizer(problem, pso_cfg)
     elif algorithm == "random":

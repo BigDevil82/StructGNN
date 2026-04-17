@@ -3,6 +3,7 @@ import argparse
 from src.shearwall_modeling.parametric import DatasetGenerationConfig
 from src.shearwall_optimization.algorithms import (
     GeneticAlgorithmConfig,
+    OptunaBayesConfig,
     ParticleSwarmConfig,
     RandomSearchConfig,
 )
@@ -14,7 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run shearwall optimization on one layout.")
     p.add_argument("--layout-path", required=True)
     p.add_argument("--out", default="outputs/result/optimization/ga_result.json")
-    p.add_argument("--algorithm", choices=["ga", "pso", "random"], default="ga")
+    p.add_argument("--algorithm", choices=["ga", "pso", "optuna", "random"], default="ga")
 
     p.add_argument("--N", type=int, default=28)
     p.add_argument("--hs", type=int, default=120)
@@ -54,6 +55,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--pso-vclamp", type=float, default=0.25)
 
     p.add_argument("--random-trials", type=int, default=200)
+    p.add_argument("--optuna-trials", type=int, default=50)
+    p.add_argument("--optuna-startup-trials", type=int, default=10)
+    p.add_argument("--optuna-progress", action="store_true")
     p.add_argument("--seed", type=int, default=42)
     return p
 
@@ -104,6 +108,12 @@ def main() -> None:
         max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
         seed=args.seed,
     )
+    optuna_cfg = OptunaBayesConfig(
+        n_trials=args.optuna_trials,
+        n_startup_trials=args.optuna_startup_trials,
+        seed=args.seed,
+        show_progress_bar=args.optuna_progress,
+    )
     objective_cfg = ShearWallObjectiveConfig(margin_weight=args.objective_margin_weight)
     limit_cfg = ShearWallLimitConfig(
         max_torsion_ratio=args.limit_max_torsion,
@@ -122,6 +132,7 @@ def main() -> None:
         objective_cfg=objective_cfg,
         limit_cfg=limit_cfg,
         ga_cfg=ga_cfg,
+        optuna_cfg=optuna_cfg,
         pso_cfg=pso_cfg,
         random_cfg=random_cfg,
     )
