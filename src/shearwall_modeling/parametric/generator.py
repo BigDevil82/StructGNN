@@ -56,14 +56,14 @@ PARAM_SPACE: dict[str, list[Any]] = {
     "bb_main": [200, 250, 300, 350],
     "hb_sec": [300, 400, 450, 500],
     "bb_sec": [200, 250, 300],
-    "hs": [100, 120, 150],
+    # "hs": [100, 120, 150],  # temporarily fixed to 120 mm
     "conc_bot": ["C30", "C35", "C40", "C45", "C50"],
-    "conc_mid": ["C30", "C35", "C40", "C45"],
-    "conc_top": ["C30", "C35", "C40"],
+    # "conc_mid": ["C30", "C35", "C40", "C45"],  # temporarily unified with conc_bot
+    # "conc_top": ["C30", "C35", "C40"],  # temporarily unified with conc_bot
     "intensity": [6.0, 7.0, 7.5, 8.0],
     "site_class": ["I0", "I", "II", "III", "IV"],
     "seismic_group": [1, 2, 3],
-    "h_story": [2.8, 2.9, 3.0],
+    # "h_story": [2.8, 2.9, 3.0],  # temporarily fixed to 2.9 m
 }
 
 
@@ -167,7 +167,8 @@ def build_model_config_from_params(
     num_modes: int = 6,
 ) -> ModelConfig:
     p = _normalize_params(params)
-    h_story = story_height if story_height is not None else p.h_story
+    # Temporarily fix story height to 2.9 m.
+    h_story = 2.9
     n_bottom, n_middle, n_top = _split_stories(p.N)
 
     def make_section(tw_mm: int) -> SectionConfig:
@@ -177,7 +178,7 @@ def build_model_config_from_params(
             beam_depth=p.hb_main / 1000.0,
             secondary_beam_width=p.bb_sec / 1000.0,
             secondary_beam_depth=p.hb_sec / 1000.0,
-            slab_thickness=p.hs / 1000.0,
+            slab_thickness=0.12,
         )
 
     groups = [
@@ -191,13 +192,13 @@ def build_model_config_from_params(
             count=n_middle,
             story_height=h_story,
             section=make_section(p.tw_mid),
-            material=MaterialConfig(concrete_grade=p.conc_mid),
+            material=MaterialConfig(concrete_grade=p.conc_bot),
         ),
         StandardStoryGroupConfig(
             count=n_top,
             story_height=h_story,
             section=make_section(p.tw_top),
-            material=MaterialConfig(concrete_grade=p.conc_top),
+            material=MaterialConfig(concrete_grade=p.conc_bot),
         ),
     ]
 
@@ -629,10 +630,10 @@ def _normalize_params(raw: ParametricModelParams | dict[str, Any]) -> Parametric
             bb_main=int(raw["bb_main"]),
             hb_sec=int(raw["hb_sec"]),
             bb_sec=int(raw["bb_sec"]),
-            hs=int(raw["hs"]),
+            hs=int(raw.get("hs", 120)),
             conc_bot=_normalize_conc(str(raw["conc_bot"])),
-            conc_mid=_normalize_conc(str(raw["conc_mid"])),
-            conc_top=_normalize_conc(str(raw["conc_top"])),
+            conc_mid=_normalize_conc(str(raw.get("conc_mid", raw["conc_bot"]))),
+            conc_top=_normalize_conc(str(raw.get("conc_top", raw["conc_bot"]))),
             intensity=float(raw["intensity"]),
             site_class=str(raw["site_class"]).upper(),
             seismic_group=int(raw["seismic_group"]),
@@ -641,8 +642,11 @@ def _normalize_params(raw: ParametricModelParams | dict[str, Any]) -> Parametric
 
     grades = ["C30", "C35", "C40", "C45", "C50"]
     i_bot = grades.index(p.conc_bot)
-    i_mid = min(grades.index(p.conc_mid), i_bot)
-    i_top = min(grades.index(p.conc_top), i_mid)
+    # i_mid = min(grades.index(p.conc_mid), i_bot)
+    # i_top = min(grades.index(p.conc_top), i_mid)
+    # Temporarily unify all story-group concrete grades.
+    i_mid = i_bot
+    i_top = i_bot
     tw_mid = min(p.tw_mid, p.tw_bot)
     tw_top = min(p.tw_top, tw_mid)
 
