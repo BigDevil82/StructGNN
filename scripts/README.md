@@ -16,3 +16,4 @@
 - `scripts.misc_test_main`
 - `scripts.parametric_dataset`
 - `scripts.inspect_member_graph`
+- `scripts.shearwall_optimize_main`
