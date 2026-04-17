@@ -423,7 +423,9 @@ class FEMTopologyBuilder:
 
         return result
 
-    def _check_collinear_splits(self, pi1, pi2, len_i, pj1, pj2, len_j, is_horizontal, tolerance, split_ratios, i, j):
+    def _check_collinear_splits(
+        self, pi1, pi2, len_i, pj1, pj2, len_j, is_horizontal, tolerance, split_ratios, i, j
+    ):
         """检查共线线段的端点是否落在对方内部，若是则添加打断点"""
         if is_horizontal:
             # 水平线段：检查y是否相同
@@ -477,7 +479,9 @@ class FEMTopologyBuilder:
             v_ymin, v_ymax = min(pi1[1], pi2[1]), max(pi1[1], pi2[1])
 
         # 检查交点是否在两条线段的范围内（不含端点附近）
-        if not (h_xmin + tolerance < v_x < h_xmax - tolerance and v_ymin + tolerance < h_y < v_ymax - tolerance):
+        if not (
+            h_xmin + tolerance < v_x < h_xmax - tolerance and v_ymin + tolerance < h_y < v_ymax - tolerance
+        ):
             # 交点不在两条线段的严格内部 → 可能是T字或端点连接
             # 仍需检查：交点是否至少在一条线段内部（T字情况）
             in_h = h_xmin - tolerance <= v_x <= h_xmax + tolerance
@@ -498,7 +502,9 @@ class FEMTopologyBuilder:
             rj = np.dot(np.array([cross_x, cross_y]) - pj1, vec_j) / (len_j * len_j)
             split_ratios[j].append(rj)
 
-    def _repair_short_misclassified_segments(self, segments: List[dict], short_threshold: float = 200.0) -> List[dict]:
+    def _repair_short_misclassified_segments(
+        self, segments: List[dict], short_threshold: float = 200.0
+    ) -> List[dict]:
         """
         修复短构件误分类并回并为完整长构件。
 
@@ -546,7 +552,11 @@ class FEMTopologyBuilder:
 
         merged_segments = self._merge_collinear_same_type_segments(repaired_segments)
 
-        print("    短构件修复: " f"翻转={len(flip_type)} 段, " f"合并后段数 {len(segments)} -> {len(merged_segments)}")
+        print(
+            "    短构件修复: "
+            f"翻转={len(flip_type)} 段, "
+            f"合并后段数 {len(segments)} -> {len(merged_segments)}"
+        )
         return merged_segments
 
     def _segment_endpoint_keys(self, line: LineString) -> Tuple[Tuple[int, int], Tuple[int, int]]:
@@ -631,7 +641,9 @@ class FEMTopologyBuilder:
             return abs(a0[0] - b0[0]) < tol
         return False
 
-    def _merge_two_segments(self, line_a: LineString, line_b: LineString, shared_key: Tuple[int, int]) -> LineString:
+    def _merge_two_segments(
+        self, line_a: LineString, line_b: LineString, shared_key: Tuple[int, int]
+    ) -> LineString:
         """合并两条共享端点的共线线段为一条最长线段。"""
         points = [
             tuple(line_a.coords[0]),
@@ -866,7 +878,9 @@ class FEMTopologyBuilder:
                 components.append(comp_nodes)
 
         largest_comp_nodes: Set[int] = max(components, key=len) if components else set()
-        floating_node_ids = sorted([n for n in range(num_nodes) if degree[n] > 0 and n not in largest_comp_nodes])
+        floating_node_ids = sorted(
+            [n for n in range(num_nodes) if degree[n] > 0 and n not in largest_comp_nodes]
+        )
 
         floating_member_ids = []
         for member in members:
@@ -1024,20 +1038,20 @@ def visualize_fem_result(
             color = "red"
             linewidth = 2
             zorder = 10
-            if length < 200:
-                linewidth = 4
-                color = "green"
-                short_mem += 1
+            # if length < 200:
+            #     linewidth = 4
+            #     color = "green"
+            #     short_mem += 1
 
         else:  # beam
-            color = "blue"  # if member.get("beam_role") == "primary" else "cyan"
+            color = "blue" if member.get("beam_role") == "primary" else "cyan"
             linewidth = 2
             zorder = 2
-            if length < 200:
-                color = "orange"
-                short_mem += 1
-                linewidth = 4
-                zorder = 10
+            # if length < 200:
+            #     color = "orange"
+            #     short_mem += 1
+            #     linewidth = 4
+            #     zorder = 10
 
         ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=linewidth, zorder=zorder)
 
@@ -1112,7 +1126,9 @@ def visualize_fem_result(
 
     # 图例
     legend_elements = [
-        Line2D([0], [0], color="red", linewidth=4, label=f'Shear Wall ({result["statistics"]["num_shearwalls"]})'),
+        Line2D(
+            [0], [0], color="red", linewidth=4, label=f'Shear Wall ({result["statistics"]["num_shearwalls"]})'
+        ),
         Line2D(
             [0],
             [0],

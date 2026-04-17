@@ -232,8 +232,8 @@ def convert_dxf_to_fem_topology(dxf_path: str, output_path: str) -> dict:
     # 3. 构建FEM拓扑
     print("processing:", os.path.basename(dxf_path))
     result = _build_fem_result(room_polys, masks_list, sw_vectors)
-    export_to_json(result, output_path)
-    add_scale_factor(output_path)
+    # export_to_json(result, output_path)
+    # add_scale_factor(output_path)
 
     # check if short members exist
     # short_members = [mem for mem in result["members"] if mem["length"] < 200.0]
