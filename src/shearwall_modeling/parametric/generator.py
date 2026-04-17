@@ -313,6 +313,7 @@ def generate_structural_dataset(cfg: DatasetGenerationConfig) -> list[LayoutData
         errors_by_layout.pop(layout_id, None)
 
     if cfg.max_workers != 0:
+
         def on_outcome(outcome: Any, done: int, total: int) -> None:
             with progress_lock:
                 lid = outcome.item.layout_id
@@ -349,7 +350,9 @@ def generate_structural_dataset(cfg: DatasetGenerationConfig) -> list[LayoutData
                 errors_by_layout[lid].append(str(exc))
 
             if i == 1 or i == total or i % progress_every == 0:
-                print(f"[progress] chunks {i}/{total}, layouts_saved={len(summary_by_layout)}/{len(chunk_total_by_layout)}")
+                print(
+                    f"[progress] chunks {i}/{total}, layouts_saved={len(summary_by_layout)}/{len(chunk_total_by_layout)}"
+                )
             finalize_layout_if_ready(lid)
 
     summaries: list[LayoutDatasetSummary] = list(skipped_summaries.values())
@@ -389,64 +392,6 @@ def _generate_one_sample_chunk(task: SampleChunkTask) -> SampleChunkResult:
         for i, params in enumerate(task.params_chunk)
     ]
     return SampleChunkResult(layout_id=task.layout_id, rows=rows)
-
-
-def _generate_one_layout_dataset(task: LayoutGenerationTask) -> LayoutDatasetSummary:
-    cfg = task.cfg
-    layout_path = Path(task.layout_path)
-    layout_id = layout_path.stem
-    ext = "parquet" if cfg.storage_format == "parquet" else "h5"
-    output_path = Path(task.output_dir) / f"{layout_id}.{ext}"
-
-    if output_path.exists() and not cfg.overwrite:
-        return LayoutDatasetSummary(
-            layout_id=layout_id,
-            output_path=str(output_path),
-            total_samples=0,
-            converged_samples=0,
-            feasible_samples=0,
-            skipped=True,
-        )
-
-    layout_seed = cfg.seed + zlib.crc32(layout_id.encode("utf-8"))
-    params_list = sample_parametric_model_params_batch(
-        n=cfg.samples_per_layout,
-        method=cfg.sampling_method,
-        seed=layout_seed,
-    )
-
-    input_data, scale = load_and_scale_input(
-        json_path=layout_path,
-        input_unit_scale_to_m=cfg.input_unit_scale_to_m,
-        enable_auto_scale=cfg.enable_auto_scale,
-        low=cfg.scale_low,
-        high=cfg.scale_high,
-        seed=cfg.scale_seed,
-        manual_factor=cfg.manual_scale_factor,
-    )
-
-    rows = [
-        _analyze_one_sample(
-            input_data=input_data,
-            params=params,
-            sample_id=i,
-            layout_id=layout_id,
-            geom_scale=scale,
-            cfg=cfg,
-        )
-        for i, params in enumerate(params_list, start=1)
-    ]
-
-    _write_rows(rows, output_path, cfg.storage_format)
-    converged_count = sum(1 for row in rows if row["converged"])
-    feasible_count = sum(1 for row in rows if row["feasible"])
-    return LayoutDatasetSummary(
-        layout_id=layout_id,
-        output_path=str(output_path),
-        total_samples=len(rows),
-        converged_samples=converged_count,
-        feasible_samples=feasible_count,
-    )
 
 
 def _analyze_one_sample(
