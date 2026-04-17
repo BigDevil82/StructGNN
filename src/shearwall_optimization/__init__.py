@@ -1,4 +1,5 @@
 from .algorithms.genetic import GeneticAlgorithmConfig, GeneticAlgorithmOptimizer
+from .algorithms.nsga2_optuna import NSGA2Config, NSGA2Optimizer
 from .algorithms.optuna_bo import OptunaBayesConfig, OptunaBayesOptimizer
 from .algorithms.pso import ParticleSwarmConfig, ParticleSwarmOptimizer
 from .algorithms.random_search import RandomSearchConfig, RandomSearchOptimizer
@@ -25,6 +26,8 @@ __all__ = [
     "ShearWallOptimizationProblem",
     "GeneticAlgorithmConfig",
     "GeneticAlgorithmOptimizer",
+    "NSGA2Config",
+    "NSGA2Optimizer",
     "OptunaBayesConfig",
     "OptunaBayesOptimizer",
     "ParticleSwarmConfig",

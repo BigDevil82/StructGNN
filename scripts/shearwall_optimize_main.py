@@ -3,6 +3,7 @@ import argparse
 from src.shearwall_modeling.parametric import DatasetGenerationConfig
 from src.shearwall_optimization.algorithms import (
     GeneticAlgorithmConfig,
+    NSGA2Config,
     OptunaBayesConfig,
     ParticleSwarmConfig,
     RandomSearchConfig,
@@ -15,7 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run shearwall optimization on one layout.")
     p.add_argument("--layout-path", required=True)
     p.add_argument("--out", default="outputs/result/optimization/ga_result.json")
-    p.add_argument("--algorithm", choices=["ga", "pso", "optuna", "random"], default="ga")
+    p.add_argument("--algorithm", choices=["ga", "pso", "nsga2", "optuna", "random"], default="ga")
 
     p.add_argument("--N", type=int, default=28)
     p.add_argument("--hs", type=int, default=120)
@@ -58,6 +59,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--optuna-trials", type=int, default=50)
     p.add_argument("--optuna-startup-trials", type=int, default=10)
     p.add_argument("--optuna-progress", action="store_true")
+    p.add_argument("--nsga2-trials", type=int, default=80)
+    p.add_argument("--nsga2-pop", type=int, default=24)
     p.add_argument("--seed", type=int, default=42)
     return p
 
@@ -114,6 +117,11 @@ def main() -> None:
         seed=args.seed,
         show_progress_bar=args.optuna_progress,
     )
+    nsga2_cfg = NSGA2Config(
+        n_trials=args.nsga2_trials,
+        population_size=args.nsga2_pop,
+        seed=args.seed,
+    )
     objective_cfg = ShearWallObjectiveConfig(margin_weight=args.objective_margin_weight)
     limit_cfg = ShearWallLimitConfig(
         max_torsion_ratio=args.limit_max_torsion,
@@ -132,6 +140,7 @@ def main() -> None:
         objective_cfg=objective_cfg,
         limit_cfg=limit_cfg,
         ga_cfg=ga_cfg,
+        nsga2_cfg=nsga2_cfg,
         optuna_cfg=optuna_cfg,
         pso_cfg=pso_cfg,
         random_cfg=random_cfg,
