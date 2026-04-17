@@ -1,7 +1,11 @@
 import argparse
 
 from src.shearwall_modeling.parametric import DatasetGenerationConfig
-from src.shearwall_optimization.algorithms import GeneticAlgorithmConfig, RandomSearchConfig
+from src.shearwall_optimization.algorithms import (
+    GeneticAlgorithmConfig,
+    ParticleSwarmConfig,
+    RandomSearchConfig,
+)
 from src.shearwall_optimization.runners import run_shearwall_optimization
 
 
@@ -9,7 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run shearwall optimization on one layout.")
     p.add_argument("--layout-path", required=True)
     p.add_argument("--out", default="outputs/result/optimization/ga_result.json")
-    p.add_argument("--algorithm", choices=["ga", "random"], default="ga")
+    p.add_argument("--algorithm", choices=["ga", "pso", "random"], default="ga")
 
     p.add_argument("--N", type=int, default=28)
     p.add_argument("--hs", type=int, default=120)
@@ -32,6 +36,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-mutation", type=float, default=0.2)
     p.add_argument("--ga-elite", type=int, default=2)
     p.add_argument("--ga-tournament", type=int, default=3)
+
+    p.add_argument("--pso-swarm", type=int, default=24)
+    p.add_argument("--pso-iter", type=int, default=20)
+    p.add_argument("--pso-inertia", type=float, default=0.72)
+    p.add_argument("--pso-cognitive", type=float, default=1.49)
+    p.add_argument("--pso-social", type=float, default=1.49)
+    p.add_argument("--pso-vclamp", type=float, default=0.25)
 
     p.add_argument("--random-trials", type=int, default=200)
     p.add_argument("--seed", type=int, default=42)
@@ -73,6 +84,15 @@ def main() -> None:
         seed=args.seed,
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)
+    pso_cfg = ParticleSwarmConfig(
+        swarm_size=args.pso_swarm,
+        iterations=args.pso_iter,
+        inertia=args.pso_inertia,
+        cognitive=args.pso_cognitive,
+        social=args.pso_social,
+        velocity_clamp=args.pso_vclamp,
+        seed=args.seed,
+    )
 
     result = run_shearwall_optimization(
         layout_path=args.layout_path,
@@ -81,6 +101,7 @@ def main() -> None:
         fixed_params=fixed,
         analysis_cfg=analysis_cfg,
         ga_cfg=ga_cfg,
+        pso_cfg=pso_cfg,
         random_cfg=random_cfg,
     )
 

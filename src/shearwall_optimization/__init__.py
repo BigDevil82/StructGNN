@@ -1,4 +1,5 @@
 from .algorithms.genetic import GeneticAlgorithmConfig, GeneticAlgorithmOptimizer
+from .algorithms.pso import ParticleSwarmConfig, ParticleSwarmOptimizer
 from .algorithms.random_search import RandomSearchConfig, RandomSearchOptimizer
 from .core.contracts import EvaluationResult, OptimizationProblem, OptimizationResult, VariableSpec
 from .problems.shearwall_problem import (
@@ -21,6 +22,8 @@ __all__ = [
     "ShearWallOptimizationProblem",
     "GeneticAlgorithmConfig",
     "GeneticAlgorithmOptimizer",
+    "ParticleSwarmConfig",
+    "ParticleSwarmOptimizer",
     "RandomSearchConfig",
     "RandomSearchOptimizer",
 ]

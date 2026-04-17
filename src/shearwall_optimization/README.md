@@ -6,7 +6,7 @@ This package isolates optimization logic from structural modeling and analysis.
 
 - `core/`: abstract contracts (`OptimizationProblem`, `Optimizer`) and result dataclasses.
 - `problems/`: problem adapters that bind design variables to the shared modeling-analysis pipeline.
-- `algorithms/`: traditional optimization algorithms (currently GA and Random Search).
+- `algorithms/`: traditional optimization algorithms (currently GA, PSO, and Random Search).
 - `runners/`: high-level orchestration and result serialization.
 
 ## Reuse with Shared Modeling-Analysis Pipeline

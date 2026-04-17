@@ -8,6 +8,8 @@ from src.shearwall_modeling.parametric import DatasetGenerationConfig
 from ..algorithms import (
     GeneticAlgorithmConfig,
     GeneticAlgorithmOptimizer,
+    ParticleSwarmConfig,
+    ParticleSwarmOptimizer,
     RandomSearchConfig,
     RandomSearchOptimizer,
 )
@@ -24,6 +26,7 @@ def run_shearwall_optimization(
     decision_space: dict[str, list[Any]] | None = None,
     analysis_cfg: DatasetGenerationConfig | None = None,
     ga_cfg: GeneticAlgorithmConfig | None = None,
+    pso_cfg: ParticleSwarmConfig | None = None,
     random_cfg: RandomSearchConfig | None = None,
 ) -> OptimizationResult:
     cfg = analysis_cfg or DatasetGenerationConfig(samples_per_layout=1, samples_per_task=1, max_workers=0)
@@ -36,6 +39,8 @@ def run_shearwall_optimization(
 
     if algorithm == "ga":
         optimizer = GeneticAlgorithmOptimizer(problem, ga_cfg)
+    elif algorithm == "pso":
+        optimizer = ParticleSwarmOptimizer(problem, pso_cfg)
     elif algorithm == "random":
         optimizer = RandomSearchOptimizer(problem, random_cfg)
     else:
