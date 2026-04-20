@@ -1,1 +1,3 @@
-"""Training components for surrogate models."""
+from .lightgbm_baseline import LightGBMBaselineConfig, run_lightgbm_baseline
+
+__all__ = ["LightGBMBaselineConfig", "run_lightgbm_baseline"]
