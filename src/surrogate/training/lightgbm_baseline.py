@@ -80,7 +80,16 @@ LAYOUT_FEATURES = [
 ]
 
 CLASS_TASK = "final_pass"
-REG_TASKS = ["max_drift_ratio", "torsion_ratio", "material_steel_kg"]
+REG_TASKS = [
+    "max_drift_ratio",
+    "torsion_ratio",
+    "material_steel_kg",
+    "min_shear_weight_ratio",
+    "margin_drift",
+    "margin_torsion",
+    "margin_shear",
+    "period_ratio",
+]
 
 
 @dataclass(frozen=True)
@@ -134,6 +143,7 @@ def run_lightgbm_baseline(cfg: LightGBMBaselineConfig) -> dict[str, object]:
 
     reg_metrics: dict[str, dict[str, float]] = {}
     for target in REG_TASKS:
+        print(f"Training regressor for target: {target}...")
         reg_metrics[target] = _train_regressor(
             cfg, target, x_train, x_val, x_test, train_df, val_df, test_df, out_dir
         )
@@ -247,9 +257,20 @@ def _train_regressor(
     test_df: pd.DataFrame,
     out_dir: Path,
 ) -> dict[str, float]:
-    y_train = train_df[target].to_numpy(dtype=float)
-    y_val = val_df[target].to_numpy(dtype=float)
-    y_test = test_df[target].to_numpy(dtype=float)
+    train_mask = np.isfinite(train_df[target].to_numpy(dtype=float))
+    val_mask = np.isfinite(val_df[target].to_numpy(dtype=float))
+    test_mask = np.isfinite(test_df[target].to_numpy(dtype=float))
+
+    x_train_reg = x_train.loc[train_mask]
+    x_val_reg = x_val.loc[val_mask]
+    x_test_reg = x_test.loc[test_mask]
+
+    y_train = train_df.loc[train_mask, target].to_numpy(dtype=float)
+    y_val = val_df.loc[val_mask, target].to_numpy(dtype=float)
+    y_test = test_df.loc[test_mask, target].to_numpy(dtype=float)
+
+    if len(y_train) == 0 or len(y_val) == 0 or len(y_test) == 0:
+        raise ValueError(f"Target {target} has no valid finite samples in train/val/test.")
 
     model = lgb.LGBMRegressor(
         objective="regression",
@@ -262,14 +283,14 @@ def _train_regressor(
         n_jobs=-1,
     )
     model.fit(
-        x_train,
+        x_train_reg,
         y_train,
-        eval_set=[(x_val, y_val)],
+        eval_set=[(x_val_reg, y_val)],
         eval_metric="l2",
         callbacks=[lgb.early_stopping(cfg.early_stopping_rounds, verbose=False)],
     )
 
-    y_pred = model.predict(x_test)
+    y_pred = model.predict(x_test_reg)
     metrics = {
         "mae": float(mean_absolute_error(y_test, y_pred)),
         "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
@@ -279,9 +300,9 @@ def _train_regressor(
     model_path = out_dir / f"reg_{target}_lightgbm.joblib"
     joblib.dump(model, model_path)
 
-    imp = pd.DataFrame({"feature": x_train.columns, "importance": model.feature_importances_}).sort_values(
-        "importance", ascending=False
-    )
+    imp = pd.DataFrame(
+        {"feature": x_train_reg.columns, "importance": model.feature_importances_}
+    ).sort_values("importance", ascending=False)
     imp.to_csv(out_dir / f"reg_{target}_feature_importance.csv", index=False)
     return metrics
 

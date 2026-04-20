@@ -8,10 +8,9 @@ import numpy as np
 import pandas as pd
 from catboost import Pool
 
-from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES
+from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES, REG_TASKS
 
 CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]
-REG_TASKS = ["max_drift_ratio", "torsion_ratio", "material_steel_kg"]
 
 
 def predict_with_lightgbm(df: pd.DataFrame, artifact_dir: str | Path) -> pd.DataFrame:

@@ -28,7 +28,7 @@ class CatBoostBaselineConfig:
     dataset_path: str = r"data\parametric\surrogate_dataset\splits\surrogate_samples_with_splits.parquet"
     output_dir: str = r"data\parametric\surrogate_dataset\baseline_catboost"
     seed: int = 42
-    iterations: int = 1500
+    iterations: int = 150
     learning_rate: float = 0.05
     depth: int = 8
     l2_leaf_reg: float = 3.0
@@ -89,6 +89,7 @@ def run_catboost_baseline(cfg: CatBoostBaselineConfig) -> dict[str, object]:
 
     reg_metrics: dict[str, dict[str, float]] = {}
     for target in REG_TASKS:
+        print(f"Training regressor for target: {target}...")
         reg_metrics[target] = _train_regressor(
             cfg,
             target,
@@ -180,13 +181,24 @@ def _train_regressor(
     cat_indices: list[int],
     out_dir: Path,
 ) -> dict[str, float]:
-    y_train = train_df[target].to_numpy(dtype=float)
-    y_val = val_df[target].to_numpy(dtype=float)
-    y_test = test_df[target].to_numpy(dtype=float)
+    train_mask = np.isfinite(train_df[target].to_numpy(dtype=float))
+    val_mask = np.isfinite(val_df[target].to_numpy(dtype=float))
+    test_mask = np.isfinite(test_df[target].to_numpy(dtype=float))
 
-    train_pool = Pool(x_train, y_train, cat_features=cat_indices)
-    val_pool = Pool(x_val, y_val, cat_features=cat_indices)
-    test_pool = Pool(x_test, cat_features=cat_indices)
+    x_train_reg = x_train.loc[train_mask]
+    x_val_reg = x_val.loc[val_mask]
+    x_test_reg = x_test.loc[test_mask]
+
+    y_train = train_df.loc[train_mask, target].to_numpy(dtype=float)
+    y_val = val_df.loc[val_mask, target].to_numpy(dtype=float)
+    y_test = test_df.loc[test_mask, target].to_numpy(dtype=float)
+
+    if len(y_train) == 0 or len(y_val) == 0 or len(y_test) == 0:
+        raise ValueError(f"Target {target} has no valid finite samples in train/val/test.")
+
+    train_pool = Pool(x_train_reg, y_train, cat_features=cat_indices)
+    val_pool = Pool(x_val_reg, y_val, cat_features=cat_indices)
+    test_pool = Pool(x_test_reg, cat_features=cat_indices)
 
     model = CatBoostRegressor(
         loss_function="RMSE",
@@ -212,7 +224,7 @@ def _train_regressor(
     joblib.dump(model, out_dir / f"reg_{target}_catboost.joblib")
 
     importance = model.get_feature_importance(train_pool, type="FeatureImportance")
-    imp = pd.DataFrame({"feature": x_train.columns, "importance": importance}).sort_values(
+    imp = pd.DataFrame({"feature": x_train_reg.columns, "importance": importance}).sort_values(
         "importance", ascending=False
     )
     imp.to_csv(out_dir / f"reg_{target}_feature_importance.csv", index=False)

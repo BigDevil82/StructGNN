@@ -12,7 +12,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-dir", default=r"data\parametric\surrogate_dataset\baseline_catboost")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--iterations", type=int, default=1500)
+    parser.add_argument("--iterations", type=int, default=150)
     parser.add_argument("--learning-rate", type=float, default=0.05)
     parser.add_argument("--depth", type=int, default=8)
     parser.add_argument("--l2-leaf-reg", type=float, default=3.0)
