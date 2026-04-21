@@ -6,6 +6,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+import torch
 from catboost import Pool
 from sklearn.metrics import (
     average_precision_score,
@@ -16,8 +17,10 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
+from torch.utils.data import DataLoader, TensorDataset
 
 from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES, REG_TASKS
+from src.surrogate.training.mlp_embedding_classifier import EmbeddingMLP
 
 CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]
 
@@ -54,6 +57,61 @@ def predict_with_lightgbm(
         metrics = _collect_prediction_metrics(df, pred)
         if metrics:
             print("[surrogate][lightgbm] prediction metrics")
+            print(json.dumps(metrics, ensure_ascii=False, indent=2))
+    return pred
+
+
+def predict_with_mlp_embedding_kfold(
+    df: pd.DataFrame,
+    artifact_dir: str | Path,
+    threshold: float | None = None,
+    report_metrics: bool = True,
+    batch_size: int = 4096,
+) -> pd.DataFrame:
+    artifact = Path(artifact_dir)
+    fold_dirs = sorted([p for p in artifact.glob("fold_*") if p.is_dir()])
+    if not fold_dirs:
+        raise ValueError(f"No fold_* directories found in {artifact}.")
+
+    probs_by_fold: list[np.ndarray] = []
+    fold_thresholds: list[float] = []
+
+    for fold_dir in fold_dirs:
+        ckpt_path = fold_dir / "clf_final_pass_mlp_embedding.pt"
+        prep_path = fold_dir / "preprocess.json"
+        metric_path = fold_dir / "metrics.json"
+        if not ckpt_path.exists() or not prep_path.exists():
+            raise ValueError(f"Fold artifact incomplete: {fold_dir}")
+
+        preprocess = json.loads(prep_path.read_text(encoding="utf-8"))
+        x_num, x_cat = _transform_with_mlp_preprocess(df, preprocess)
+
+        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+        model = EmbeddingMLP(
+            num_dim=int(ckpt["num_dim"]),
+            cat_cardinalities=list(ckpt["cat_cardinalities"]),
+            emb_dims=list(ckpt["emb_dims"]),
+            hidden_dims=tuple(ckpt["hidden_dims"]),
+            dropout=float(ckpt["dropout"]),
+        )
+        model.load_state_dict(ckpt["state_dict"])
+        fold_prob = _predict_mlp_prob(model, x_num, x_cat, batch_size=batch_size)
+        probs_by_fold.append(fold_prob)
+
+        fold_thresholds.append(_load_fold_threshold(metric_path))
+
+    mean_prob = np.mean(np.stack(probs_by_fold, axis=0), axis=0)
+    threshold_value = float(np.mean(fold_thresholds)) if threshold is None else float(threshold)
+    threshold_value = float(np.clip(threshold_value, 0.0, 1.0))
+
+    pred = pd.DataFrame(index=df.index)
+    pred["pred_final_pass_prob"] = mean_prob
+    pred["pred_final_pass"] = mean_prob >= threshold_value
+
+    if report_metrics:
+        metrics = _collect_prediction_metrics(df, pred)
+        if metrics:
+            print("[surrogate][mlp-embedding-kfold] prediction metrics")
             print(json.dumps(metrics, ensure_ascii=False, indent=2))
     return pred
 
@@ -170,3 +228,65 @@ def _pick_true_col(df: pd.DataFrame, target: str) -> str | None:
     if target in df.columns:
         return target
     return None
+
+
+def _transform_with_mlp_preprocess(
+    df: pd.DataFrame,
+    preprocess: dict[str, object],
+) -> tuple[np.ndarray, np.ndarray]:
+    num_cols: list[str] = list(preprocess["num_cols"])
+    cat_cols: list[str] = list(preprocess["cat_cols"])
+    cat_vocab: dict[str, dict[str, int]] = dict(preprocess["cat_vocab"])
+
+    missing = [c for c in num_cols + cat_cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"Input dataset missing columns for MLP preprocess: {missing}")
+
+    x_num = df[num_cols].copy()
+    mean = pd.Series(preprocess["num_mean"], index=num_cols, dtype=float)
+    std = pd.Series(preprocess["num_std"], index=num_cols, dtype=float)
+    x_num = x_num.fillna(mean)
+    x_num = ((x_num - mean) / std).to_numpy(dtype=np.float32)
+
+    cat_arrays: list[np.ndarray] = []
+    for col in cat_cols:
+        vocab = cat_vocab[col]
+        raw = df[col].astype(str).fillna("<unk>")
+        cat_arrays.append(raw.map(lambda v: vocab.get(v, 0)).to_numpy(dtype=np.int64))
+    x_cat = np.stack(cat_arrays, axis=1)
+    return x_num, x_cat
+
+
+def _predict_mlp_prob(
+    model: torch.nn.Module,
+    x_num: np.ndarray,
+    x_cat: np.ndarray,
+    batch_size: int,
+) -> np.ndarray:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+
+    loader = DataLoader(
+        TensorDataset(torch.from_numpy(x_num), torch.from_numpy(x_cat)),
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=False,
+    )
+    out: list[np.ndarray] = []
+    with torch.no_grad():
+        for xb_num, xb_cat in loader:
+            xb_num = xb_num.to(device)
+            xb_cat = xb_cat.to(device)
+            logits = model(xb_num, xb_cat)
+            prob = torch.sigmoid(logits).detach().cpu().numpy()
+            out.append(prob)
+    return np.concatenate(out, axis=0).astype(np.float64)
+
+
+def _load_fold_threshold(metrics_path: Path) -> float:
+    if not metrics_path.exists():
+        return 0.5
+    raw = json.loads(metrics_path.read_text(encoding="utf-8"))
+    t = raw.get("threshold", 0.5)
+    return float(np.clip(float(t), 0.0, 1.0))
