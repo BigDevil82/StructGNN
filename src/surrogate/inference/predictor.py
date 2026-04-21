@@ -20,7 +20,7 @@ from sklearn.metrics import (
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES, REG_TASKS
-from src.surrogate.training.mlp_embedding_classifier import EmbeddingMLP
+from src.surrogate.training.mlp_embedding_kfold import EmbeddingMLP
 
 CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]
 

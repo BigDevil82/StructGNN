@@ -19,7 +19,46 @@ from sklearn.metrics import (
 from torch.utils.data import DataLoader, TensorDataset
 
 from .lightgbm_baseline import CLASS_TASK, LAYOUT_FEATURES, PARAM_FEATURES
-from .mlp_embedding_classifier import CAT_COLS, EmbeddingMLP
+
+CAT_COLS = ["conc_bot", "site_class", "seismic_group", "intensity"]
+
+
+class EmbeddingMLP(nn.Module):
+    def __init__(
+        self,
+        num_dim: int,
+        cat_cardinalities: list[int],
+        emb_dims: list[int],
+        hidden_dims: tuple[int, int, int],
+        dropout: float,
+    ) -> None:
+        super().__init__()
+        self.num_bn = nn.BatchNorm1d(num_dim)
+        self.embeddings = nn.ModuleList(
+            [nn.Embedding(cardinality, emb_dim) for cardinality, emb_dim in zip(cat_cardinalities, emb_dims)]
+        )
+
+        in_dim = num_dim + int(sum(emb_dims))
+        layers: list[nn.Module] = []
+        prev = in_dim
+        for h in hidden_dims:
+            layers.extend(
+                [
+                    nn.Linear(prev, h),
+                    nn.BatchNorm1d(h),
+                    nn.ReLU(inplace=True),
+                    nn.Dropout(dropout),
+                ]
+            )
+            prev = h
+        layers.append(nn.Linear(prev, 1))
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, x_num: torch.Tensor, x_cat: torch.Tensor) -> torch.Tensor:
+        x_num = self.num_bn(x_num)
+        emb = [emb_layer(x_cat[:, i]) for i, emb_layer in enumerate(self.embeddings)]
+        x = torch.cat([x_num] + emb, dim=1)
+        return self.mlp(x).squeeze(1)
 
 
 @dataclass(frozen=True)
