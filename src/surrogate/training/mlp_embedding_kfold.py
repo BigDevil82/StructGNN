@@ -8,9 +8,14 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from sklearn.metrics import (average_precision_score, balanced_accuracy_score,
-                             f1_score, precision_score, recall_score,
-                             roc_auc_score)
+from sklearn.metrics import (
+    average_precision_score,
+    balanced_accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 from torch.utils.data import DataLoader, TensorDataset
 
 from .lightgbm_baseline import CLASS_TASK, LAYOUT_FEATURES, PARAM_FEATURES
@@ -70,6 +75,7 @@ class MLPEmbeddingKFoldConfig:
     hidden_dims: tuple[int, int, int] = (256, 128, 64)
     dropout: float = 0.2
     num_workers: int = 0
+    log_interval: int = 5
 
 
 def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
@@ -93,10 +99,12 @@ def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
         raise ValueError("Some samples have no group_fold assignment.")
     df["group_fold"] = df["group_fold"].astype(int)
 
-    if "split" in df.columns and (df["split"] == "train").any():
-        train_pool = df[df["split"] == "train"].copy()
+    if "split" in df.columns and df["split"].isin(["train", "val"]).any():
+        train_pool = df[df["split"].isin(["train", "val"])].copy()
+        train_pool_tag = "split=train+val"
     else:
         train_pool = df
+        train_pool_tag = "all_samples"
 
     if train_pool.empty:
         raise ValueError("No training samples found for K-Fold. Please check split assignments.")
@@ -109,11 +117,16 @@ def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
     oof_parts: list[pd.DataFrame] = []
     fold_artifacts: list[dict[str, object]] = []
 
-    for fold_id in fold_ids:
+    for fold_idx, fold_id in enumerate(fold_ids, start=1):
         train_df = train_pool[train_pool["group_fold"] != fold_id].copy()
         val_df = train_pool[train_pool["group_fold"] == fold_id].copy()
         if train_df.empty or val_df.empty:
             continue
+
+        print(
+            f"[surrogate][mlp-embedding-kfold] fold {fold_idx}/{len(fold_ids)} "
+            f"train={len(train_df)} val={len(val_df)}"
+        )
 
         (
             x_train_num,
@@ -134,6 +147,7 @@ def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
             x_val_num,
             x_val_cat,
             y_val,
+            fold_id=fold_id,
         )
 
         val_prob = predict_prob(
@@ -244,7 +258,7 @@ def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
 
     summary = {
         "config": asdict(cfg),
-        "train_pool": "split=train" if train_pool is not df else "all_samples",
+        "train_pool": train_pool_tag,
         "num_folds": int(len(fold_summaries)),
         "folds": fold_summaries,
         "oof_metrics": oof_metrics,
@@ -262,6 +276,7 @@ def _train_one_fold(
     x_val_num: np.ndarray,
     x_val_cat: np.ndarray,
     y_val: np.ndarray,
+    fold_id: int,
 ) -> tuple[EmbeddingMLP, int, float]:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -301,7 +316,7 @@ def _train_one_fold(
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
     best_state = None
-    best_val_auc = -1.0
+    best_val_pr_auc = -1.0
     best_epoch = -1
     bad_rounds = 0
 
@@ -318,22 +333,33 @@ def _train_one_fold(
             optimizer.step()
 
         val_prob, val_true = _predict_proba_from_loader(model, val_loader, device)
-        val_auc = roc_auc_score(val_true, val_prob) if len(np.unique(val_true)) > 1 else 0.5
-        if val_auc > best_val_auc:
-            best_val_auc = float(val_auc)
+        val_pr_auc = average_precision_score(val_true, val_prob) if len(np.unique(val_true)) > 1 else 0.5
+
+        if epoch == 0 or (epoch + 1) % max(cfg.log_interval, 1) == 0:
+            print(
+                f"[surrogate][mlp-embedding-kfold] fold={fold_id + 1} "
+                f"epoch={epoch + 1}/{cfg.max_epochs} val_pr_auc={val_pr_auc:.6f} best={best_val_pr_auc:.6f}"
+            )
+
+        if val_pr_auc > best_val_pr_auc:
+            best_val_pr_auc = float(val_pr_auc)
             best_epoch = epoch
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             bad_rounds = 0
         else:
             bad_rounds += 1
             if bad_rounds >= cfg.early_stop_rounds:
+                print(
+                    f"[surrogate][mlp-embedding-kfold] fold={fold_id + 1} early_stop "
+                    f"epoch={epoch + 1} best_epoch={best_epoch + 1} best_pr_auc={best_val_pr_auc:.6f}"
+                )
                 break
 
     if best_state is None:
         raise RuntimeError("KFold model failed to produce a valid checkpoint.")
 
     model.load_state_dict(best_state)
-    return model.cpu(), int(best_epoch), float(best_val_auc)
+    return model.cpu(), int(best_epoch), float(best_val_pr_auc)
 
 
 def _prepare_fold_features(

@@ -1,5 +1,11 @@
 import argparse
 import json
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.surrogate.training.mlp_embedding_kfold import MLPEmbeddingKFoldConfig, run_mlp_embedding_kfold
 
@@ -28,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight-decay", type=float, default=1.0e-4)
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--hidden-dims", nargs=3, type=int, default=[256, 128, 64])
+    parser.add_argument("--log-interval", type=int, default=5)
     return parser
 
 
@@ -45,6 +52,7 @@ def main() -> None:
         weight_decay=args.weight_decay,
         hidden_dims=tuple(args.hidden_dims),
         dropout=args.dropout,
+        log_interval=args.log_interval,
     )
     summary = run_mlp_embedding_kfold(cfg)
     print(json.dumps(summary, ensure_ascii=True, indent=2))
