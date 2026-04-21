@@ -7,13 +7,27 @@ import joblib
 import numpy as np
 import pandas as pd
 from catboost import Pool
+from sklearn.metrics import (
+    average_precision_score,
+    f1_score,
+    mean_absolute_error,
+    precision_score,
+    r2_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES, REG_TASKS
 
 CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]
 
 
-def predict_with_lightgbm(df: pd.DataFrame, artifact_dir: str | Path) -> pd.DataFrame:
+def predict_with_lightgbm(
+    df: pd.DataFrame,
+    artifact_dir: str | Path,
+    threshold: float | None = None,
+    report_metrics: bool = True,
+) -> pd.DataFrame:
     feature_cols = PARAM_FEATURES + LAYOUT_FEATURES
     _check_required_columns(df, feature_cols)
 
@@ -28,17 +42,28 @@ def predict_with_lightgbm(df: pd.DataFrame, artifact_dir: str | Path) -> pd.Data
     clf = joblib.load(artifact / "clf_final_pass_lightgbm.joblib")
     reg_models = {target: joblib.load(artifact / f"reg_{target}_lightgbm.joblib") for target in REG_TASKS}
 
-    threshold = _load_threshold(artifact / "metrics.json")
+    threshold = _load_threshold(artifact / "metrics.json") if threshold is None else threshold
 
     pred = pd.DataFrame(index=df.index)
     pred["pred_final_pass_prob"] = clf.predict_proba(x)[:, 1]
     pred["pred_final_pass"] = pred["pred_final_pass_prob"] >= threshold
     for target, model in reg_models.items():
         pred[f"pred_{target}"] = model.predict(x)
+
+    if report_metrics:
+        metrics = _collect_prediction_metrics(df, pred)
+        if metrics:
+            print("[surrogate][lightgbm] prediction metrics")
+            print(json.dumps(metrics, ensure_ascii=False, indent=2))
     return pred
 
 
-def predict_with_catboost(df: pd.DataFrame, artifact_dir: str | Path) -> pd.DataFrame:
+def predict_with_catboost(
+    df: pd.DataFrame,
+    artifact_dir: str | Path,
+    threshold: float | None = None,
+    report_metrics: bool = True,
+) -> pd.DataFrame:
     feature_cols = PARAM_FEATURES + LAYOUT_FEATURES
     _check_required_columns(df, feature_cols)
 
@@ -52,13 +77,20 @@ def predict_with_catboost(df: pd.DataFrame, artifact_dir: str | Path) -> pd.Data
     clf = joblib.load(artifact / "clf_final_pass_catboost.joblib")
     reg_models = {target: joblib.load(artifact / f"reg_{target}_catboost.joblib") for target in REG_TASKS}
 
-    threshold = _load_threshold(artifact / "metrics.json")
+    threshold = _load_threshold(artifact / "metrics.json") if threshold is None else threshold
 
     pred = pd.DataFrame(index=df.index)
     pred["pred_final_pass_prob"] = clf.predict_proba(pool)[:, 1]
     pred["pred_final_pass"] = pred["pred_final_pass_prob"] >= threshold
     for target, model in reg_models.items():
         pred[f"pred_{target}"] = model.predict(pool)
+
+    if report_metrics:
+        metrics = _collect_prediction_metrics(df, pred)
+        if metrics:
+            metrics["classification"]["threshold"] = threshold
+            print("[surrogate][catboost] prediction metrics")
+            print(json.dumps(metrics, ensure_ascii=False, indent=2))
     return pred
 
 
@@ -84,3 +116,57 @@ def _load_threshold(metrics_path: Path) -> float:
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     threshold = metrics.get("classification", {}).get("threshold", 0.5)
     return float(np.clip(float(threshold), 0.0, 1.0))
+
+
+def _collect_prediction_metrics(df: pd.DataFrame, pred: pd.DataFrame) -> dict[str, dict[str, float]]:
+    report: dict[str, dict[str, float]] = {}
+
+    cls_true_col = _pick_true_col(df, "final_pass")
+    if cls_true_col is not None:
+        y_true = df[cls_true_col].astype(int).to_numpy()
+        y_prob = pred["pred_final_pass_prob"].astype(float).to_numpy()
+        y_pred = pred["pred_final_pass"].astype(int).to_numpy()
+
+        cls_metrics: dict[str, float] = {
+            "samples": float(len(y_true)),
+            "precision": float(precision_score(y_true, y_pred, zero_division=0)),
+            "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+            "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+        }
+        if len(np.unique(y_true)) > 1:
+            cls_metrics["roc_auc"] = float(roc_auc_score(y_true, y_prob))
+            cls_metrics["pr_auc"] = float(average_precision_score(y_true, y_prob))
+        report["classification"] = cls_metrics
+
+    reg_metrics: dict[str, float] = {}
+    for target in REG_TASKS:
+        true_col = _pick_true_col(df, target)
+        pred_col = f"pred_{target}"
+        if true_col is None or pred_col not in pred.columns:
+            continue
+
+        y_true = df[true_col].astype(float).to_numpy()
+        y_pred = pred[pred_col].astype(float).to_numpy()
+        mask = np.isfinite(y_true) & np.isfinite(y_pred)
+        if not np.any(mask):
+            continue
+
+        yt = y_true[mask]
+        yp = y_pred[mask]
+        # reg_metrics[f"{target}.samples"] = float(len(yt))
+        reg_metrics[f"{target}.mae"] = float(mean_absolute_error(yt, yp))
+        reg_metrics[f"{target}.rmse"] = float(np.sqrt(np.mean((yp - yt) ** 2)))
+        reg_metrics[f"{target}.r2"] = float(r2_score(yt, yp)) if len(yt) > 1 else float("nan")
+
+    if reg_metrics:
+        report["regression"] = reg_metrics
+
+    return report
+
+
+def _pick_true_col(df: pd.DataFrame, target: str) -> str | None:
+    if f"{target}_true" in df.columns:
+        return f"{target}_true"
+    if target in df.columns:
+        return target
+    return None

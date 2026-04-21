@@ -20,13 +20,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-path",
         default=r"data\parametric\surrogate_dataset\predictions_lightgbm.parquet",
     )
+    parser.add_argument(
+        "--split",
+        choices=["train", "val", "test", "all"],
+        default="test",
+        help="Which split to run inference on. Default is test.",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=None,
+        help="Threshold for binary classification tasks, specify or set to None to use trained model's default.",
+    )
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
     df = pd.read_parquet(args.input_dataset)
-    pred = predict_with_lightgbm(df, args.artifact_dir)
+    if args.split != "all":
+        if "split" not in df.columns:
+            raise ValueError("Input dataset missing split column, cannot filter by split.")
+        df = df[df["split"] == args.split].copy()
+    pred = predict_with_lightgbm(df, args.artifact_dir, threshold=args.threshold)
 
     out = df[["layout_id", "sample_id"]].copy()
     out = pd.concat([out, pred], axis=1)
