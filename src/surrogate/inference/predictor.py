@@ -17,10 +17,9 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from torch.utils.data import DataLoader, TensorDataset
 
 from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES, REG_TASKS
-from src.surrogate.training.mlp_embedding_kfold import EmbeddingMLP
+from src.surrogate.training.mlp_embedding_kfold import EmbeddingMLP, predict_prob, transform_with_preprocess
 
 CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]
 
@@ -84,7 +83,7 @@ def predict_with_mlp_embedding_kfold(
             raise ValueError(f"Fold artifact incomplete: {fold_dir}")
 
         preprocess = json.loads(prep_path.read_text(encoding="utf-8"))
-        x_num, x_cat = _transform_with_mlp_preprocess(df, preprocess)
+        x_num, x_cat = transform_with_preprocess(df, preprocess)
 
         ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
         model = EmbeddingMLP(
@@ -95,7 +94,7 @@ def predict_with_mlp_embedding_kfold(
             dropout=float(ckpt["dropout"]),
         )
         model.load_state_dict(ckpt["state_dict"])
-        fold_prob = _predict_mlp_prob(model, x_num, x_cat, batch_size=batch_size)
+        fold_prob = predict_prob(model, x_num, x_cat, batch_size=batch_size, num_workers=0)
         probs_by_fold.append(fold_prob)
 
         fold_thresholds.append(_load_fold_threshold(metric_path))
@@ -228,60 +227,6 @@ def _pick_true_col(df: pd.DataFrame, target: str) -> str | None:
     if target in df.columns:
         return target
     return None
-
-
-def _transform_with_mlp_preprocess(
-    df: pd.DataFrame,
-    preprocess: dict[str, object],
-) -> tuple[np.ndarray, np.ndarray]:
-    num_cols: list[str] = list(preprocess["num_cols"])
-    cat_cols: list[str] = list(preprocess["cat_cols"])
-    cat_vocab: dict[str, dict[str, int]] = dict(preprocess["cat_vocab"])
-
-    missing = [c for c in num_cols + cat_cols if c not in df.columns]
-    if missing:
-        raise ValueError(f"Input dataset missing columns for MLP preprocess: {missing}")
-
-    x_num = df[num_cols].copy()
-    mean = pd.Series(preprocess["num_mean"], index=num_cols, dtype=float)
-    std = pd.Series(preprocess["num_std"], index=num_cols, dtype=float)
-    x_num = x_num.fillna(mean)
-    x_num = ((x_num - mean) / std).to_numpy(dtype=np.float32)
-
-    cat_arrays: list[np.ndarray] = []
-    for col in cat_cols:
-        vocab = cat_vocab[col]
-        raw = df[col].astype(str).fillna("<unk>")
-        cat_arrays.append(raw.map(lambda v: vocab.get(v, 0)).to_numpy(dtype=np.int64))
-    x_cat = np.stack(cat_arrays, axis=1)
-    return x_num, x_cat
-
-
-def _predict_mlp_prob(
-    model: torch.nn.Module,
-    x_num: np.ndarray,
-    x_cat: np.ndarray,
-    batch_size: int,
-) -> np.ndarray:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
-    model.eval()
-
-    loader = DataLoader(
-        TensorDataset(torch.from_numpy(x_num), torch.from_numpy(x_cat)),
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=False,
-    )
-    out: list[np.ndarray] = []
-    with torch.no_grad():
-        for xb_num, xb_cat in loader:
-            xb_num = xb_num.to(device)
-            xb_cat = xb_cat.to(device)
-            logits = model(xb_num, xb_cat)
-            prob = torch.sigmoid(logits).detach().cpu().numpy()
-            out.append(prob)
-    return np.concatenate(out, axis=0).astype(np.float64)
 
 
 def _load_fold_threshold(metrics_path: Path) -> float:

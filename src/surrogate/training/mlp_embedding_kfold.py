@@ -8,14 +8,9 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from sklearn.metrics import (
-    average_precision_score,
-    balanced_accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
+from sklearn.metrics import (average_precision_score, balanced_accuracy_score,
+                             f1_score, precision_score, recall_score,
+                             roc_auc_score)
 from torch.utils.data import DataLoader, TensorDataset
 
 from .lightgbm_baseline import CLASS_TASK, LAYOUT_FEATURES, PARAM_FEATURES
@@ -98,7 +93,15 @@ def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
         raise ValueError("Some samples have no group_fold assignment.")
     df["group_fold"] = df["group_fold"].astype(int)
 
-    fold_ids = sorted(df["group_fold"].unique().tolist())
+    if "split" in df.columns and (df["split"] == "train").any():
+        train_pool = df[df["split"] == "train"].copy()
+    else:
+        train_pool = df
+
+    if train_pool.empty:
+        raise ValueError("No training samples found for K-Fold. Please check split assignments.")
+
+    fold_ids = sorted(train_pool["group_fold"].unique().tolist())
     out_dir = Path(cfg.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -107,8 +110,8 @@ def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
     fold_artifacts: list[dict[str, object]] = []
 
     for fold_id in fold_ids:
-        train_df = df[df["group_fold"] != fold_id].copy()
-        val_df = df[df["group_fold"] == fold_id].copy()
+        train_df = train_pool[train_pool["group_fold"] != fold_id].copy()
+        val_df = train_pool[train_pool["group_fold"] == fold_id].copy()
         if train_df.empty or val_df.empty:
             continue
 
@@ -133,7 +136,7 @@ def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
             y_val,
         )
 
-        val_prob = _predict_prob(
+        val_prob = predict_prob(
             model,
             x_val_num,
             x_val_cat,
@@ -241,6 +244,7 @@ def run_mlp_embedding_kfold(cfg: MLPEmbeddingKFoldConfig) -> dict[str, object]:
 
     summary = {
         "config": asdict(cfg),
+        "train_pool": "split=train" if train_pool is not df else "all_samples",
         "num_folds": int(len(fold_summaries)),
         "folds": fold_summaries,
         "oof_metrics": oof_metrics,
@@ -382,10 +386,11 @@ def _prepare_fold_features(
     return x_train_num, x_train_cat, x_val_num, x_val_cat, preprocess
 
 
-def _transform_with_preprocess(
+def transform_with_preprocess(
     df: pd.DataFrame, preprocess: dict[str, object]
 ) -> tuple[np.ndarray, np.ndarray]:
     num_cols: list[str] = list(preprocess["num_cols"])
+    cat_cols: list[str] = list(preprocess.get("cat_cols", CAT_COLS))
     cat_vocab: dict[str, dict[str, int]] = dict(preprocess["cat_vocab"])
 
     x_num = df[num_cols].copy()
@@ -395,7 +400,7 @@ def _transform_with_preprocess(
     x_num = ((x_num - num_mean) / num_std).to_numpy(dtype=np.float32)
 
     cat_cols_np = []
-    for col in CAT_COLS:
+    for col in cat_cols:
         vocab = cat_vocab[col]
         raw = df[col].astype(str).fillna("<unk>")
         cat_cols_np.append(raw.map(lambda v: vocab.get(v, 0)).to_numpy(dtype=np.int64))
@@ -410,7 +415,7 @@ def _predict_with_artifact(
     num_workers: int,
 ) -> np.ndarray:
     preprocess = artifact["preprocess"]
-    x_num, x_cat = _transform_with_preprocess(df, preprocess)
+    x_num, x_cat = transform_with_preprocess(df, preprocess)
 
     cat_cardinalities = [len(preprocess["cat_vocab"][col]) for col in CAT_COLS]
     emb_dims = _embedding_dims(cat_cardinalities)
@@ -424,10 +429,10 @@ def _predict_with_artifact(
     )
     model.load_state_dict(artifact["model"].state_dict())
 
-    return _predict_prob(model, x_num, x_cat, batch_size=batch_size, num_workers=num_workers)
+    return predict_prob(model, x_num, x_cat, batch_size=batch_size, num_workers=num_workers)
 
 
-def _predict_prob(
+def predict_prob(
     model: nn.Module,
     x_num: np.ndarray,
     x_cat: np.ndarray,
