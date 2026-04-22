@@ -24,6 +24,7 @@ from ..problems import (
     ShearWallObjectiveConfig,
     ShearWallOptimizationProblem,
 )
+from ..visualization import generate_optimization_plots
 
 
 def run_shearwall_optimization(
@@ -83,4 +84,9 @@ def run_shearwall_optimization(
     output = Path(out_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        generate_optimization_plots(payload=payload, result_path=output)
+    except Exception:
+        # Plotting should not block optimization result persistence.
+        pass
     return result

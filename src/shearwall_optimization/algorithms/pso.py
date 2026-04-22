@@ -66,6 +66,10 @@ class ParticleSwarmOptimizer(Optimizer):
                     "iteration": it,
                     "best_objective": gbest_eval.objective,
                     "best_feasible": gbest_eval.feasible,
+                    "feasible_count": sum(1 for r in iter_eval if r.feasible),
+                    "feasible_ratio": sum(1 for r in iter_eval if r.feasible) / max(1, len(iter_eval)),
+                    "population_objectives": [float(r.objective) for r in iter_eval],
+                    "population_feasible": [bool(r.feasible) for r in iter_eval],
                     "best_constraints": dict(gbest_eval.constraints),
                 }
             )

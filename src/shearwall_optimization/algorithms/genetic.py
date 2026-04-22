@@ -45,6 +45,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     "best_feasible": best_res.feasible,
                     "feasible_count": feasible_count,
                     "feasible_ratio": feasible_ratio,
+                    "population_objectives": [float(res.objective) for _, res in scored],
+                    "population_feasible": [bool(res.feasible) for _, res in scored],
                     "best_constraints": dict(best_res.constraints),
                 }
             )
