@@ -33,10 +33,11 @@ class GeneticAlgorithmOptimizer(Optimizer):
         global_best = float("inf")
 
         for gen in range(1, self.config.generations + 1):
+            raw_scored = list(scored)
             scored.sort(key=lambda item: item[1].objective)
             best_x, best_res = scored[0]
-            feasible_count = sum(1 for _, res in scored if res.feasible)
-            feasible_ratio = feasible_count / max(1, len(scored))
+            feasible_count = sum(1 for _, res in raw_scored if res.feasible)
+            feasible_ratio = feasible_count / max(1, len(raw_scored))
             global_best = min(global_best, float(best_res.objective))
             history.append(
                 {
@@ -45,9 +46,16 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     "best_feasible": best_res.feasible,
                     "feasible_count": feasible_count,
                     "feasible_ratio": feasible_ratio,
-                    "population_objectives": [float(res.objective) for _, res in scored],
-                    "population_feasible": [bool(res.feasible) for _, res in scored],
+                    "population": [
+                        {
+                            "objective": float(res.objective),
+                            "feasible": bool(res.feasible),
+                            "material_cost": float(res.objectives.get("material_cost", float("nan"))),
+                        }
+                        for _, res in raw_scored
+                    ],
                     "best_constraints": dict(best_res.constraints),
+                    "worst_objectives": scored[-1][1].objectives,
                 }
             )
 

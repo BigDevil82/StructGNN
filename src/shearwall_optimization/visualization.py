@@ -117,19 +117,19 @@ def _plot_population_scatter(history: list[dict[str, Any]], out_path: Path) -> b
     eval_count = 0
 
     for item in history:
-        objs = item.get("population_objectives")
-        feas = item.get("population_feasible")
-        if not isinstance(objs, list) or not objs:
-            continue
-        if not isinstance(feas, list) or len(feas) != len(objs):
-            feas = [False for _ in objs]
-        for j, obj in enumerate(objs):
+        population = item.get("population")
+
+        obj_feasible_pairs = [
+            (float(p.get("objective", float("nan"))), bool(p.get("feasible", False))) for p in population
+        ]
+
+        for obj, feasible in obj_feasible_pairs:
             eval_count += 1
             xs.append(float(eval_count))
             ys.append(float(obj))
-            cs.append("tab:green" if bool(feas[j]) else "tab:gray")
+            cs.append("tab:green" if feasible else "tab:gray")
         line_x.append(eval_count)
-        line_y.append(float(item.get("best_objective", min(float(v) for v in objs))))
+        line_y.append(float(item.get("best_objective", min(obj for obj, _ in obj_feasible_pairs))))
 
     if not xs:
         return False
@@ -139,9 +139,51 @@ def _plot_population_scatter(history: list[dict[str, Any]], out_path: Path) -> b
     plt.plot(line_x, line_y, color="tab:red", linewidth=2.0, label="best_so_far")
     plt.xlabel("evaluation")
     plt.ylabel("objective")
+    plt.yscale("log")
     plt.title("Population Objective Scatter by Evaluation")
     plt.grid(True, alpha=0.3)
     plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=180)
+    plt.close()
+    return True
+
+
+def _plot_material_cost_scatter(history: list[dict[str, Any]], out_path: Path) -> bool:
+    xs: list[float] = []
+    ys: list[float] = []
+    cs: list[str] = []
+    eval_count = 0
+
+    for item in history:
+        population = item.get("population")
+        if isinstance(population, list) and population:
+            for p in population:
+                if "material_cost" not in p:
+                    continue
+                eval_count += 1
+                xs.append(float(eval_count))
+                ys.append(float(p.get("material_cost", float("nan"))))
+                cs.append("tab:green" if bool(p.get("feasible", False)) else "tab:gray")
+            continue
+
+        if "trial" in item:
+            objectives = item.get("objectives", {})
+            if isinstance(objectives, dict) and "material_cost" in objectives:
+                eval_count += 1
+                xs.append(float(eval_count))
+                ys.append(float(objectives["material_cost"]))
+                cs.append("tab:green" if bool(item.get("feasible", False)) else "tab:gray")
+
+    if not xs:
+        return False
+
+    plt.figure(figsize=(9, 5.2))
+    plt.scatter(xs, ys, c=cs, s=20, alpha=0.7)
+    plt.xlabel("evaluation")
+    plt.ylabel("material_cost")
+    plt.title("Material Cost Scatter by Evaluation")
+    plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(out_path, dpi=180)
     plt.close()
@@ -215,6 +257,10 @@ def generate_optimization_plots(
     feasible_path = plot_dir / f"{result_path.stem}_feasible_ratio.png"
     if _plot_feasible_ratio_curve(history, feasible_path):
         saved.append(str(feasible_path))
+
+    material_path = plot_dir / f"{result_path.stem}_material_cost_scatter.png"
+    if _plot_material_cost_scatter(history, material_path):
+        saved.append(str(material_path))
 
     pareto_path = plot_dir / f"{result_path.stem}_pareto.png"
     if algorithm == "nsga2" and _plot_pareto_scatter(history, pareto_path):
