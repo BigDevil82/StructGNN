@@ -33,6 +33,7 @@ class GNNTrainConfig:
     num_workers: int = 0
     log_interval: int = 1
     rebuild_graph_cache: bool = False
+    merge_members: bool = True
 
 
 def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
@@ -40,7 +41,11 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
 
     if cfg.rebuild_graph_cache or not Path(cfg.graph_cache_dir).exists():
         build_layout_graph_cache(
-            LayoutGraphCacheConfig(layout_json_dir=cfg.layout_json_dir, output_dir=cfg.graph_cache_dir)
+            LayoutGraphCacheConfig(
+                layout_json_dir=cfg.layout_json_dir,
+                output_dir=cfg.graph_cache_dir,
+                merge_members=cfg.merge_members,
+            )
         )
 
     loaders, pre, (node_dim, edge_dim, graph_feat_dim) = build_dataloaders(

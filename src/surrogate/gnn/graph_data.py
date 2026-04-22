@@ -26,6 +26,7 @@ class LayoutGraphCacheConfig:
     layout_json_dir: str = r"data\dxf\cad_json_data\fem_raw"
     output_dir: str = r"data\parametric\surrogate_dataset\gnn_graph_cache"
     coord_tol: float = 0.01
+    merge_members: bool = True
 
 
 def build_layout_graph_cache(cfg: LayoutGraphCacheConfig) -> dict[str, int]:
@@ -37,7 +38,7 @@ def build_layout_graph_cache(cfg: LayoutGraphCacheConfig) -> dict[str, int]:
     if not paths:
         raise ValueError(f"No layout json found in {src_dir}")
 
-    builder = MemberGraphBuilder(coord_tol=cfg.coord_tol)
+    builder = MemberGraphBuilder(coord_tol=cfg.coord_tol, merge_members=cfg.merge_members)
     num_ok = 0
     num_skip = 0
 
@@ -56,6 +57,7 @@ def build_layout_graph_cache(cfg: LayoutGraphCacheConfig) -> dict[str, int]:
         "total_layouts": len(paths),
         "cached_layouts": num_ok,
         "skipped_layouts": num_skip,
+        "merge_members": bool(cfg.merge_members),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=True, indent=2), encoding="utf-8")
     return summary

@@ -63,9 +63,15 @@ class MemberGraphBuilder:
     4. 基于原始构件的连接关系，在合并节点之间建立无向边。
     """
 
-    def __init__(self, coord_tol: float = 0.01, axis_tol: float | None = None):
+    def __init__(
+        self,
+        coord_tol: float = 0.01,
+        axis_tol: float | None = None,
+        merge_members: bool = True,
+    ):
         self.coord_tol = coord_tol
         self.axis_tol = coord_tol if axis_tol is None else axis_tol
+        self.merge_members = merge_members
 
     def build_graph(self, data: dict[str, Any]) -> nx.Graph:
         raw_members = self._load_members(data)
@@ -73,7 +79,11 @@ class MemberGraphBuilder:
         if not raw_members:
             return graph
 
-        merged_members, raw_to_node = self._merge_members(raw_members)
+        if self.merge_members:
+            merged_members, raw_to_node = self._merge_members(raw_members)
+        else:
+            merged_members, raw_to_node = self._raw_members_as_nodes(raw_members)
+
         for merged in merged_members:
             graph.add_node(
                 merged.node_id,
@@ -87,6 +97,9 @@ class MemberGraphBuilder:
             )
 
         for (u, v), points in self._build_edges(raw_members, raw_to_node).items():
+            assert (
+                len(points) == 1
+            ), f"Expected one intersection point between node {u} and {v}, got {len(points)}: {points}"
             graph.add_edge(u, v, intersection_points=[list(point) for point in sorted(points)])
 
         return graph
@@ -210,6 +223,27 @@ class MemberGraphBuilder:
                     for member in components:
                         raw_to_node[member.raw_id] = merged.node_id
 
+        return merged_members, raw_to_node
+
+    def _raw_members_as_nodes(
+        self, raw_members: list[RawMember]
+    ) -> tuple[list[MergedMember], dict[int, int]]:
+        merged_members: list[MergedMember] = []
+        raw_to_node: dict[int, int] = {}
+        for node_id, member in enumerate(raw_members):
+            merged_members.append(
+                MergedMember(
+                    node_id=node_id,
+                    kind=member.kind,
+                    axis=member.axis,
+                    band_coord=member.band_coord,
+                    start=member.start,
+                    end=member.end,
+                    length=float(member.length or self._distance(member.start, member.end)),
+                    raw_member_ids=(member.raw_id,),
+                )
+            )
+            raw_to_node[member.raw_id] = node_id
         return merged_members, raw_to_node
 
     def _cluster_by_band(self, members: list[RawMember]) -> list[list[RawMember]]:
@@ -434,14 +468,26 @@ class MemberGraphBuilder:
 
 
 def build_member_graph(
-    data: dict[str, Any], coord_tol: float = 0.01, axis_tol: float | None = None
+    data: dict[str, Any],
+    coord_tol: float = 0.01,
+    axis_tol: float | None = None,
+    merge_members: bool = True,
 ) -> nx.Graph:
-    return MemberGraphBuilder(coord_tol=coord_tol, axis_tol=axis_tol).build_graph(data)
+    return MemberGraphBuilder(
+        coord_tol=coord_tol,
+        axis_tol=axis_tol,
+        merge_members=merge_members,
+    ).build_graph(data)
 
 
 def build_member_graph_data(
     data: dict[str, Any],
     coord_tol: float = 0.01,
     axis_tol: float | None = None,
+    merge_members: bool = True,
 ) -> dict[str, Any]:
-    return MemberGraphBuilder(coord_tol=coord_tol, axis_tol=axis_tol).build_graph_data(data)
+    return MemberGraphBuilder(
+        coord_tol=coord_tol,
+        axis_tol=axis_tol,
+        merge_members=merge_members,
+    ).build_graph_data(data)
