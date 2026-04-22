@@ -16,7 +16,6 @@ from ..core.contracts import EvaluationResult, OptimizationProblem, VariableSpec
 
 @dataclass(frozen=True)
 class ShearWallObjectiveConfig:
-    concrete_price_per_kg: float = 0.0005
     steel_price_per_kg: float = 0.005
     infeasible_penalty: float = 1e6
 
@@ -296,44 +295,46 @@ def _evaluate_decision(
     )
     analysis_result = analyze_parametric_model(input_data, params, analysis_cfg)
 
+    concrete_price_map = {
+        "C30": 500 / 2400 / 1000,
+        "C35": 530 / 2400 / 1000,
+        "C40": 560 / 2400 / 1000,
+        "C45": 590 / 2400 / 1000,
+        "C50": 620 / 2400 / 1000,
+    }
+    price_bot = concrete_price_map.get(params.conc_bot, concrete_price_map["C30"])
+    price_mid = concrete_price_map.get(params.conc_mid, concrete_price_map["C30"])
+    price_top = concrete_price_map.get(params.conc_top, concrete_price_map["C30"])
+    tw_bot = float(params.tw_bot)
+    tw_mid = float(params.tw_mid)
+    tw_top = float(params.tw_top)
+    total_thickness = max(1.0, tw_bot + tw_mid + tw_top)
+    avg_concrete_price = (tw_bot * price_bot + tw_mid * price_mid + tw_top * price_top) / total_thickness
+
     total_cost = (
-        objective_cfg.concrete_price_per_kg * analysis_result.material_concrete_kg
+        avg_concrete_price * analysis_result.material_concrete_kg
         + objective_cfg.steel_price_per_kg * analysis_result.material_steel_kg
     )
 
-    def _safe_metric(value: Any, fallback: float) -> float:
-        if value is None:
-            return fallback
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return fallback
-
-    metric_values = {
-        "torsion_ratio": _safe_metric(analysis_result.torsion_ratio, float("inf")),
-        "max_drift_ratio": _safe_metric(analysis_result.max_drift_ratio, float("inf")),
-        "period_ratio": _safe_metric(analysis_result.period_ratio, float("inf")),
-        "min_shear_weight_ratio": _safe_metric(analysis_result.min_shear_weight_ratio, 0.0),
-        "min_stiffness_ratio": _safe_metric(analysis_result.min_stiffness_ratio, 0.0),
-    }
-
     limits = {
-        "torsion_ratio": float(limit_cfg.max_torsion_ratio),
-        "max_drift_ratio": float(limit_cfg.max_drift_ratio),
-        "period_ratio": float(limit_cfg.max_period_ratio),
-        "min_shear_weight_ratio": float(limit_cfg.min_shear_weight_ratio),
-        "min_stiffness_ratio": float(limit_cfg.min_stiffness_ratio),
+        "torsion_ratio": limit_cfg.max_torsion_ratio,
+        "max_drift_ratio": limit_cfg.max_drift_ratio,
+        "period_ratio": limit_cfg.max_period_ratio,
+        "min_shear_weight_ratio": limit_cfg.min_shear_weight_ratio,
+        "min_stiffness_ratio": limit_cfg.min_stiffness_ratio,
     }
     violations: list[float] = []
+    # print("analysis_result:", asdict(analysis_result))
 
     for key in ["torsion_ratio", "max_drift_ratio", "period_ratio"]:
-        actual = metric_values[key]
-        limit = limits[key]
+        actual = float(getattr(analysis_result, key))
+        # print(f"Checking limit for {key}: actual={actual}, limit={limits[key]}")
+        limit = float(limits[key])
         violations.append(max(0.0, (actual - limit) / limit))
 
     for key in ["min_shear_weight_ratio", "min_stiffness_ratio"]:
-        actual = metric_values[key]
-        limit = limits[key]
+        actual = float(getattr(analysis_result, key))
+        limit = float(limits[key])
         violations.append(max(0.0, (limit - actual) / limit))
 
     total_violation = sum(violations)

@@ -18,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", default="outputs/result/optimization/ga_result.json")
     p.add_argument("--algorithm", choices=["ga", "pso", "nsga2", "optuna", "random"], default="ga")
 
-    p.add_argument("--N", type=int, default=28)
+    p.add_argument("--N", type=int, default=18)
     p.add_argument("--hs", type=int, default=120)
     p.add_argument("--h-story", type=float, default=2.9)
     p.add_argument("--intensity", type=float, default=8.0)
@@ -34,7 +34,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--manual-scale-factor", type=float, default=None)
     p.add_argument("--optimizer-workers", type=int, default=0, help="0 means sequential evaluation.")
 
-    p.add_argument("--concrete-price-per-kg", type=float, default=0.0005)
     p.add_argument("--steel-price-per-kg", type=float, default=0.005)
     p.add_argument("--infeasible-penalty", type=float, default=1e6)
     p.add_argument("--limit-max-torsion", type=float, default=1.5)
@@ -46,9 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-pop", type=int, default=24)
     p.add_argument("--ga-gen", type=int, default=20)
     p.add_argument("--ga-crossover", type=float, default=0.9)
-    p.add_argument("--ga-mutation", type=float, default=0.2)
+    p.add_argument("--ga-mutation", type=float, default=0.3)
     p.add_argument("--ga-elite", type=int, default=2)
     p.add_argument("--ga-tournament", type=int, default=3)
+    p.add_argument("--ga-verbose", action="store_true")
+    p.add_argument("--ga-log-every", type=int, default=1)
 
     p.add_argument("--pso-swarm", type=int, default=24)
     p.add_argument("--pso-iter", type=int, default=20)
@@ -100,6 +101,8 @@ def main() -> None:
         elite_size=args.ga_elite,
         tournament_size=args.ga_tournament,
         max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
+        verbose=args.ga_verbose,
+        log_every=args.ga_log_every,
         seed=args.seed,
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)
@@ -125,7 +128,6 @@ def main() -> None:
         seed=args.seed,
     )
     objective_cfg = ShearWallObjectiveConfig(
-        concrete_price_per_kg=args.concrete_price_per_kg,
         steel_price_per_kg=args.steel_price_per_kg,
         infeasible_penalty=args.infeasible_penalty,
     )

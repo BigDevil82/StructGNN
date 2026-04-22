@@ -15,6 +15,8 @@ class GeneticAlgorithmConfig:
     elite_size: int = 2
     tournament_size: int = 3
     max_workers: int | None = None
+    verbose: bool = False
+    log_every: int = 1
     seed: int = 42
 
 
@@ -28,18 +30,35 @@ class GeneticAlgorithmOptimizer(Optimizer):
         pop = [self.problem.repair(self.problem.sample()) for _ in range(self.config.population_size)]
         scored = self._evaluate_population(pop)
         history: list[dict[str, Any]] = []
+        global_best = float("inf")
 
         for gen in range(1, self.config.generations + 1):
             scored.sort(key=lambda item: item[1].objective)
             best_x, best_res = scored[0]
+            feasible_count = sum(1 for _, res in scored if res.feasible)
+            feasible_ratio = feasible_count / max(1, len(scored))
+            global_best = min(global_best, float(best_res.objective))
             history.append(
                 {
                     "generation": gen,
                     "best_objective": best_res.objective,
                     "best_feasible": best_res.feasible,
+                    "feasible_count": feasible_count,
+                    "feasible_ratio": feasible_ratio,
                     "best_constraints": dict(best_res.constraints),
                 }
             )
+
+            if self.config.verbose and (
+                gen == 1 or gen == self.config.generations or gen % max(1, self.config.log_every) == 0
+            ):
+                print(
+                    f"[GA] gen={gen:03d}/{self.config.generations} "
+                    f"best={best_res.objective:.6g} "
+                    f"global_best={global_best:.6g} "
+                    f"best_feasible={best_res.feasible} "
+                    f"feasible_ratio={feasible_ratio:.1%}"
+                )
 
             elites = [x for x, _ in scored[: self.config.elite_size]]
             next_pop = [dict(x) for x in elites]
