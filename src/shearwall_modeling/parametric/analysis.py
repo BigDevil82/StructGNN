@@ -90,15 +90,34 @@ def analyze_parametric_model(
             periods.append(float("nan"))
 
         all_metrics = [m for result in dir_results.values() for m in result.metrics]
-        wall_axial: dict[int, float] = {}
-        wall_shear: dict[int, float] = {}
-        beam_shear: dict[int, float] = {}
+        max_wall_axial_ratio = 0.0
+        max_wall_axial_limit = 1.0
+        max_wall_axial_util = 0.0
+        max_wall_shear_ratio = 0.0
+        max_wall_shear_limit = 1.0
+        max_wall_shear_util = 0.0
+        max_beam_shear_ratio = 0.0
+        max_beam_shear_limit = 1.0
+        max_beam_shear_util = 0.0
 
         for metric in analysis_result.wall_uls_metrics:
-            wall_axial[metric.wall_id] = max(wall_axial.get(metric.wall_id, 0.0), metric.axial_ratio)
-            wall_shear[metric.wall_id] = max(wall_shear.get(metric.wall_id, 0.0), metric.shear_pressure_ratio)
+            axial_util = metric.axial_ratio / max(metric.axial_ratio_limit, 1.0e-12)
+            if axial_util >= max_wall_axial_util:
+                max_wall_axial_util = axial_util
+                max_wall_axial_ratio = metric.axial_ratio
+                max_wall_axial_limit = metric.axial_ratio_limit
+
+            wall_shear_util = metric.shear_pressure_ratio / max(metric.shear_pressure_ratio_limit, 1.0e-12)
+            if wall_shear_util >= max_wall_shear_util:
+                max_wall_shear_util = wall_shear_util
+                max_wall_shear_ratio = metric.shear_pressure_ratio
+                max_wall_shear_limit = metric.shear_pressure_ratio_limit
         for metric in analysis_result.beam_uls_metrics:
-            beam_shear[metric.beam_id] = max(beam_shear.get(metric.beam_id, 0.0), metric.shear_pressure_ratio)
+            beam_shear_util = metric.shear_pressure_ratio / max(metric.shear_pressure_ratio_limit, 1.0e-12)
+            if beam_shear_util >= max_beam_shear_util:
+                max_beam_shear_util = beam_shear_util
+                max_beam_shear_ratio = metric.shear_pressure_ratio
+                max_beam_shear_limit = metric.shear_pressure_ratio_limit
 
         mass_total_kg = sum(build_result.floor_load_masses) + sum(build_result.floor_self_masses)
         design_summary = ReinforcementDesignPipeline(
@@ -123,14 +142,17 @@ def analyze_parametric_model(
             T4=periods[3],
             T5=periods[4],
             T6=periods[5],
-            period_ratio=analysis_result.modal_summary.period_ratio,
+            period_ratio=analysis_result.modal_summary.period_ratio or periods[0] / periods[2],
             torsion_ratio=max(m.torsion_ratio for m in all_metrics),
             min_shear_weight_ratio=min(m.shear_weight_ratio for m in all_metrics),
             max_drift_ratio=max(result.max_interstory_drift_ratio for result in dir_results.values()),
             min_stiffness_ratio=min(m.stiffness_ratio_adjacent for m in all_metrics),
-            wall_axial_ratios=wall_axial,
-            wall_shear_ratios=wall_shear,
-            beam_shear_ratios=beam_shear,
+            max_wall_axial_ratio=max_wall_axial_ratio,
+            max_wall_axial_limit=max_wall_axial_limit,
+            max_wall_shear_ratio=max_wall_shear_ratio,
+            max_wall_shear_limit=max_wall_shear_limit,
+            max_beam_shear_ratio=max_beam_shear_ratio,
+            max_beam_shear_limit=max_beam_shear_limit,
             error="",
         )
     except Exception as exc:
@@ -154,9 +176,12 @@ def analyze_parametric_model(
             min_shear_weight_ratio=float("nan"),
             max_drift_ratio=float("nan"),
             min_stiffness_ratio=float("nan"),
-            wall_axial_ratios={},
-            wall_shear_ratios={},
-            beam_shear_ratios={},
+            max_wall_axial_ratio=float("nan"),
+            max_wall_axial_limit=float("nan"),
+            max_wall_shear_ratio=float("nan"),
+            max_wall_shear_limit=float("nan"),
+            max_beam_shear_ratio=float("nan"),
+            max_beam_shear_limit=float("nan"),
             error=str(exc),
         )
     finally:

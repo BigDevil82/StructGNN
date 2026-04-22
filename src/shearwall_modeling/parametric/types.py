@@ -102,7 +102,10 @@ class ParametricAnalysisResult:
     min_shear_weight_ratio: float
     max_drift_ratio: float
     min_stiffness_ratio: float
-    wall_axial_ratios: dict[int, float]
-    wall_shear_ratios: dict[int, float]
-    beam_shear_ratios: dict[int, float]
+    max_wall_axial_ratio: float
+    max_wall_axial_limit: float
+    max_wall_shear_ratio: float
+    max_wall_shear_limit: float
+    max_beam_shear_ratio: float
+    max_beam_shear_limit: float
     error: str = ""

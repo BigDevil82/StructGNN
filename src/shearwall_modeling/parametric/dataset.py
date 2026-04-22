@@ -212,15 +212,12 @@ def _generate_one_sample_chunk(task: SampleChunkTask) -> SampleChunkResult:
                 "min_shear_weight_ratio": result.min_shear_weight_ratio,
                 "max_drift_ratio": result.max_drift_ratio,
                 "min_stiffness_ratio": result.min_stiffness_ratio,
-                "wall_axial_ratios": json.dumps(
-                    result.wall_axial_ratios, ensure_ascii=True, separators=(",", ":")
-                ),
-                "wall_shear_ratios": json.dumps(
-                    result.wall_shear_ratios, ensure_ascii=True, separators=(",", ":")
-                ),
-                "beam_shear_ratios": json.dumps(
-                    result.beam_shear_ratios, ensure_ascii=True, separators=(",", ":")
-                ),
+                "max_wall_axial_ratio": result.max_wall_axial_ratio,
+                "max_wall_axial_limit": result.max_wall_axial_limit,
+                "max_wall_shear_ratio": result.max_wall_shear_ratio,
+                "max_wall_shear_limit": result.max_wall_shear_limit,
+                "max_beam_shear_ratio": result.max_beam_shear_ratio,
+                "max_beam_shear_limit": result.max_beam_shear_limit,
                 "error": result.error,
             }
         )
