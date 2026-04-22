@@ -34,7 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--manual-scale-factor", type=float, default=None)
     p.add_argument("--optimizer-workers", type=int, default=0, help="0 means sequential evaluation.")
 
-    p.add_argument("--objective-margin-weight", type=float, default=0.0)
+    p.add_argument("--concrete-price-per-kg", type=float, default=0.0005)
+    p.add_argument("--steel-price-per-kg", type=float, default=0.005)
+    p.add_argument("--infeasible-penalty", type=float, default=1e6)
     p.add_argument("--limit-max-torsion", type=float, default=1.5)
     p.add_argument("--limit-max-drift", type=float, default=1.0 / 1000.0)
     p.add_argument("--limit-min-shear-weight", type=float, default=0.016)
@@ -122,7 +124,11 @@ def main() -> None:
         population_size=args.nsga2_pop,
         seed=args.seed,
     )
-    objective_cfg = ShearWallObjectiveConfig(margin_weight=args.objective_margin_weight)
+    objective_cfg = ShearWallObjectiveConfig(
+        concrete_price_per_kg=args.concrete_price_per_kg,
+        steel_price_per_kg=args.steel_price_per_kg,
+        infeasible_penalty=args.infeasible_penalty,
+    )
     limit_cfg = ShearWallLimitConfig(
         max_torsion_ratio=args.limit_max_torsion,
         max_drift_ratio=args.limit_max_drift,

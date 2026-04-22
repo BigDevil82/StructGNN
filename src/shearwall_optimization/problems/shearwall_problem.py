@@ -16,10 +16,9 @@ from ..core.contracts import EvaluationResult, OptimizationProblem, VariableSpec
 
 @dataclass(frozen=True)
 class ShearWallObjectiveConfig:
-    steel_weight: float = 1.0
-    concrete_weight: float = 1.0
-    margin_weight: float = 0.0
-    infeasible_penalty: float = 1.0e12
+    concrete_price_per_kg: float = 0.0005
+    steel_price_per_kg: float = 0.005
+    infeasible_penalty: float = 1e6
 
 
 @dataclass(frozen=True)
@@ -182,7 +181,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
                 else:
                     res = EvaluationResult(
                         objective=float("inf"),
-                        objectives={"material_cost": float("inf"), "margin_penalty": float("inf")},
+                        objectives={"material_cost": float("inf"), "total_violation": float("inf")},
                         feasible=False,
                         constraints={"worker_failed": 1.0},
                         metrics={"error": outcome.error or "Unknown worker error"},
@@ -297,19 +296,47 @@ def _evaluate_decision(
     )
     analysis_result = analyze_parametric_model(input_data, params, analysis_cfg)
 
-    material_cost = (
-        objective_cfg.concrete_weight * analysis_result.material_concrete_kg
-        + objective_cfg.steel_weight * analysis_result.material_steel_kg
+    total_cost = (
+        objective_cfg.concrete_price_per_kg * analysis_result.material_concrete_kg
+        + objective_cfg.steel_price_per_kg * analysis_result.material_steel_kg
     )
 
-    margins = {
-        "torsion_margin": limit_cfg.max_torsion_ratio - analysis_result.torsion_ratio,
-        "drift_margin": limit_cfg.max_drift_ratio - analysis_result.max_drift_ratio,
-        "shear_weight_margin": analysis_result.min_shear_weight_ratio - limit_cfg.min_shear_weight_ratio,
-        "stiffness_margin": analysis_result.min_stiffness_ratio - limit_cfg.min_stiffness_ratio,
-        "period_ratio_margin": limit_cfg.max_period_ratio - analysis_result.period_ratio,
+    def _safe_metric(value: Any, fallback: float) -> float:
+        if value is None:
+            return fallback
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    metric_values = {
+        "torsion_ratio": _safe_metric(analysis_result.torsion_ratio, float("inf")),
+        "max_drift_ratio": _safe_metric(analysis_result.max_drift_ratio, float("inf")),
+        "period_ratio": _safe_metric(analysis_result.period_ratio, float("inf")),
+        "min_shear_weight_ratio": _safe_metric(analysis_result.min_shear_weight_ratio, 0.0),
+        "min_stiffness_ratio": _safe_metric(analysis_result.min_stiffness_ratio, 0.0),
     }
-    margin_penalty = sum(max(0.0, -v) for v in margins.values())
+
+    limits = {
+        "torsion_ratio": float(limit_cfg.max_torsion_ratio),
+        "max_drift_ratio": float(limit_cfg.max_drift_ratio),
+        "period_ratio": float(limit_cfg.max_period_ratio),
+        "min_shear_weight_ratio": float(limit_cfg.min_shear_weight_ratio),
+        "min_stiffness_ratio": float(limit_cfg.min_stiffness_ratio),
+    }
+    violations: list[float] = []
+
+    for key in ["torsion_ratio", "max_drift_ratio", "period_ratio"]:
+        actual = metric_values[key]
+        limit = limits[key]
+        violations.append(max(0.0, (actual - limit) / limit))
+
+    for key in ["min_shear_weight_ratio", "min_stiffness_ratio"]:
+        actual = metric_values[key]
+        limit = limits[key]
+        violations.append(max(0.0, (limit - actual) / limit))
+
+    total_violation = sum(violations)
 
     constraints: dict[str, float] = {
         "not_converged": 0.0 if analysis_result.converged else 1.0,
@@ -322,13 +349,13 @@ def _evaluate_decision(
     }
     feasible = all(v <= 0.0 for v in constraints.values())
 
-    objective = material_cost + objective_cfg.margin_weight * margin_penalty
+    objective = total_cost * (1.0 + total_violation)
     if not feasible:
         objective += objective_cfg.infeasible_penalty * sum(constraints.values())
 
     objectives = {
-        "material_cost": material_cost,
-        "margin_penalty": margin_penalty,
+        "material_cost": total_cost,
+        "total_violation": total_violation,
     }
 
     return EvaluationResult(
@@ -340,7 +367,13 @@ def _evaluate_decision(
             "geom_scale": geom_scale,
             **asdict(params),
             **asdict(analysis_result),
-            "constraint_margins": margins,
+            "normalized_violations": {
+                "torsion_ratio": violations[0],
+                "max_drift_ratio": violations[1],
+                "period_ratio": violations[2],
+                "min_shear_weight_ratio": violations[3],
+                "min_stiffness_ratio": violations[4],
+            },
             **objectives,
             "objective": objective,
         },

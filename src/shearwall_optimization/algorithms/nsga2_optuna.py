@@ -32,12 +32,12 @@ class NSGA2Optimizer(Optimizer):
                 x[spec.name] = trial.suggest_categorical(spec.name, spec.domain)
             res = self.problem.evaluate(x)
             material = float(res.objectives.get("material_cost", res.objective))
-            margin_penalty = float(res.objectives.get("margin_penalty", 0.0))
+            total_violation = float(res.objectives.get("total_violation", 0.0))
             trial.set_user_attr("scalar_objective", float(res.objective))
             trial.set_user_attr("feasible", bool(res.feasible))
             trial.set_user_attr("constraints", dict(res.constraints))
             trial.set_user_attr("objectives", dict(res.objectives))
-            return material, margin_penalty
+            return material, total_violation
 
         study.optimize(objective, n_trials=self.config.n_trials, n_jobs=1)
 
@@ -57,7 +57,7 @@ class NSGA2Optimizer(Optimizer):
                 {
                     "trial": tr.number,
                     "material_cost": float(vals[0]),
-                    "margin_penalty": float(vals[1]),
+                    "total_violation": float(vals[1]),
                     "scalar_objective": float(tr.user_attrs.get("scalar_objective", float("inf"))),
                     "feasible": bool(tr.user_attrs.get("feasible", False)),
                     "constraints": dict(tr.user_attrs.get("constraints", {})),

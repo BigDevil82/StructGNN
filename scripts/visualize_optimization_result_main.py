@@ -54,12 +54,15 @@ def _plot_pareto_scatter(history: list[dict], out_path: Path) -> bool:
     ys: list[float] = []
     colors: list[str] = []
     has_pareto = False
+    y_label = "total_violation"
 
     for item in history:
-        if "material_cost" not in item or "margin_penalty" not in item:
+        second_key = "total_violation" if "total_violation" in item else "margin_penalty"
+        if "material_cost" not in item or second_key not in item:
             continue
         xs.append(float(item["material_cost"]))
-        ys.append(float(item["margin_penalty"]))
+        ys.append(float(item[second_key]))
+        y_label = second_key
         pareto = bool(item.get("pareto", False))
         has_pareto = has_pareto or pareto
         colors.append("tab:red" if pareto else "tab:blue")
@@ -70,7 +73,7 @@ def _plot_pareto_scatter(history: list[dict], out_path: Path) -> bool:
     plt.figure(figsize=(6.2, 5.2))
     plt.scatter(xs, ys, c=colors, s=24, alpha=0.85)
     plt.xlabel("material_cost")
-    plt.ylabel("margin_penalty")
+    plt.ylabel(y_label)
     title = "Pareto Scatter"
     if has_pareto:
         title += " (red = pareto)"
@@ -103,7 +106,7 @@ def main() -> None:
     if pareto_ok:
         print(f"saved: {pareto_path}")
     else:
-        print("skip: pareto plot (no material_cost/margin_penalty in history)")
+        print("skip: pareto plot (no material_cost/total_violation in history)")
 
 
 if __name__ == "__main__":

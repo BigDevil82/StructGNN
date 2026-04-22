@@ -76,7 +76,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
     def _tournament_pick(self, scored: list[tuple[dict[str, Any], EvaluationResult]]) -> dict[str, Any]:
         pool = self.rng.sample(scored, k=min(self.config.tournament_size, len(scored)))
-        pool.sort(key=lambda item: item[1].objective)
+        pool.sort(key=lambda item: (not item[1].feasible, item[1].objective))
         return dict(pool[0][0])
 
     def _crossover(self, p1: dict[str, Any], p2: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
