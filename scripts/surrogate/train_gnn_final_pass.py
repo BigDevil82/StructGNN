@@ -36,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--log-interval", type=int, default=1)
+    parser.add_argument("--monitor-metric", choices=("pr_auc", "f1"), default="pr_auc")
     parser.add_argument("--rebuild-graph-cache", action="store_true")
     parser.add_argument("--no-merge-members", action="store_true")
     return parser
@@ -66,6 +67,7 @@ def main() -> None:
         dropout=args.dropout,
         num_workers=args.num_workers,
         log_interval=args.log_interval,
+        monitor_metric=args.monitor_metric,
         rebuild_graph_cache=args.rebuild_graph_cache,
         merge_members=not args.no_merge_members,
     )

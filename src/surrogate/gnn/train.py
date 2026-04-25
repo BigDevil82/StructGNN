@@ -35,6 +35,7 @@ class GNNTrainConfig:
     dropout: float = 0.2
     num_workers: int = 0
     log_interval: int = 1
+    monitor_metric: str = "pr_auc"
     rebuild_graph_cache: bool = False
     merge_members: bool = True
 
@@ -86,23 +87,30 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
     best_state = None
-    best_pr_auc = -1.0
+    if cfg.monitor_metric not in {"pr_auc", "f1"}:
+        raise ValueError(f"Unknown monitor_metric: {cfg.monitor_metric}")
+
+    best_score = -1.0
     best_epoch = -1
     bad_rounds = 0
 
     for epoch in range(cfg.max_epochs):
         train_loss = _train_one_epoch(model, loaders["train"], criterion, optimizer, device)
         val_stat = _eval_binary(model, loaders["val"], device)
-        val_pr_auc = val_stat["pr_auc"]
+        val_threshold = _find_best_f1_threshold(val_stat["y_true"], val_stat["y_prob"])
+        val_pred = (val_stat["y_prob"] >= val_threshold).astype(int)
+        val_f1 = float(f1_score(val_stat["y_true"], val_pred, zero_division=0))
+        monitor_score = float(val_stat["pr_auc"] if cfg.monitor_metric == "pr_auc" else val_f1)
 
         if epoch == 0 or (epoch + 1) % max(cfg.log_interval, 1) == 0:
             print(
                 f"[surrogate][gnn] epoch={epoch + 1}/{cfg.max_epochs} "
-                f"train_loss={train_loss:.6f} val_pr_auc={val_pr_auc:.6f} best={best_pr_auc:.6f}"
+                f"train_loss={train_loss:.6f} val_pr_auc={val_stat['pr_auc']:.6f} "
+                f"val_f1={val_f1:.6f} best_{cfg.monitor_metric}={best_score:.6f}"
             )
 
-        if val_pr_auc > best_pr_auc:
-            best_pr_auc = float(val_pr_auc)
+        if monitor_score > best_score:
+            best_score = monitor_score
             best_epoch = epoch
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             bad_rounds = 0
@@ -111,7 +119,7 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
             if bad_rounds >= cfg.early_stop_rounds:
                 print(
                     f"[surrogate][gnn] early_stop epoch={epoch + 1} "
-                    f"best_epoch={best_epoch + 1} best_pr_auc={best_pr_auc:.6f}"
+                    f"best_epoch={best_epoch + 1} best_{cfg.monitor_metric}={best_score:.6f}"
                 )
                 break
 
