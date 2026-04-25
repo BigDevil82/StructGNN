@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight-decay", type=float, default=1.0e-4)
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--gnn-layers", type=int, default=3)
+    parser.add_argument("--conv-type", choices=("sage", "gine"), default="sage")
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--log-interval", type=int, default=1)
@@ -61,6 +62,7 @@ def main() -> None:
         weight_decay=args.weight_decay,
         hidden_dim=args.hidden_dim,
         gnn_layers=args.gnn_layers,
+        conv_type=args.conv_type,
         dropout=args.dropout,
         num_workers=args.num_workers,
         log_interval=args.log_interval,

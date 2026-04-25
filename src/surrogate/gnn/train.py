@@ -31,6 +31,7 @@ class GNNTrainConfig:
     weight_decay: float = 1.0e-4
     hidden_dim: int = 128
     gnn_layers: int = 3
+    conv_type: str = "sage"
     dropout: float = 0.2
     num_workers: int = 0
     log_interval: int = 1
@@ -74,6 +75,7 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
         hidden_dim=cfg.hidden_dim,
         gnn_layers=cfg.gnn_layers,
         dropout=cfg.dropout,
+        conv_type=cfg.conv_type,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -140,6 +142,7 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
                 "hidden_dim": cfg.hidden_dim,
                 "gnn_layers": cfg.gnn_layers,
                 "dropout": cfg.dropout,
+                "conv_type": cfg.conv_type,
             },
             "preprocess": pre.export(),
             "threshold": float(threshold),
