@@ -9,6 +9,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.surrogate.gnn.train import GNNTrainConfig, run_gnn_train
 
+DEFAULT_GRAPH_CACHE_DIR = r"data\parametric\surrogate_dataset\gnn_graph_cache"
+DEFAULT_ROOM_GRAPH_CACHE_DIR = r"data\parametric\surrogate_dataset\gnn_room_graph_cache"
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train GNN classifier for surrogate final_pass.")
@@ -17,7 +20,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=r"data\parametric\surrogate_dataset\splits\surrogate_samples_with_splits.parquet",
     )
     parser.add_argument("--layout-json-dir", default=r"data\dxf\cad_json_data\fem_raw")
-    parser.add_argument("--graph-cache-dir", default=r"data\parametric\surrogate_dataset\gnn_graph_cache")
+    parser.add_argument("--layout-dxf-dir", default=r"data\dxf\fem_raw")
+    parser.add_argument("--graph-repr", choices=("member", "room"), default="member")
+    parser.add_argument("--graph-cache-dir", default=None)
     parser.add_argument("--output-dir", default=r"data\parametric\surrogate_dataset\baseline_gnn_final_pass")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -37,10 +42,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    graph_cache_dir = args.graph_cache_dir
+    if graph_cache_dir is None:
+        graph_cache_dir = DEFAULT_ROOM_GRAPH_CACHE_DIR if args.graph_repr == "room" else DEFAULT_GRAPH_CACHE_DIR
+
     cfg = GNNTrainConfig(
         dataset_path=args.dataset_path,
         layout_json_dir=args.layout_json_dir,
-        graph_cache_dir=args.graph_cache_dir,
+        layout_dxf_dir=args.layout_dxf_dir,
+        graph_cache_dir=graph_cache_dir,
+        graph_repr=args.graph_repr,
         output_dir=args.output_dir,
         seed=args.seed,
         batch_size=args.batch_size,

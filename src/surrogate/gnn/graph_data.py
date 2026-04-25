@@ -9,6 +9,7 @@ import torch
 from tqdm import tqdm
 
 from src.data_engine.postprocess.member_graph import MemberGraphBuilder
+from src.shearwall_pred.utils import build_graph_from_dxf, mask_to_constraint_vector
 
 KIND_TO_ID = {
     "wall": 0,
@@ -24,12 +25,22 @@ AXIS_TO_ID = {
 @dataclass(frozen=True)
 class LayoutGraphCacheConfig:
     layout_json_dir: str = r"data\dxf\cad_json_data\fem_raw"
+    layout_dxf_dir: str = r"data\dxf\fem_raw"
     output_dir: str = r"data\parametric\surrogate_dataset\gnn_graph_cache"
+    graph_repr: str = "member"
     coord_tol: float = 0.01
     merge_members: bool = True
 
 
 def build_layout_graph_cache(cfg: LayoutGraphCacheConfig) -> dict[str, int]:
+    if cfg.graph_repr == "member":
+        return _build_member_graph_cache(cfg)
+    if cfg.graph_repr == "room":
+        return _build_room_graph_cache(cfg)
+    raise ValueError(f"Unknown graph representation: {cfg.graph_repr}")
+
+
+def _build_member_graph_cache(cfg: LayoutGraphCacheConfig) -> dict[str, int]:
     src_dir = Path(cfg.layout_json_dir)
     out_dir = Path(cfg.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -57,7 +68,51 @@ def build_layout_graph_cache(cfg: LayoutGraphCacheConfig) -> dict[str, int]:
         "total_layouts": len(paths),
         "cached_layouts": num_ok,
         "skipped_layouts": num_skip,
+        "graph_representation": "member",
         "merge_members": bool(cfg.merge_members),
+    }
+    (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=True, indent=2), encoding="utf-8")
+    return summary
+
+
+def _build_room_graph_cache(cfg: LayoutGraphCacheConfig) -> dict[str, int]:
+    src_dir = Path(cfg.layout_json_dir)
+    dxf_dir = Path(cfg.layout_dxf_dir)
+    out_dir = Path(cfg.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    paths = sorted(src_dir.glob("*.json"))
+    if not paths:
+        raise ValueError(f"No layout json found in {src_dir}")
+
+    num_ok = 0
+    num_skip = 0
+    num_missing_dxf = 0
+
+    for path in tqdm(paths, desc="[surrogate][gnn] build room graph cache"):
+        layout_id = path.stem
+        dxf_path = dxf_dir / f"{layout_id}.dxf"
+        out_path = out_dir / f"{layout_id}.pt"
+        if not dxf_path.exists():
+            num_skip += 1
+            num_missing_dxf += 1
+            continue
+
+        try:
+            graph_builder = build_graph_from_dxf(str(dxf_path))
+            graph_data = _build_room_graph_data(graph_builder)
+            torch.save(graph_data, out_path)
+            num_ok += 1
+        except Exception:
+            num_skip += 1
+
+    summary = {
+        "total_layouts": len(paths),
+        "cached_layouts": num_ok,
+        "skipped_layouts": num_skip,
+        "missing_dxf": num_missing_dxf,
+        "graph_representation": "room",
+        "layout_dxf_dir": str(dxf_dir),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=True, indent=2), encoding="utf-8")
     return summary
@@ -147,6 +202,61 @@ def _build_layout_graph_data(raw: dict, builder: MemberGraphBuilder) -> dict[str
             float(pbeam_count),
             float(sbeam_count),
             float(np.sum(lengths)),
+        ],
+        dtype=np.float32,
+    )
+
+    return {
+        "x": torch.tensor(np.asarray(xs, dtype=np.float32)),
+        "edge_index": torch.tensor(np.asarray(edge_index, dtype=np.int64)).t().contiguous(),
+        "edge_attr": torch.tensor(np.asarray(edge_attr, dtype=np.float32)),
+        "graph_feat": torch.tensor(graph_feat[None, :]),
+    }
+
+
+def _build_room_graph_data(graph_builder) -> dict[str, torch.Tensor]:
+    graph = graph_builder.graph
+    if graph.number_of_nodes() == 0:
+        raise ValueError("empty room graph")
+
+    nodes = list(graph.nodes(data=True))
+    node_mapping = {node_id: i for i, (node_id, _) in enumerate(nodes)}
+
+    xs = []
+    areas = []
+    sw_sums = []
+    for _, attrs in nodes:
+        geo = np.asarray(attrs["geo_feature"], dtype=np.float32)
+        constraint = mask_to_constraint_vector(attrs.get("masks") or [])
+        sw_vector = attrs.get("sw_vector")
+        if sw_vector is None:
+            sw_vector = np.zeros(16, dtype=np.float32)
+        sw_vector = np.asarray(sw_vector, dtype=np.float32)
+
+        xs.append(np.concatenate([geo, constraint, sw_vector]))
+        areas.append(float(attrs["poly"].area))
+        sw_sums.append(float(sw_vector.sum()))
+
+    edge_index = []
+    edge_attr = []
+    for u, v, attrs in graph.edges(data=True):
+        edge_index.append([node_mapping[u], node_mapping[v]])
+        edge_attr.append(np.asarray(attrs["feature"], dtype=np.float32))
+
+    if not edge_index:
+        edge_index = [[0, 0]]
+        edge_attr = [np.zeros(8, dtype=np.float32)]
+
+    scale = float(getattr(graph_builder, "scale_factor", 1.0))
+    graph_feat = np.array(
+        [
+            float(graph.number_of_nodes()),
+            float(graph.number_of_edges()),
+            scale,
+            float(np.sum(areas)),
+            float(np.mean(areas)) if areas else 0.0,
+            float(np.sum(sw_sums)),
+            float(np.mean(sw_sums)) if sw_sums else 0.0,
         ],
         dtype=np.float32,
     )

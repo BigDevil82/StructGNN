@@ -19,7 +19,9 @@ from src.surrogate.training.lightgbm_baseline import CLASS_TASK
 class GNNTrainConfig:
     dataset_path: str = r"data\parametric\surrogate_dataset\splits\surrogate_samples_with_splits.parquet"
     layout_json_dir: str = r"data\dxf\cad_json_data\fem_raw"
+    layout_dxf_dir: str = r"data\dxf\fem_raw"
     graph_cache_dir: str = r"data\parametric\surrogate_dataset\gnn_graph_cache"
+    graph_repr: str = "member"
     output_dir: str = r"data\parametric\surrogate_dataset\baseline_gnn_final_pass"
     seed: int = 42
     batch_size: int = 128
@@ -39,11 +41,13 @@ class GNNTrainConfig:
 def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
     _set_seed(cfg.seed)
 
-    if cfg.rebuild_graph_cache or not Path(cfg.graph_cache_dir).exists():
+    if cfg.rebuild_graph_cache or _needs_graph_cache_rebuild(cfg):
         build_layout_graph_cache(
             LayoutGraphCacheConfig(
                 layout_json_dir=cfg.layout_json_dir,
+                layout_dxf_dir=cfg.layout_dxf_dir,
                 output_dir=cfg.graph_cache_dir,
+                graph_repr=cfg.graph_repr,
                 merge_members=cfg.merge_members,
             )
         )
@@ -237,3 +241,20 @@ def _set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def _needs_graph_cache_rebuild(cfg: GNNTrainConfig) -> bool:
+    cache_dir = Path(cfg.graph_cache_dir)
+    if not cache_dir.exists():
+        return True
+
+    summary_path = cache_dir / "summary.json"
+    if not summary_path.exists():
+        return cfg.graph_repr != "member"
+
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return True
+
+    return summary.get("graph_representation", "member") != cfg.graph_repr
