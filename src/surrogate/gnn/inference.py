@@ -18,6 +18,7 @@ def predict_with_gnn(
     artifact_path: str | Path,
     graph_cache_dir: str | Path,
     threshold: float | None = None,
+    screening_threshold: float | None = None,
     batch_size: int = 256,
     num_workers: int = 0,
     report_metrics: bool = True,
@@ -45,10 +46,15 @@ def predict_with_gnn(
 
     y_prob = np.concatenate(probs, axis=0).astype(np.float64)
     threshold_val = float(artifact.get("threshold", 0.5)) if threshold is None else float(threshold)
+    screening_threshold_val = artifact.get("screening_threshold") if screening_threshold is None else screening_threshold
 
     pred = pd.DataFrame(index=df.index)
     pred["pred_final_pass_prob"] = y_prob
     pred["pred_final_pass"] = y_prob >= threshold_val
+    if screening_threshold_val is not None:
+        screening_threshold_val = float(screening_threshold_val)
+        pred["screening_threshold"] = screening_threshold_val
+        pred["pred_screen_reject"] = y_prob < screening_threshold_val
 
     if report_metrics and "final_pass" in df.columns:
         y_true = df["final_pass"].astype(int).to_numpy()

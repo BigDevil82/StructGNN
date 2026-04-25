@@ -30,6 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--threshold", type=float, default=None)
+    parser.add_argument("--screening-threshold", type=float, default=None)
     return parser
 
 
@@ -45,6 +46,7 @@ def main() -> None:
         artifact_path=args.artifact_path,
         graph_cache_dir=args.graph_cache_dir,
         threshold=args.threshold,
+        screening_threshold=args.screening_threshold,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         report_metrics=True,
