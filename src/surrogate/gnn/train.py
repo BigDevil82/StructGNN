@@ -39,6 +39,7 @@ class GNNTrainConfig:
     num_workers: int = 0
     log_interval: int = 1
     monitor_metric: str = "pr_auc"
+    screening_target_recall: float = 0.99
     rebuild_graph_cache: bool = False
     merge_members: bool = True
 
@@ -98,7 +99,7 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
         )
 
     best_state = None
-    if cfg.monitor_metric not in {"pr_auc", "f1"}:
+    if cfg.monitor_metric not in {"pr_auc", "f1", "screen_reject"}:
         raise ValueError(f"Unknown monitor_metric: {cfg.monitor_metric}")
 
     best_score = -1.0
@@ -111,13 +112,22 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
         val_threshold = _find_best_f1_threshold(val_stat["y_true"], val_stat["y_prob"])
         val_pred = (val_stat["y_prob"] >= val_threshold).astype(int)
         val_f1 = float(f1_score(val_stat["y_true"], val_pred, zero_division=0))
-        monitor_score = float(val_stat["pr_auc"] if cfg.monitor_metric == "pr_auc" else val_f1)
+        screen_threshold, val_screen = _find_best_screening_threshold(
+            val_stat["y_true"], val_stat["y_prob"], cfg.screening_target_recall
+        )
+        if cfg.monitor_metric == "pr_auc":
+            monitor_score = float(val_stat["pr_auc"])
+        elif cfg.monitor_metric == "f1":
+            monitor_score = val_f1
+        else:
+            monitor_score = val_screen["reject_rate"]
 
         if epoch == 0 or (epoch + 1) % max(cfg.log_interval, 1) == 0:
             print(
                 f"[surrogate][gnn] epoch={epoch + 1}/{cfg.max_epochs} "
                 f"train_loss={train_loss:.6f} val_pr_auc={val_stat['pr_auc']:.6f} "
-                f"val_f1={val_f1:.6f} best_{cfg.monitor_metric}={best_score:.6f}"
+                f"val_f1={val_f1:.6f} val_screen_reject={val_screen['reject_rate']:.6f} "
+                f"val_screen_thr={screen_threshold:.4f} best_{cfg.monitor_metric}={best_score:.6f}"
             )
 
         if monitor_score > best_score:
@@ -143,9 +153,13 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
 
     val_stat = _eval_binary(model, loaders["val"], device)
     threshold = _find_best_f1_threshold(val_stat["y_true"], val_stat["y_prob"])
+    screening_threshold, val_screen = _find_best_screening_threshold(
+        val_stat["y_true"], val_stat["y_prob"], cfg.screening_target_recall
+    )
 
     test_stat = _eval_binary(model, loaders["test"], device)
     test_pred = (test_stat["y_prob"] >= threshold).astype(int)
+    test_screen = _screening_metrics(test_stat["y_true"], test_stat["y_prob"], screening_threshold)
 
     out_dir = Path(cfg.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -167,6 +181,8 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
             },
             "preprocess": pre.export(),
             "threshold": float(threshold),
+            "screening_threshold": float(screening_threshold),
+            "screening_target_recall": float(cfg.screening_target_recall),
         },
         out_dir / "gnn_final_pass.pt",
     )
@@ -183,10 +199,16 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
         "config": asdict(cfg),
         "best_epoch": int(best_epoch),
         "threshold": float(threshold),
+        "screening_threshold": float(screening_threshold),
         "val": _binary_metrics(
             val_stat["y_true"], val_stat["y_prob"], (val_stat["y_prob"] >= threshold).astype(int)
         ),
         "test": _binary_metrics(test_stat["y_true"], test_stat["y_prob"], test_pred),
+        "screening": {
+            "target_recall": float(cfg.screening_target_recall),
+            "val": val_screen,
+            "test": test_screen,
+        },
     }
     (out_dir / "metrics.json").write_text(json.dumps(metrics, ensure_ascii=True, indent=2), encoding="utf-8")
     return metrics
@@ -258,6 +280,48 @@ def _find_best_f1_threshold(y_true: np.ndarray, y_prob: np.ndarray) -> float:
             best_f1 = float(score)
             best_thr = float(thr)
     return best_thr
+
+
+def _find_best_screening_threshold(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    target_recall: float,
+) -> tuple[float, dict[str, float]]:
+    best_thr = 0.0
+    best_metrics = _screening_metrics(y_true, y_prob, best_thr)
+    for thr in np.arange(0.0, 1.001, 0.002):
+        metrics = _screening_metrics(y_true, y_prob, float(thr))
+        if metrics["feasible_recall"] < target_recall:
+            continue
+        if metrics["reject_rate"] > best_metrics["reject_rate"]:
+            best_thr = float(thr)
+            best_metrics = metrics
+    return best_thr, best_metrics
+
+
+def _screening_metrics(y_true: np.ndarray, y_prob: np.ndarray, threshold: float) -> dict[str, float]:
+    feasible = y_true.astype(bool)
+    reject = y_prob < threshold
+    keep = ~reject
+
+    feasible_count = max(int(feasible.sum()), 1)
+    reject_count = max(int(reject.sum()), 1)
+    keep_count = max(int(keep.sum()), 1)
+
+    false_reject = reject & feasible
+    true_reject = reject & ~feasible
+    kept_feasible = keep & feasible
+
+    return {
+        "threshold": float(threshold),
+        "reject_rate": float(reject.mean()),
+        "keep_rate": float(keep.mean()),
+        "feasible_recall": float(kept_feasible.sum() / feasible_count),
+        "false_reject_rate": float(false_reject.sum() / feasible_count),
+        "false_reject_count": float(false_reject.sum()),
+        "reject_infeasible_precision": float(true_reject.sum() / reject_count),
+        "kept_feasible_rate": float(kept_feasible.sum() / keep_count),
+    }
 
 
 def _set_seed(seed: int) -> None:
