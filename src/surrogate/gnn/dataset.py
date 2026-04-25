@@ -9,10 +9,11 @@ import torch
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
-from src.surrogate.training.lightgbm_baseline import CLASS_TASK, PARAM_FEATURES
+from src.surrogate.training.lightgbm_baseline import CLASS_TASK, LAYOUT_FEATURES, PARAM_FEATURES
 
 CAT_COLS = ["conc_bot", "intensity", "site_class", "seismic_group"]
-NUM_COLS = [col for col in PARAM_FEATURES if col not in CAT_COLS]
+FEATURE_COLS = PARAM_FEATURES + LAYOUT_FEATURES
+NUM_COLS = [col for col in FEATURE_COLS if col not in CAT_COLS]
 
 
 @dataclass(frozen=True)
@@ -126,7 +127,7 @@ def build_dataloaders(
     preprocess_from: dict[str, object] | None = None,
 ) -> tuple[dict[str, DataLoader], ParamPreprocessor, tuple[int, int, int]]:
     df = pd.read_parquet(cfg.dataset_path)
-    required = ["split", "layout_id", CLASS_TASK] + PARAM_FEATURES
+    required = ["split", "layout_id", CLASS_TASK] + FEATURE_COLS
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Dataset missing required columns: {missing}")
