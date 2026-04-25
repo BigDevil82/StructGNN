@@ -9,7 +9,10 @@ import torch
 from tqdm import tqdm
 
 from src.data_engine.postprocess.member_graph import MemberGraphBuilder
+from src.data_engine.preprocess.layout_graph import LayoutGraphBuilder
 from src.shearwall_pred.utils import build_graph_from_dxf, mask_to_constraint_vector
+
+ROOM_GRAPH_FEATURE_VERSION = "room_v2"
 
 KIND_TO_ID = {
     "wall": 0,
@@ -112,6 +115,7 @@ def _build_room_graph_cache(cfg: LayoutGraphCacheConfig) -> dict[str, int]:
         "skipped_layouts": num_skip,
         "missing_dxf": num_missing_dxf,
         "graph_representation": "room",
+        "feature_version": ROOM_GRAPH_FEATURE_VERSION,
         "layout_dxf_dir": str(dxf_dir),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=True, indent=2), encoding="utf-8")
@@ -214,7 +218,7 @@ def _build_layout_graph_data(raw: dict, builder: MemberGraphBuilder) -> dict[str
     }
 
 
-def _build_room_graph_data(graph_builder) -> dict[str, torch.Tensor]:
+def _build_room_graph_data(graph_builder: LayoutGraphBuilder) -> dict[str, torch.Tensor]:
     graph = graph_builder.graph
     if graph.number_of_nodes() == 0:
         raise ValueError("empty room graph")
@@ -247,16 +251,20 @@ def _build_room_graph_data(graph_builder) -> dict[str, torch.Tensor]:
         edge_index = [[0, 0]]
         edge_attr = [np.zeros(8, dtype=np.float32)]
 
-    scale = float(getattr(graph_builder, "scale_factor", 1.0))
+    n = max(graph.number_of_nodes(), 1)
+    max_edges = max(n * (n - 1), 1)
+    scale = max(float(getattr(graph_builder, "scale_factor", 1.0)), 1.0)
+    total_area = float(np.sum(areas))
+    total_sw = float(np.sum(sw_sums))
     graph_feat = np.array(
         [
-            float(graph.number_of_nodes()),
-            float(graph.number_of_edges()),
-            scale,
-            float(np.sum(areas)),
-            float(np.mean(areas)) if areas else 0.0,
-            float(np.sum(sw_sums)),
-            float(np.mean(sw_sums)) if sw_sums else 0.0,
+            float(n / 64.0),
+            float(graph.number_of_edges() / 256.0),
+            float(graph.number_of_edges() / max_edges),
+            total_area / (scale * scale),
+            total_area / (n * scale * scale),
+            total_sw / (16.0 * n),
+            float(np.mean(sw_sums) / 16.0) if sw_sums else 0.0,
         ],
         dtype=np.float32,
     )

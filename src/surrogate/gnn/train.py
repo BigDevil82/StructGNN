@@ -10,7 +10,7 @@ import torch
 from sklearn.metrics import average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
 
 from src.surrogate.gnn.dataset import CAT_COLS, NUM_COLS, GNNDataConfig, build_dataloaders
-from src.surrogate.gnn.graph_data import LayoutGraphCacheConfig, build_layout_graph_cache
+from src.surrogate.gnn.graph_data import ROOM_GRAPH_FEATURE_VERSION, LayoutGraphCacheConfig, build_layout_graph_cache
 from src.surrogate.gnn.model import LayoutParamGNN, auto_param_emb_dims
 from src.surrogate.training.lightgbm_baseline import CLASS_TASK
 
@@ -257,4 +257,8 @@ def _needs_graph_cache_rebuild(cfg: GNNTrainConfig) -> bool:
     except json.JSONDecodeError:
         return True
 
-    return summary.get("graph_representation", "member") != cfg.graph_repr
+    if summary.get("graph_representation", "member") != cfg.graph_repr:
+        return True
+    if cfg.graph_repr == "room" and summary.get("feature_version") != ROOM_GRAPH_FEATURE_VERSION:
+        return True
+    return False
