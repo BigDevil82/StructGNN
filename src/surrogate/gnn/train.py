@@ -29,6 +29,9 @@ class GNNTrainConfig:
     early_stop_rounds: int = 10
     lr: float = 1.0e-3
     weight_decay: float = 1.0e-4
+    lr_scheduler: bool = False
+    lr_scheduler_patience: int = 2
+    lr_scheduler_factor: float = 0.5
     hidden_dim: int = 128
     gnn_layers: int = 3
     conv_type: str = "sage"
@@ -85,6 +88,14 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
     pos_weight = _estimate_pos_weight(loaders["train"], device)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    scheduler = None
+    if cfg.lr_scheduler:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="max",
+            factor=cfg.lr_scheduler_factor,
+            patience=cfg.lr_scheduler_patience,
+        )
 
     best_state = None
     if cfg.monitor_metric not in {"pr_auc", "f1"}:
@@ -122,6 +133,8 @@ def run_gnn_train(cfg: GNNTrainConfig) -> dict[str, object]:
                     f"best_epoch={best_epoch + 1} best_{cfg.monitor_metric}={best_score:.6f}"
                 )
                 break
+        if scheduler is not None:
+            scheduler.step(monitor_score)
 
     if best_state is None:
         raise RuntimeError("GNN failed to produce a valid checkpoint")

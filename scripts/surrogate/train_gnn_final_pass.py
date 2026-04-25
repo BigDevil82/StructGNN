@@ -30,6 +30,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--early-stop-rounds", type=int, default=10)
     parser.add_argument("--lr", type=float, default=1.0e-3)
     parser.add_argument("--weight-decay", type=float, default=1.0e-4)
+    parser.add_argument("--lr-scheduler", action="store_true")
+    parser.add_argument("--lr-scheduler-patience", type=int, default=2)
+    parser.add_argument("--lr-scheduler-factor", type=float, default=0.5)
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--gnn-layers", type=int, default=3)
     parser.add_argument("--conv-type", choices=("sage", "gine"), default="sage")
@@ -61,6 +64,9 @@ def main() -> None:
         early_stop_rounds=args.early_stop_rounds,
         lr=args.lr,
         weight_decay=args.weight_decay,
+        lr_scheduler=args.lr_scheduler,
+        lr_scheduler_patience=args.lr_scheduler_patience,
+        lr_scheduler_factor=args.lr_scheduler_factor,
         hidden_dim=args.hidden_dim,
         gnn_layers=args.gnn_layers,
         conv_type=args.conv_type,
