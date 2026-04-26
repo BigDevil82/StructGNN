@@ -1,4 +1,10 @@
 import argparse
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.shearwall_modeling.parametric import DatasetGenerationConfig
 from src.shearwall_optimization.algorithms import (
@@ -10,6 +16,7 @@ from src.shearwall_optimization.algorithms import (
 )
 from src.shearwall_optimization.problems import ShearWallLimitConfig, ShearWallObjectiveConfig
 from src.shearwall_optimization.runners import run_shearwall_optimization
+from src.shearwall_optimization.surrogate_screening import SurrogateScreeningConfig
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +57,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-tournament", type=int, default=3)
     p.add_argument("--ga-verbose", action="store_true")
     p.add_argument("--ga-log-every", type=int, default=1)
+    p.add_argument("--ga-surrogate-screen", action="store_true")
+    p.add_argument(
+        "--ga-surrogate-artifact",
+        default=r"data\parametric\surrogate_dataset\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt",
+    )
+    p.add_argument(
+        "--ga-surrogate-graph-cache",
+        default=r"data\parametric\surrogate_dataset\gnn_room_graph_cache",
+    )
+    p.add_argument(
+        "--ga-surrogate-layout-features",
+        default=r"data\parametric\surrogate_dataset\layout_features.parquet",
+    )
+    p.add_argument("--ga-surrogate-threshold", type=float, default=None)
+    p.add_argument("--ga-surrogate-batch-size", type=int, default=512)
 
     p.add_argument("--pso-swarm", type=int, default=24)
     p.add_argument("--pso-iter", type=int, default=20)
@@ -104,6 +126,14 @@ def main() -> None:
         verbose=args.ga_verbose,
         log_every=args.ga_log_every,
         seed=args.seed,
+        surrogate_screening=SurrogateScreeningConfig(
+            enabled=args.ga_surrogate_screen,
+            artifact_path=args.ga_surrogate_artifact,
+            graph_cache_dir=args.ga_surrogate_graph_cache,
+            layout_features_path=args.ga_surrogate_layout_features,
+            screening_threshold=args.ga_surrogate_threshold,
+            batch_size=args.ga_surrogate_batch_size,
+        ),
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)
     pso_cfg = ParticleSwarmConfig(

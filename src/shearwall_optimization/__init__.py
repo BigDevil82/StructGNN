@@ -4,6 +4,7 @@ from .algorithms.optuna_bo import OptunaBayesConfig, OptunaBayesOptimizer
 from .algorithms.pso import ParticleSwarmConfig, ParticleSwarmOptimizer
 from .algorithms.random_search import RandomSearchConfig, RandomSearchOptimizer
 from .core.contracts import EvaluationResult, OptimizationProblem, OptimizationResult, VariableSpec
+from .surrogate_screening import SurrogateScreeningConfig
 from .problems.shearwall_problem import (
     DEFAULT_DECISION_SPACE,
     DEFAULT_FIXED_PARAMS,
@@ -34,4 +35,5 @@ __all__ = [
     "ParticleSwarmOptimizer",
     "RandomSearchConfig",
     "RandomSearchOptimizer",
+    "SurrogateScreeningConfig",
 ]

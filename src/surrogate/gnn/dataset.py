@@ -90,7 +90,10 @@ class SurrogateGNNDataset(torch.utils.data.Dataset):
         self.preprocessor = preprocessor
 
         self.x_num, self.x_cat = preprocessor.transform(self.df)
-        self.y = self.df[CLASS_TASK].astype(int).to_numpy(dtype=np.float32)
+        if CLASS_TASK in self.df.columns:
+            self.y = self.df[CLASS_TASK].astype(int).to_numpy(dtype=np.float32)
+        else:
+            self.y = np.zeros(len(self.df), dtype=np.float32)
 
         self._graph_cache: dict[str, dict[str, torch.Tensor]] = {}
         layout_ids = sorted(self.df["layout_id"].astype(str).unique().tolist())

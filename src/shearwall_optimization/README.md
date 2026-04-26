@@ -30,6 +30,32 @@ This ensures optimization and dataset generation use the same physics/check logi
 - CLI usage: set `--optimizer-workers N` in `scripts.shearwall_optimize_main`.
 - Keep `--optimizer-workers 0` for sequential mode.
 
+## GA Surrogate Pre-screening
+
+GA can optionally use the trained GNN screening model before FEM evaluation:
+
+```powershell
+python scripts\shearwall_optimize_main.py `
+  --algorithm ga `
+  --layout-path data\dxf\cad_json_data\fem_raw\L17_101.json `
+  --ga-surrogate-screen
+```
+
+When enabled, each generation is screened in batch. Candidates with `pred_screen_reject=True`
+are assigned an infeasible `EvaluationResult` with constraint `surrogate_screen_reject=1.0`
+and are not sent to FEM. The optimization history records `screened_count` and
+`screened_ratio` per generation, allowing direct comparison against runs without
+`--ga-surrogate-screen`.
+
+The default artifact is the conservative screening model:
+
+```text
+data\parametric\surrogate_dataset\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt
+```
+
+Use `--ga-surrogate-threshold` to override the artifact's screening threshold for
+more conservative or more aggressive filtering.
+
 ## Multi-objective Interface
 
 - `EvaluationResult.objectives` now includes:
