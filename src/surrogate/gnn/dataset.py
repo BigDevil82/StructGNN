@@ -84,14 +84,16 @@ class SurrogateGNNDataset(torch.utils.data.Dataset):
         df: pd.DataFrame,
         graph_cache_dir: str | Path,
         preprocessor: ParamPreprocessor,
+        target_col: str = CLASS_TASK,
     ):
         self.df = df.reset_index(drop=True)
         self.graph_cache_dir = Path(graph_cache_dir)
         self.preprocessor = preprocessor
+        self.target_col = target_col
 
         self.x_num, self.x_cat = preprocessor.transform(self.df)
-        if CLASS_TASK in self.df.columns:
-            self.y = self.df[CLASS_TASK].astype(int).to_numpy(dtype=np.float32)
+        if target_col in self.df.columns:
+            self.y = self.df[target_col].astype(float).to_numpy(dtype=np.float32)
         else:
             self.y = np.zeros(len(self.df), dtype=np.float32)
 
@@ -128,9 +130,10 @@ class SurrogateGNNDataset(torch.utils.data.Dataset):
 def build_dataloaders(
     cfg: GNNDataConfig,
     preprocess_from: dict[str, object] | None = None,
+    target_col: str = CLASS_TASK,
 ) -> tuple[dict[str, DataLoader], ParamPreprocessor, tuple[int, int, int]]:
     df = pd.read_parquet(cfg.dataset_path)
-    required = ["split", "layout_id", CLASS_TASK] + FEATURE_COLS
+    required = ["split", "layout_id", target_col] + FEATURE_COLS
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Dataset missing required columns: {missing}")
@@ -147,9 +150,9 @@ def build_dataloaders(
     else:
         pre = ParamPreprocessor.from_dict(preprocess_from)
 
-    ds_train = SurrogateGNNDataset(train_df, cfg.graph_cache_dir, pre)
-    ds_val = SurrogateGNNDataset(val_df, cfg.graph_cache_dir, pre)
-    ds_test = SurrogateGNNDataset(test_df, cfg.graph_cache_dir, pre)
+    ds_train = SurrogateGNNDataset(train_df, cfg.graph_cache_dir, pre, target_col=target_col)
+    ds_val = SurrogateGNNDataset(val_df, cfg.graph_cache_dir, pre, target_col=target_col)
+    ds_test = SurrogateGNNDataset(test_df, cfg.graph_cache_dir, pre, target_col=target_col)
 
     loaders = {
         "train": DataLoader(ds_train, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers),
