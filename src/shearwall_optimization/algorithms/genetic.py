@@ -4,7 +4,12 @@ from typing import Any
 
 from ..core.contracts import EvaluationResult, OptimizationResult
 from ..core.optimizer import Optimizer
-from ..surrogate_screening import GNNFeasibilityScreener, SurrogateScreeningConfig
+from ..surrogate_evaluation import (
+    SurrogateAcceptanceConfig,
+    SurrogateEvaluationAccelerator,
+    SurrogateEvaluationConfig,
+)
+from ..surrogate_screening import SurrogateScreeningConfig
 
 
 @dataclass(frozen=True)
@@ -20,6 +25,7 @@ class GeneticAlgorithmConfig:
     log_every: int = 1
     seed: int = 42
     surrogate_screening: SurrogateScreeningConfig | None = None
+    surrogate_acceptance: SurrogateAcceptanceConfig | None = None
 
 
 class GeneticAlgorithmOptimizer(Optimizer):
@@ -27,9 +33,10 @@ class GeneticAlgorithmOptimizer(Optimizer):
         super().__init__(problem)
         self.config = config or GeneticAlgorithmConfig()
         self.rng = random.Random(self.config.seed)
-        self.screener = self._build_screener()
+        self.surrogate = self._build_surrogate()
 
     def optimize(self) -> OptimizationResult:
+        print("[GA] Starting optimization")
         pop = [self.problem.repair(self.problem.sample()) for _ in range(self.config.population_size)]
         scored = self._evaluate_population(pop)
         history: list[dict[str, Any]] = []
@@ -40,7 +47,12 @@ class GeneticAlgorithmOptimizer(Optimizer):
             scored.sort(key=lambda item: item[1].objective)
             best_x, best_res = scored[0]
             feasible_count = sum(1 for _, res in raw_scored if res.feasible)
-            screened_count = sum(1 for _, res in raw_scored if res.constraints.get("surrogate_screen_reject", 0.0) > 0.0)
+            screened_count = sum(
+                1 for _, res in raw_scored if res.constraints.get("surrogate_screen_reject", 0.0) > 0.0
+            )
+            surrogate_accepted_count = sum(
+                1 for _, res in raw_scored if bool(res.metrics.get("surrogate_material_accept", False))
+            )
             feasible_ratio = feasible_count / max(1, len(raw_scored))
             global_best = min(global_best, float(best_res.objective))
             history.append(
@@ -52,6 +64,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     "feasible_ratio": feasible_ratio,
                     "screened_count": screened_count,
                     "screened_ratio": screened_count / max(1, len(raw_scored)),
+                    "surrogate_accepted_count": surrogate_accepted_count,
+                    "surrogate_accepted_ratio": surrogate_accepted_count / max(1, len(raw_scored)),
                     "population": [
                         {
                             "objective": float(res.objective),
@@ -60,6 +74,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
                             "surrogate_screen_reject": bool(
                                 res.constraints.get("surrogate_screen_reject", 0.0) > 0.0
                             ),
+                            "surrogate_material_accept": bool(res.metrics.get("surrogate_material_accept", False)),
                         }
                         for _, res in raw_scored
                     ],
@@ -77,7 +92,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     f"global_best={global_best:.6g} "
                     f"best_feasible={best_res.feasible} "
                     f"feasible_ratio={feasible_ratio:.1%} "
-                    f"screened_ratio={screened_count / max(1, len(raw_scored)):.1%}"
+                    f"screened_ratio={screened_count / max(1, len(raw_scored)):.1%} "
+                    f"surrogate_accepted_ratio={surrogate_accepted_count / max(1, len(raw_scored)):.1%}"
                 )
 
             elites = [x for x, _ in scored[: self.config.elite_size]]
@@ -95,6 +111,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
         scored.sort(key=lambda item: item[1].objective)
         best_x, best_res = scored[0]
+        if bool(best_res.metrics.get("surrogate_material_accept", False)):
+            best_res = self.problem.evaluate(best_x)
         return OptimizationResult(
             best_solution=best_x,
             best_objective=best_res.objective,
@@ -108,65 +126,37 @@ class GeneticAlgorithmOptimizer(Optimizer):
         self, pop: list[dict[str, Any]]
     ) -> list[tuple[dict[str, Any], EvaluationResult]]:
         repaired = [self.problem.repair(x) for x in pop]
-        if self.screener is not None:
-            return self._evaluate_population_with_screening(repaired)
-        if hasattr(self.problem, "evaluate_many"):
-            results = self.problem.evaluate_many(repaired, max_workers=self.config.max_workers)
+        if self.surrogate is not None:
+            results = self.surrogate.evaluate_many(repaired, self._real_evaluate_many)
             return list(zip(repaired, results))
-        return [(x, self.problem.evaluate(x)) for x in repaired]
+        results = self._real_evaluate_many(repaired)
+        return list(zip(repaired, results))
 
-    def _evaluate_population_with_screening(
-        self,
-        repaired: list[dict[str, Any]],
-    ) -> list[tuple[dict[str, Any], EvaluationResult]]:
-        assert self.screener is not None
-        decisions = self.screener.screen(repaired)
-        results: list[EvaluationResult | None] = [None] * len(repaired)
-        eval_indices: list[int] = []
-        eval_items: list[dict[str, Any]] = []
+    def _real_evaluate_many(self, items: list[dict[str, Any]]) -> list[EvaluationResult]:
+        if not items:
+            return []
+        if hasattr(self.problem, "evaluate_many"):
+            return self.problem.evaluate_many(items, max_workers=self.config.max_workers)
+        return [self.problem.evaluate(x) for x in items]
 
-        for i, (x, decision) in enumerate(zip(repaired, decisions)):
-            if decision.reject:
-                results[i] = self._screened_result(decision)
-            else:
-                eval_indices.append(i)
-                eval_items.append(x)
-
-        if eval_items:
-            if hasattr(self.problem, "evaluate_many"):
-                eval_results = self.problem.evaluate_many(eval_items, max_workers=self.config.max_workers)
-            else:
-                eval_results = [self.problem.evaluate(x) for x in eval_items]
-            for idx, res in zip(eval_indices, eval_results):
-                results[idx] = res
-
-        return [(x, res) for x, res in zip(repaired, results) if res is not None]
-
-    def _screened_result(self, decision) -> EvaluationResult:
-        cfg = self.config.surrogate_screening
-        objective = float(cfg.rejected_objective if cfg is not None else 1.0e12)
-        return EvaluationResult(
-            objective=objective,
-            objectives={"material_cost": objective, "total_violation": 1.0},
-            feasible=False,
-            constraints={"surrogate_screen_reject": 1.0},
-            metrics={
-                "surrogate_screen_reject": True,
-                "surrogate_final_pass_prob": decision.probability,
-                "surrogate_screening_threshold": decision.threshold,
-            },
+    def _build_surrogate(self) -> SurrogateEvaluationAccelerator | None:
+        cfg = SurrogateEvaluationConfig(
+            screening=self.config.surrogate_screening,
+            acceptance=self.config.surrogate_acceptance,
         )
-
-    def _build_screener(self) -> GNNFeasibilityScreener | None:
-        cfg = self.config.surrogate_screening
-        if cfg is None or not cfg.enabled:
+        if not cfg.enabled:
             return None
-        if not hasattr(self.problem, "layout_path") or not hasattr(self.problem, "fixed_params"):
-            raise ValueError("Surrogate screening requires problem.layout_path and problem.fixed_params.")
-        return GNNFeasibilityScreener(
+        if (
+            not hasattr(self.problem, "layout_path")
+            or not hasattr(self.problem, "fixed_params")
+            or not hasattr(self.problem, "objective_cfg")
+        ):
+            raise ValueError("Surrogate evaluation requires problem.layout_path, fixed_params and objective_cfg.")
+        return SurrogateEvaluationAccelerator(
             cfg,
-            layout_id=self.problem.layout_path.stem,
+            layout_path=self.problem.layout_path,
             fixed_params=self.problem.fixed_params,
+            objective_cfg=self.problem.objective_cfg,
         )
 
     def _tournament_pick(self, scored: list[tuple[dict[str, Any], EvaluationResult]]) -> dict[str, Any]:

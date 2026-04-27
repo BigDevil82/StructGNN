@@ -1,0 +1,99 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import joblib
+import pandas as pd
+
+from src.shearwall_modeling.design.constants import ReinforcementDesignConstants
+from src.shearwall_modeling.parametric.space import split_stories
+from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES
+
+CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]
+
+
+@dataclass(frozen=True)
+class SteelMaterialPrediction:
+    steel_mean_kg: float
+    steel_upper_kg: float
+    concrete_kg: float
+    steel_rel_upper_gap: float
+
+
+class SteelMaterialPredictor:
+    def __init__(self, artifact_dir: str | Path):
+        artifact = Path(artifact_dir)
+        self.mean_model = joblib.load(artifact / "steel_mean_lightgbm.joblib")
+        self.upper_model = joblib.load(artifact / "steel_upper_lightgbm.joblib")
+        self.feature_columns = json.loads((artifact / "feature_columns.json").read_text(encoding="utf-8"))
+
+        metrics_path = artifact / "metrics.json"
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
+        self.upper_margin_kg = float(metrics.get("calibration", {}).get("upper_margin_kg", 0.0))
+        self.constants = ReinforcementDesignConstants()
+
+    def predict(self, df: pd.DataFrame) -> list[SteelMaterialPrediction]:
+        x = self._encode(df)
+        steel_mean = self.mean_model.predict(x)
+        steel_upper = self.upper_model.predict(x) + self.upper_margin_kg
+        steel_upper = [max(float(u), float(m)) for m, u in zip(steel_mean, steel_upper)]
+
+        out = []
+        for row, mean, upper in zip(df.to_dict("records"), steel_mean, steel_upper):
+            concrete = _estimate_concrete_kg(row, self.constants.concrete_density_kg_m3)
+            gap = (float(upper) - float(mean)) / max(float(mean), 1.0)
+            out.append(
+                SteelMaterialPrediction(
+                    steel_mean_kg=float(mean),
+                    steel_upper_kg=float(upper),
+                    concrete_kg=float(concrete),
+                    steel_rel_upper_gap=float(gap),
+                )
+            )
+        return out
+
+    def _encode(self, df: pd.DataFrame) -> pd.DataFrame:
+        missing = [col for col in PARAM_FEATURES + LAYOUT_FEATURES if col not in df.columns]
+        if missing:
+            raise ValueError(f"Steel material surrogate input missing columns: {missing}")
+
+        x = df[PARAM_FEATURES + LAYOUT_FEATURES].copy()
+        for col in CAT_COLS:
+            x[col] = x[col].astype(str)
+        x = pd.get_dummies(x, columns=CAT_COLS, dtype=float)
+        return x.reindex(columns=self.feature_columns, fill_value=0.0)
+
+
+def _estimate_concrete_kg(row: dict, density_kg_m3: float) -> float:
+    n_bot, n_mid, n_top = split_stories(int(row["N"]))
+    h_story = float(row.get("h_story", 2.9))
+
+    wall_length = float(row["wall_total_length"])
+    wall_thickness_story_sum = (
+        n_bot * float(row["tw_bot"]) / 1000.0
+        + n_mid * float(row["tw_mid"]) / 1000.0
+        + n_top * float(row["tw_top"]) / 1000.0
+    )
+    wall_concrete = wall_length * h_story * wall_thickness_story_sum * density_kg_m3
+
+    main_beam = (
+        float(row["main_beam_total_length"])
+        * float(row["bb_main"])
+        / 1000.0
+        * float(row["hb_main"])
+        / 1000.0
+        * int(row["N"])
+        * density_kg_m3
+    )
+    sec_beam = (
+        float(row["sec_beam_total_length"])
+        * float(row["bb_sec"])
+        / 1000.0
+        * float(row["hb_sec"])
+        / 1000.0
+        * int(row["N"])
+        * density_kg_m3
+    )
+    return wall_concrete + main_beam + sec_beam

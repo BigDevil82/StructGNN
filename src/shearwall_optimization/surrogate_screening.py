@@ -92,6 +92,9 @@ class GNNFeasibilityScreener:
         return [item for item in out if item is not None]
 
     def _build_frame(self, decisions: list[dict[str, Any]]) -> pd.DataFrame:
+        return self.build_frame(decisions)
+
+    def build_frame(self, decisions: list[dict[str, Any]]) -> pd.DataFrame:
         rows = []
         for i, decision in enumerate(decisions):
             row = {

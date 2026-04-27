@@ -16,6 +16,7 @@ from src.shearwall_optimization.algorithms import (
 )
 from src.shearwall_optimization.problems import ShearWallLimitConfig, ShearWallObjectiveConfig
 from src.shearwall_optimization.runners import run_shearwall_optimization
+from src.shearwall_optimization.surrogate_evaluation import SurrogateAcceptanceConfig
 from src.shearwall_optimization.surrogate_screening import SurrogateScreeningConfig
 
 
@@ -72,6 +73,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--ga-surrogate-threshold", type=float, default=None)
     p.add_argument("--ga-surrogate-batch-size", type=int, default=512)
+    p.add_argument("--ga-surrogate-accept", action="store_true")
+    p.add_argument(
+        "--ga-steel-artifact-dir",
+        default=r"data\parametric\surrogate_dataset\steel_quantile_lightgbm",
+    )
+    p.add_argument("--ga-accept-pass-threshold", type=float, default=0.99)
+    p.add_argument("--ga-accept-max-steel-rel-gap", type=float, default=0.75)
+    p.add_argument("--ga-accept-audit-rate", type=float, default=0.0)
 
     p.add_argument("--pso-swarm", type=int, default=24)
     p.add_argument("--pso-iter", type=int, default=20)
@@ -134,6 +143,14 @@ def main() -> None:
             screening_threshold=args.ga_surrogate_threshold,
             batch_size=args.ga_surrogate_batch_size,
         ),
+        surrogate_acceptance=SurrogateAcceptanceConfig(
+            enabled=args.ga_surrogate_accept,
+            steel_artifact_dir=args.ga_steel_artifact_dir,
+            pass_probability_threshold=args.ga_accept_pass_threshold,
+            max_steel_rel_upper_gap=args.ga_accept_max_steel_rel_gap,
+            audit_rate=args.ga_accept_audit_rate,
+            seed=args.seed,
+        ),
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)
     pso_cfg = ParticleSwarmConfig(
@@ -168,7 +185,7 @@ def main() -> None:
         min_stiffness_ratio=args.limit_min_stiffness,
         max_period_ratio=args.limit_max_period_ratio,
     )
-
+    print("Starting optimization...")
     result = run_shearwall_optimization(
         layout_path=args.layout_path,
         out_path=args.out,
