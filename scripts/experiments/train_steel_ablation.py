@@ -40,6 +40,11 @@ class SteelAblationConfig:
     dropout: float = 0.1
     num_workers: int = 0
     log_interval: int = 1
+    loss_type: str = "standard"
+    kg_alpha: float = 0.2
+    kg_scale: float = 200000.0
+    high_weight: float = 1.0
+    calibration: str = "none"
 
 
 class ParamOnlySteelMLP(nn.Module):
@@ -138,6 +143,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dropout", type=float, default=0.1)
     p.add_argument("--num-workers", type=int, default=0)
     p.add_argument("--log-interval", type=int, default=1)
+    p.add_argument(
+        "--loss-type",
+        choices=("standard", "kg_aux", "q80_weight", "continuous_weight"),
+        default="standard",
+    )
+    p.add_argument("--kg-alpha", type=float, default=0.2)
+    p.add_argument("--kg-scale", type=float, default=200000.0)
+    p.add_argument("--high-weight", type=float, default=1.0)
+    p.add_argument("--calibration", choices=("none", "linear", "quantile_bias"), default="none")
     return p
 
 
