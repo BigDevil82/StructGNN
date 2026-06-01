@@ -16,6 +16,7 @@ from src.shearwall_optimization.algorithms import (
 )
 from src.shearwall_optimization.problems import ShearWallLimitConfig, ShearWallObjectiveConfig
 from src.shearwall_optimization.runners import run_shearwall_optimization
+from src.shearwall_optimization.steel_ranking import SteelRankingConfig
 from src.shearwall_optimization.surrogate_evaluation import SurrogateAcceptanceConfig
 from src.shearwall_optimization.surrogate_screening import SurrogateScreeningConfig
 
@@ -81,6 +82,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-accept-pass-threshold", type=float, default=0.99)
     p.add_argument("--ga-accept-max-steel-rel-gap", type=float, default=0.75)
     p.add_argument("--ga-accept-audit-rate", type=float, default=0.0)
+    p.add_argument("--ga-steel-ranking", action="store_true")
+    p.add_argument(
+        "--ga-steel-ranking-artifact",
+        default=r"data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt",
+    )
+    p.add_argument(
+        "--ga-steel-ranking-graph-cache",
+        default=r"data\parametric\cache\gnn_room_graph_cache",
+    )
+    p.add_argument(
+        "--ga-steel-ranking-layout-features",
+        default=r"data\parametric\surrogate_dataset\layout_features.parquet",
+    )
+    p.add_argument("--ga-steel-ranking-eval-ratio", type=float, default=0.4)
+    p.add_argument("--ga-steel-ranking-min-eval", type=int, default=8)
+    p.add_argument("--ga-steel-ranking-random-ratio", type=float, default=0.1)
+    p.add_argument("--ga-steel-ranking-batch-size", type=int, default=512)
 
     p.add_argument("--pso-swarm", type=int, default=24)
     p.add_argument("--pso-iter", type=int, default=20)
@@ -150,6 +168,16 @@ def main() -> None:
             max_steel_rel_upper_gap=args.ga_accept_max_steel_rel_gap,
             audit_rate=args.ga_accept_audit_rate,
             seed=args.seed,
+        ),
+        steel_ranking=SteelRankingConfig(
+            enabled=args.ga_steel_ranking,
+            artifact_path=args.ga_steel_ranking_artifact,
+            graph_cache_dir=args.ga_steel_ranking_graph_cache,
+            layout_features_path=args.ga_steel_ranking_layout_features,
+            eval_ratio=args.ga_steel_ranking_eval_ratio,
+            min_eval_count=args.ga_steel_ranking_min_eval,
+            random_ratio=args.ga_steel_ranking_random_ratio,
+            batch_size=args.ga_steel_ranking_batch_size,
         ),
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)

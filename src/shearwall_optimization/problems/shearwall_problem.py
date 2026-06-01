@@ -89,6 +89,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
         self.limit_cfg = limit_cfg or ShearWallLimitConfig()
         self.rng = random.Random(seed)
         self._cache: dict[tuple[Any, ...], EvaluationResult] = {}
+        self.fea_evaluation_count = 0
 
         self._variables = [
             VariableSpec(name=name, domain=domain) for name, domain in self.decision_space.items()
@@ -132,6 +133,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
             constraint_cfg=self.constraint_cfg,
             limit_cfg=self.limit_cfg,
         )
+        self.fea_evaluation_count += 1
         self._cache[key] = out
         return out
 
@@ -156,6 +158,7 @@ class ShearWallOptimizationProblem(OptimizationProblem):
                 uncached_items.append((i, repaired, key))
 
         if uncached_items:
+            self.fea_evaluation_count += len(uncached_items)
             tasks = [
                 BatchEvaluateTask(
                     request_index=item[0],

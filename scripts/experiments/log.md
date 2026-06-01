@@ -215,3 +215,62 @@ Next recommended experiment:
 
 - Train a multitask `Param + graph_feat` model with both kg regression loss and pairwise ranking loss.
 - Evaluate by optimization-facing metrics: top-k recall, mean regret, and FEA-call reduction under GA preselection.
+
+## 2026-06-01 GA with GNN steel-ranking preselection
+
+Goal: use the best steel GNN regression model as a sorter inside GA. The GNN does not replace FEA. It only decides which candidates are worth sending to real FEA in each generation.
+
+Implementation:
+
+- Added `SteelRankingConfig` and `GNNSteelRanker`.
+- GA option: `--ga-steel-ranking`.
+- Per generation, GA predicts steel usage for all repaired candidates.
+- It evaluates only:
+  - the top candidates by low predicted steel usage;
+  - plus a small random exploration subset.
+- Skipped candidates receive a poor placeholder objective and are marked with `metrics.steel_rank_skip=True`.
+- The problem now records `fea_evaluation_count`, counting uncached real FEA calls.
+
+Command used for ranking run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\shearwall_optimize_main.py `
+  --algorithm ga `
+  --layout-path data\dxf\cad_json_data\fem_raw\L17_101.json `
+  --out outputs\result\optimization\ga_gnn_rank_preselect_exp_i6_v2.json `
+  --N 18 `
+  --intensity 6.0 `
+  --site-class II `
+  --seismic-group 1 `
+  --ga-pop 8 `
+  --ga-gen 3 `
+  --ga-elite 1 `
+  --ga-mutation 0.3 `
+  --ga-verbose `
+  --optimizer-workers 4 `
+  --seed 42 `
+  --ga-steel-ranking `
+  --ga-steel-ranking-eval-ratio 0.5 `
+  --ga-steel-ranking-min-eval 4 `
+  --ga-steel-ranking-random-ratio 0.125 `
+  --ga-steel-ranking-artifact data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt `
+  --ga-steel-ranking-graph-cache data\parametric\cache\gnn_room_graph_cache
+```
+
+Small GA comparison on `L17_101`, `N=18`, intensity 6.0, site class II:
+
+| Method | Final FEA calls | Best feasible | Best objective | Material cost | Last-gen skipped ratio |
+|---|---:|---:|---:|---:|---:|
+| GA full FEA | 29 | true | 467637 | 440587 | 0% |
+| GA + GNN ranking preselection | 17 | true | 433946 | 409566 | 37.5% |
+
+Result:
+
+- GNN ranking reduced real FEA calls by about 41% in this small run.
+- It still found a feasible final solution.
+- In this seed/layout, it also found a lower material objective than full-FEA GA, likely because ranking biased the search toward lower-steel candidates earlier.
+
+Caveat:
+
+- This is only a small smoke-style optimization experiment, not yet statistically reliable.
+- The next step is to run multiple layouts and seeds with a fixed FEA budget, reporting mean/best objective, feasible rate, first feasible FEA count, and FEA-call reduction.
