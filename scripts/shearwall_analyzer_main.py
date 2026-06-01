@@ -24,12 +24,13 @@ from src.shearwall_modeling.builders import DetailedShellBuilder, EquivalentFram
 from src.shearwall_modeling.builders.base import AnalysisModelContext
 from src.shearwall_modeling.core.domain import FEMInput
 from src.shearwall_modeling.design.pipeline import ReinforcementDesignPipeline
+from src.shearwall_modeling.ops_logging import redirect_ops_output
 
 logger = setup_file_logger(
     "ShearwallAnalyzer", Path("outputs/result/logs/shearwall_analyzer.log"), logging.INFO
 )
 logger.info("\n\n\n\nSHEARWALL ANALYZER STARTED\n")
-ops.logFile("outputs/logs/ops.log", "-noEcho")
+redirect_ops_output()
 
 
 def build_single(json_path: Path) -> None:

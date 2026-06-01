@@ -13,6 +13,7 @@ from src.shearwall_optimization.algorithms import (
     OptunaBayesConfig,
     ParticleSwarmConfig,
     RandomSearchConfig,
+    RandomPreselectionConfig,
 )
 from src.shearwall_optimization.problems import ShearWallLimitConfig, ShearWallObjectiveConfig
 from src.shearwall_optimization.runners import run_shearwall_optimization
@@ -99,6 +100,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-steel-ranking-min-eval", type=int, default=8)
     p.add_argument("--ga-steel-ranking-random-ratio", type=float, default=0.1)
     p.add_argument("--ga-steel-ranking-batch-size", type=int, default=512)
+    p.add_argument("--ga-random-preselect", action="store_true")
+    p.add_argument("--ga-random-preselect-eval-ratio", type=float, default=0.5)
+    p.add_argument("--ga-random-preselect-min-eval", type=int, default=8)
 
     p.add_argument("--pso-swarm", type=int, default=24)
     p.add_argument("--pso-iter", type=int, default=20)
@@ -178,6 +182,11 @@ def main() -> None:
             min_eval_count=args.ga_steel_ranking_min_eval,
             random_ratio=args.ga_steel_ranking_random_ratio,
             batch_size=args.ga_steel_ranking_batch_size,
+        ),
+        random_preselection=RandomPreselectionConfig(
+            enabled=args.ga_random_preselect,
+            eval_ratio=args.ga_random_preselect_eval_ratio,
+            min_eval_count=args.ga_random_preselect_min_eval,
         ),
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)

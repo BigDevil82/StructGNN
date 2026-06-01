@@ -9,8 +9,11 @@ from ..builders.base import AnalysisModelContext, StructuralModelBuilder
 from ..core.config import MaterialConfig, ModelConfig, SectionConfig, SeismicConfig, StandardStoryGroupConfig
 from ..core.domain import FEMInput
 from ..design import ReinforcementDesignPipeline
+from ..ops_logging import redirect_ops_output
 from .space import normalize_params, split_stories
 from .types import BuilderName, DatasetGenerationConfig, ParametricAnalysisResult, ParametricModelParams
+
+redirect_ops_output()
 
 
 def build_model_config_from_params(
