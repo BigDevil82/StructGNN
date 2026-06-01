@@ -155,3 +155,63 @@ However, layout-level bias remains the dominant issue. Even after continuous wei
 - adding layout embedding or layout-cluster calibration;
 - training a conservative upper-bound/quantile model for optimization screening use;
 - using conformal calibration grouped by layout complexity or steel-demand regime.
+
+## 2026-06-01 Pairwise ranking for steel usage
+
+Motivation: exact steel-usage regression has layout-level bias and high-steel under-prediction. For optimization, relative order may be more useful than exact kg prediction, so we tested a pairwise ranker.
+
+Training setup:
+
+- Backbone: `Param + graph_feat MLP`
+- Score convention: lower score means lower predicted steel usage
+- Pair construction: same `layout_id + N + hs + h_story + intensity + site_class + seismic_group`
+- Training pairs ignore small steel gaps: `abs(diff) < 3000 kg`
+- Pair weights: `clip(abs(diff) / 20000, 0.5, 3.0)`
+- Loss: `BCEWithLogits(score_j - score_i, y_i < y_j)`
+
+Command:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\experiments\train_steel_pairwise_ranker.py `
+  --output-dir data\parametric\ckpt\steel_pairwise_ranker_v1 `
+  --graph-cache-dir data\parametric\cache\gnn_room_graph_cache `
+  --batch-size 2048 `
+  --max-epochs 2 `
+  --pairs-per-epoch 300000 `
+  --eval-pairs 200000 `
+  --min-pair-gap-kg 3000 `
+  --large-gap-kg 10000 `
+  --lr 0.0005 `
+  --weight-decay 0.0001 `
+  --hidden-dim 128 `
+  --dropout 0.1 `
+  --top-frac 0.1
+```
+
+Pairwise ranker result:
+
+| Split | pair_acc | large_gap_acc | spearman_group_mean | top10 recall | mean regret |
+|---|---:|---:|---:|---:|---:|
+| val | 0.969 | 0.999 | 0.966 | 0.917 | 171 kg |
+| test | 0.965 | 0.999 | 0.961 | 0.912 | 202 kg |
+
+Comparison with using existing regression predictions as ranking scores:
+
+| Ranker | pair_acc | large_gap_acc | top10 recall | mean regret |
+|---|---:|---:|---:|---:|
+| GNN regression prediction | 0.979 | 1.000 | 0.948 | 66 kg |
+| Param + graph_feat regression | 0.965 | 0.999 | 0.914 | 169 kg |
+| Continuous-weight MLP regression | 0.960 | 0.999 | 0.900 | 235 kg |
+| Pairwise ranker | 0.964 | 0.999 | 0.912 | 202 kg |
+
+Conclusion:
+
+- Pairwise ranking is feasible and gives very high comparison accuracy, especially for pairs with steel difference above 10 t.
+- However, direct pairwise training does not beat using the best regression model's prediction as a ranking score.
+- The best current ranker is still the previous GNN regression model when evaluated only as a sorter.
+- The pairwise formulation remains useful conceptually for optimization, but it should probably be used as an auxiliary loss or evaluation objective rather than replacing regression outright.
+
+Next recommended experiment:
+
+- Train a multitask `Param + graph_feat` model with both kg regression loss and pairwise ranking loss.
+- Evaluate by optimization-facing metrics: top-k recall, mean regret, and FEA-call reduction under GA preselection.
