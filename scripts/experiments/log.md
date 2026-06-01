@@ -274,3 +274,56 @@ Caveat:
 
 - This is only a small smoke-style optimization experiment, not yet statistically reliable.
 - The next step is to run multiple layouts and seeds with a fixed FEA budget, reporting mean/best objective, feasible rate, first feasible FEA count, and FEA-call reduction.
+
+## 2026-06-01 GA ranking batch pilot
+
+Goal: compare full GA-FEA, random preselection, and GNN steel-ranking preselection under the same GA settings.
+
+Implementation notes:
+
+- Added `scripts/experiments/run_ga_ranking_batch.py` to run repeated GA comparisons and write `summary.csv` / `summary_by_method.csv`.
+- Added a random preselection baseline for GA. It evaluates the same fraction of each generation as the GNN preselector, but chooses candidates randomly.
+- Fixed GA result selection to keep the global best candidate over all generations, prioritizing feasible candidates before objective value.
+- Redirected OpenSeesPy output with `ops.logFile("outputs/logs/ops.log", "-noEcho")` through `src/shearwall_modeling/ops_logging.py`, including process workers.
+
+Command:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\experiments\run_ga_ranking_batch.py `
+  --layouts L17_101 L17_123 `
+  --seeds 42 7 `
+  --methods full random gnn_rank `
+  --out-dir outputs\result\optimization\ranking_batch_pilot_v2 `
+  --ga-pop 8 `
+  --ga-gen 3 `
+  --ga-elite 1 `
+  --optimizer-workers 4 `
+  --eval-ratio 0.5 `
+  --min-eval 4 `
+  --random-ratio 0.125 `
+  --continue-on-error
+```
+
+Aggregate results:
+
+| Method | Runs | Feasible rate | Mean best objective | Mean material cost | Mean FEA calls | Skipped ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| Full GA-FEA | 4 | 0.75 | 754132 | 471303 | 28.0 | 0.0% |
+| Random preselection | 4 | 0.75 | 777519 | 491867 | 13.5 | 50.0% |
+| GNN steel ranking | 4 | 1.00 | 541006 | 510865 | 16.5 | 37.5% |
+
+Per-run observations:
+
+| Layout | Seed | Full | Random | GNN ranking |
+|---|---:|---:|---:|---:|
+| L17_101 | 42 | feasible, obj 479314, 29 FEA | feasible, obj 514648, 13 FEA | feasible, obj 460837, 17 FEA |
+| L17_101 | 7 | feasible, obj 487470, 27 FEA | feasible, obj 491733, 13 FEA | feasible, obj 504190, 15 FEA |
+| L17_123 | 42 | infeasible, obj 1474294, 29 FEA | infeasible, obj 1528244, 14 FEA | feasible, obj 623547, 18 FEA |
+| L17_123 | 7 | feasible, obj 575449, 27 FEA | feasible, obj 575449, 14 FEA | feasible, obj 575449, 16 FEA |
+
+Current conclusion:
+
+- GNN ranking reduced real FEA calls from 28.0 to 16.5 on average, about 41% fewer FEA evaluations in this pilot.
+- Random preselection used fewer FEA calls, but had worse objective quality and did not improve feasible rate.
+- GNN ranking found feasible solutions in all four pilot runs, including one case where full GA-FEA did not find a feasible candidate within the short budget.
+- This is still a small pilot. The result supports the direction, but the paper-level claim should use more layouts/seeds and preferably a fixed FEA-call budget comparison.
