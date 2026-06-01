@@ -4,6 +4,7 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -32,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--steel-ranking-artifact", default=r"data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt")
     p.add_argument("--steel-ranking-graph-cache", default=r"data\parametric\cache\gnn_room_graph_cache")
     p.add_argument("--continue-on-error", action="store_true")
+    p.add_argument("--skip-existing", action="store_true")
     return p
 
 
@@ -45,13 +47,27 @@ def main() -> None:
             for method in args.methods:
                 out_path = out_dir / f"{layout}_seed{seed}_{method}.json"
                 cmd = _command(args, layout, seed, method, out_path)
+                if args.skip_existing and out_path.exists():
+                    print(f"[batch] skip existing {out_path}")
+                    rows.append(_summarize(out_path, layout, seed, method))
+                    pd.DataFrame(rows).to_csv(out_dir / "summary.csv", index=False)
+                    continue
                 print("[batch]", " ".join(cmd))
                 try:
                     subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
                 except subprocess.CalledProcessError as exc:
                     if not args.continue_on_error:
                         raise
-                    rows.append({"layout_id": layout, "seed": seed, "method": method, "ok": False, "error": str(exc)})
+                    rows.append(
+                        {
+                            "ok": False,
+                            "layout_id": layout,
+                            "seed": seed,
+                            "method": method,
+                            "error": str(exc),
+                            "finished_at": datetime.now().isoformat(timespec="seconds"),
+                        }
+                    )
                     continue
                 rows.append(_summarize(out_path, layout, seed, method))
                 pd.DataFrame(rows).to_csv(out_dir / "summary.csv", index=False)
@@ -75,6 +91,7 @@ def main() -> None:
         )
         agg.to_csv(out_dir / "summary_by_method.csv")
         print(agg)
+        _write_paired_summary(ok, out_dir)
 
 
 def _command(args, layout: str, seed: int, method: str, out_path: Path) -> list[str]:
@@ -155,7 +172,55 @@ def _summarize(path: Path, layout: str, seed: int, method: str) -> dict[str, obj
         "steel_rank_skipped_ratio": float(last.get("steel_rank_skipped_ratio", 0.0)),
         "random_preselect_skipped_ratio": float(last.get("random_preselect_skipped_ratio", 0.0)),
         "result_path": str(path),
+        "finished_at": datetime.now().isoformat(timespec="seconds"),
     }
+
+
+def _write_paired_summary(summary: pd.DataFrame, out_dir: Path) -> None:
+    if "full" not in set(summary["method"]):
+        return
+    rows = []
+    full = summary[summary["method"] == "full"].set_index(["layout_id", "seed"])
+    for _, row in summary[summary["method"] != "full"].iterrows():
+        key = (row["layout_id"], row["seed"])
+        if key not in full.index:
+            continue
+        base = full.loc[key]
+        base_obj = float(base["best_objective"])
+        obj = float(row["best_objective"])
+        base_calls = float(base["fea_calls"])
+        calls = float(row["fea_calls"])
+        rows.append(
+            {
+                "layout_id": row["layout_id"],
+                "seed": int(row["seed"]),
+                "method": row["method"],
+                "full_feasible": bool(base["best_feasible"]),
+                "method_feasible": bool(row["best_feasible"]),
+                "full_objective": base_obj,
+                "method_objective": obj,
+                "objective_delta": obj - base_obj,
+                "objective_ratio": obj / base_obj if base_obj > 0 else float("nan"),
+                "full_fea_calls": base_calls,
+                "method_fea_calls": calls,
+                "fea_reduction": (base_calls - calls) / base_calls if base_calls > 0 else float("nan"),
+            }
+        )
+    paired = pd.DataFrame(rows)
+    if paired.empty:
+        return
+    paired.to_csv(out_dir / "paired_summary.csv", index=False)
+    agg = paired.groupby("method").agg(
+        pairs=("method", "size"),
+        method_feasible_rate=("method_feasible", "mean"),
+        full_feasible_rate=("full_feasible", "mean"),
+        mean_objective_delta=("objective_delta", "mean"),
+        mean_objective_ratio=("objective_ratio", "mean"),
+        mean_fea_reduction=("fea_reduction", "mean"),
+        median_fea_reduction=("fea_reduction", "median"),
+    )
+    agg.to_csv(out_dir / "paired_summary_by_method.csv")
+    print(agg)
 
 
 if __name__ == "__main__":
