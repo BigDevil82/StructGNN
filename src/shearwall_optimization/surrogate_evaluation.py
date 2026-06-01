@@ -8,7 +8,7 @@ from typing import Any, Callable
 from src.shearwall_optimization.core.contracts import EvaluationResult
 from src.shearwall_optimization.problems.shearwall_problem import ShearWallObjectiveConfig
 
-from .surrogate_material import SteelMaterialPredictor
+from .surrogate_material import SteelMaterialPrediction, SteelMaterialPredictor
 from .surrogate_screening import GNNFeasibilityScreener, ScreeningDecision, SurrogateScreeningConfig
 
 
@@ -81,7 +81,11 @@ class SurrogateEvaluationAccelerator:
     ) -> list[EvaluationResult]:
         decisions = self.screener.screen(xs)
         frames = self.screener.build_frame(xs)
-        material = self.material_predictor.predict(frames) if self.material_predictor is not None else [None] * len(xs)
+        material = (
+            self.material_predictor.predict(frames)
+            if self.material_predictor is not None
+            else [None] * len(xs)
+        )
 
         results: list[EvaluationResult | None] = [None] * len(xs)
         real_indices: list[int] = []
@@ -106,7 +110,7 @@ class SurrogateEvaluationAccelerator:
 
         return [res for res in results if res is not None]
 
-    def _can_accept(self, decision: ScreeningDecision, mat) -> bool:
+    def _can_accept(self, decision: ScreeningDecision, mat: SteelMaterialPrediction | None) -> bool:
         if not self.acceptance_cfg.enabled or mat is None:
             return False
         return (
@@ -131,7 +135,7 @@ class SurrogateEvaluationAccelerator:
             },
         )
 
-    def _accepted_result(self, decision: ScreeningDecision, mat) -> EvaluationResult:
+    def _accepted_result(self, decision: ScreeningDecision, mat: SteelMaterialPrediction) -> EvaluationResult:
         concrete_cost = _concrete_cost(mat.concrete_kg)
         steel_cost = self.objective_cfg.steel_price_per_kg * mat.steel_upper_kg
         material_cost = concrete_cost + steel_cost

@@ -310,9 +310,9 @@ class LayoutGraphBuilder:
         # 1. 绘制房间底图 (复用 RoomAnalyzer 风格)
         for node_id in self.graph.nodes:
             room: Polygon = self.graph.nodes[node_id]["poly"]
-            # x, y = room.exterior.xy
-            # ax.plot(x, y, color="black", linewidth=2, alpha=0.5)
-            # ax.fill(x, y, color="#A8A8A8", alpha=0.15)
+            x, y = room.exterior.xy
+            ax.plot(x, y, color="black", linewidth=2, alpha=0.5)
+            ax.fill(x, y, color="#A8A8A8", alpha=0.15)
 
             # 绘制节点 (质心) - 使用原始坐标
             cx, cy = room.centroid.x, room.centroid.y
@@ -404,9 +404,9 @@ def convert_to_graph(dxf_path: str, save_path: str = None):
 
     # 叠加剪力墙 Ground Truth (可选，为了验证对齐情况)
     # 这里只画一部分验证
-    # for res in analysis_results:
-    #     room = calibrated_rooms[res["room_index"]]
-    #     plot_room_analysis(room, np.array(res["sw_vector"]), res["masks"], ax, wall_color="green")
+    for res in analysis_results:
+        room = calibrated_rooms[res["room_index"]]
+        plot_room_analysis(room, np.array(res["sw_vector"]), res["masks"], ax, wall_color="green")
 
     ax.set_title(f"Layout Graph Visualization: {os.path.basename(dxf_path)}", fontsize=16, fontweight="bold")
     if save_path:
@@ -429,10 +429,8 @@ if __name__ == "__main__":
     # convert batch files
     from tqdm import tqdm
 
-    dxf_dir = (
-        r"E:\Common\Desktop\Research\deepLearning\codes\Png2Dxf\data\data\dxf\to_process\room_finished\final"
-    )
-    save_dir = Path(dxf_dir).parent / "room_graph"
+    dxf_dir = r"data\dxf\fem_raw"
+    save_dir = Path(dxf_dir).parent / "plots" / "room_graph"
     os.makedirs(save_dir, exist_ok=True)
     dxf_files = [f for f in os.listdir(dxf_dir) if f.endswith(".dxf")]
     for dxf_file in tqdm(dxf_files):

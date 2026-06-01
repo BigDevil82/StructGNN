@@ -52,7 +52,7 @@ def train_steel_quantile_model(cfg: SteelQuantileConfig) -> dict[str, object]:
     mean_model = _fit_mean_model(cfg, x_train, y_train, x_val, y_val)
     upper_model = _fit_quantile_model(cfg, cfg.upper_alpha, x_train, y_train, x_val, y_val)
 
-    val_mean = mean_model.predict(x_val)
+    # val_mean = mean_model.predict(x_val)
     val_upper_raw = upper_model.predict(x_val)
     cal_margin = _calibrate_upper_margin(y_val, val_upper_raw, cfg.upper_alpha)
 
@@ -82,7 +82,9 @@ def train_steel_quantile_model(cfg: SteelQuantileConfig) -> dict[str, object]:
     out_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(mean_model, out_dir / "steel_mean_lightgbm.joblib")
     joblib.dump(upper_model, out_dir / "steel_upper_lightgbm.joblib")
-    (out_dir / "feature_columns.json").write_text(json.dumps(trained_cols, ensure_ascii=True, indent=2), encoding="utf-8")
+    (out_dir / "feature_columns.json").write_text(
+        json.dumps(trained_cols, ensure_ascii=True, indent=2), encoding="utf-8"
+    )
     (out_dir / "metrics.json").write_text(json.dumps(metrics, ensure_ascii=True, indent=2), encoding="utf-8")
     return metrics
 
@@ -148,7 +150,9 @@ def _encode(
     x_train = pd.get_dummies(x_train, columns=CAT_COLS, dtype=float)
     trained_cols = list(x_train.columns)
     x_val = pd.get_dummies(x_val, columns=CAT_COLS, dtype=float).reindex(columns=trained_cols, fill_value=0.0)
-    x_test = pd.get_dummies(x_test, columns=CAT_COLS, dtype=float).reindex(columns=trained_cols, fill_value=0.0)
+    x_test = pd.get_dummies(x_test, columns=CAT_COLS, dtype=float).reindex(
+        columns=trained_cols, fill_value=0.0
+    )
     return x_train, x_val, x_test, trained_cols
 
 

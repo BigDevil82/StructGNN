@@ -10,7 +10,11 @@ import torch
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from src.surrogate.gnn.dataset import CAT_COLS, NUM_COLS, GNNDataConfig, build_dataloaders
-from src.surrogate.gnn.graph_data import ROOM_GRAPH_FEATURE_VERSION, LayoutGraphCacheConfig, build_layout_graph_cache
+from src.surrogate.gnn.graph_data import (
+    ROOM_GRAPH_FEATURE_VERSION,
+    LayoutGraphCacheConfig,
+    build_layout_graph_cache,
+)
 from src.surrogate.gnn.model import LayoutParamGNN, auto_param_emb_dims
 
 TARGET = "material_steel_kg"
@@ -78,18 +82,12 @@ def run_gnn_steel_train(cfg: GNNSteelTrainConfig) -> dict[str, object]:
     best_epoch = -1
     bad_rounds = 0
 
-    for epoch in range(cfg.max_epochs):
+    for epoch in range(1, cfg.max_epochs + 1):
+        # epoch is 1-based for logging
         train_loss = _train_one_epoch(model, loaders["train"], criterion, optimizer, device, y_mean, y_std)
         val_stat = _eval_regression(model, loaders["val"], device, y_mean, y_std)
         monitor = float(val_stat["mae"])
         scheduler.step(monitor)
-
-        if epoch == 0 or (epoch + 1) % max(cfg.log_interval, 1) == 0:
-            print(
-                f"[surrogate][gnn-steel] epoch={epoch + 1}/{cfg.max_epochs} "
-                f"train_loss={train_loss:.6f} val_mae={val_stat['mae']:.3f} "
-                f"val_rmse={val_stat['rmse']:.3f} val_r2={val_stat['r2']:.6f} best_mae={best_score:.3f}"
-            )
 
         if monitor < best_score:
             best_score = monitor
@@ -100,10 +98,17 @@ def run_gnn_steel_train(cfg: GNNSteelTrainConfig) -> dict[str, object]:
             bad_rounds += 1
             if bad_rounds >= cfg.early_stop_rounds:
                 print(
-                    f"[surrogate][gnn-steel] early_stop epoch={epoch + 1} "
-                    f"best_epoch={best_epoch + 1} best_mae={best_score:.3f}"
+                    f"[surrogate][gnn-steel] early_stop epoch={epoch} "
+                    f"best_epoch={best_epoch} best_mae={best_score:.3f}"
                 )
                 break
+
+        if epoch == 1 or (epoch) % max(cfg.log_interval, 1) == 0:
+            print(
+                f"[surrogate][gnn-steel] epoch={epoch}/{cfg.max_epochs} "
+                f"train_loss={train_loss:.6f} val_mae={val_stat['mae']:.3f} "
+                f"val_rmse={val_stat['rmse']:.3f} val_r2={val_stat['r2']:.6f} best_mae={best_score:.3f}"
+            )
 
     if best_state is None:
         raise RuntimeError("GNN steel model failed to produce a valid checkpoint")
@@ -160,7 +165,9 @@ def run_gnn_steel_train(cfg: GNNSteelTrainConfig) -> dict[str, object]:
     return metrics
 
 
-def _build_model(cfg: GNNSteelTrainConfig, pre, node_dim: int, edge_dim: int, graph_feat_dim: int) -> LayoutParamGNN:
+def _build_model(
+    cfg: GNNSteelTrainConfig, pre, node_dim: int, edge_dim: int, graph_feat_dim: int
+) -> LayoutParamGNN:
     cat_cardinalities = [len(pre.cat_vocab[c]) for c in CAT_COLS]
     return LayoutParamGNN(
         node_dim=node_dim,
@@ -184,10 +191,13 @@ def _target_stats(loader) -> tuple[float, float]:
     return float(y.mean()), float(max(y.std(ddof=0), 1.0e-6))
 
 
-def _train_one_epoch(model, loader, criterion, optimizer, device: torch.device, y_mean: float, y_std: float) -> float:
+def _train_one_epoch(
+    model, loader, criterion, optimizer, device: torch.device, y_mean: float, y_std: float
+) -> float:
     model.train()
     losses = []
-    for batch in loader:
+    total_batches = len(loader)
+    for i, batch in enumerate(loader):
         batch = batch.to(device)
         y = _normalize_target(batch.y, y_mean, y_std)
         optimizer.zero_grad(set_to_none=True)
@@ -196,6 +206,8 @@ def _train_one_epoch(model, loader, criterion, optimizer, device: torch.device, 
         loss.backward()
         optimizer.step()
         losses.append(float(loss.detach().cpu().item()))
+        if (i + 1) % 50 == 0 or (i + 1) == total_batches:
+            print(f"\rbatch: {i + 1}/{total_batches}, Loss: {losses[-1]:.4f}", flush=True, end="")
     return float(np.mean(losses)) if losses else 0.0
 
 

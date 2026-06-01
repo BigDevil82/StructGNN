@@ -103,7 +103,9 @@ def run(cfg: SteelAblationConfig) -> dict[str, object]:
     if cfg.baseline == "param_only":
         model = ParamOnlySteelMLP(len(NUM_COLS), cat_cardinalities, cfg.hidden_dim, cfg.dropout)
     elif cfg.baseline == "param_graph_feat":
-        model = ParamGraphFeatSteelMLP(graph_feat_dim, len(NUM_COLS), cat_cardinalities, cfg.hidden_dim, cfg.dropout)
+        model = ParamGraphFeatSteelMLP(
+            graph_feat_dim, len(NUM_COLS), cat_cardinalities, cfg.hidden_dim, cfg.dropout
+        )
     else:
         raise ValueError(f"Unknown baseline: {cfg.baseline}")
 

@@ -44,6 +44,7 @@ def run_shearwall_optimization(
     pso_cfg: ParticleSwarmConfig | None = None,
     random_cfg: RandomSearchConfig | None = None,
 ) -> OptimizationResult:
+    print(f"Running optimization with algorithm={algorithm}")
     cfg = analysis_cfg or DatasetGenerationConfig(samples_per_layout=1, samples_per_task=1, max_workers=0)
     problem = ShearWallOptimizationProblem(
         layout_path=layout_path,

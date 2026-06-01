@@ -10,7 +10,11 @@ import torch
 from sklearn.metrics import average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
 
 from src.surrogate.gnn.dataset import CAT_COLS, NUM_COLS, GNNDataConfig, build_dataloaders
-from src.surrogate.gnn.graph_data import ROOM_GRAPH_FEATURE_VERSION, LayoutGraphCacheConfig, build_layout_graph_cache
+from src.surrogate.gnn.graph_data import (
+    ROOM_GRAPH_FEATURE_VERSION,
+    LayoutGraphCacheConfig,
+    build_layout_graph_cache,
+)
 from src.surrogate.gnn.model import LayoutParamGNN, auto_param_emb_dims
 from src.surrogate.training.lightgbm_baseline import CLASS_TASK
 
@@ -228,7 +232,8 @@ def _estimate_pos_weight(loader, device: torch.device) -> torch.Tensor:
 def _train_one_epoch(model, loader, criterion, optimizer, device: torch.device) -> float:
     model.train()
     losses = []
-    for batch in loader:
+    total_batches = len(loader)
+    for i, batch in enumerate(loader):
         batch = batch.to(device)
         optimizer.zero_grad(set_to_none=True)
         logits = model(batch)
@@ -236,6 +241,8 @@ def _train_one_epoch(model, loader, criterion, optimizer, device: torch.device) 
         loss.backward()
         optimizer.step()
         losses.append(float(loss.detach().cpu().item()))
+        if (i + 1) % 50 == 0 or (i + 1) == total_batches:
+            print(f"\rbatch: {i + 1}/{total_batches}, Loss: {losses[-1]:.4f}", flush=True, end="")
     return float(np.mean(losses)) if losses else 0.0
 
 

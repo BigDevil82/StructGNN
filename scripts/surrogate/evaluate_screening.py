@@ -96,9 +96,10 @@ def _screening_metrics(df: pd.DataFrame, threshold: float) -> dict[str, float]:
     reject_count = max(int(reject.sum()), 1)
     keep_count = max(int(keep.sum()), 1)
 
-    false_reject = reject & feasible
-    true_reject = reject & infeasible
+    reject_feasible = reject & feasible
+    reject_infeasible = reject & infeasible
     kept_feasible = keep & feasible
+    kept_infeasible = keep & infeasible
 
     return {
         "samples": float(len(df)),
@@ -106,10 +107,11 @@ def _screening_metrics(df: pd.DataFrame, threshold: float) -> dict[str, float]:
         "reject_rate": float(reject.mean()),
         "keep_rate": float(keep.mean()),
         "feasible_recall": float(kept_feasible.sum() / feasible_count),
-        "false_reject_rate": float(false_reject.sum() / feasible_count),
-        "false_reject_count": float(false_reject.sum()),
-        "reject_infeasible_precision": float(true_reject.sum() / reject_count),
+        "false_reject_rate": float(reject_feasible.sum() / feasible_count),
+        "false_reject_count": float(reject_feasible.sum()),
+        "reject_infeasible_precision": float(reject_infeasible.sum() / reject_count),
         "kept_feasible_rate": float(kept_feasible.sum() / keep_count),
+        "kept_infeasible_rate": float(kept_infeasible.sum() / keep_count),
     }
 
 

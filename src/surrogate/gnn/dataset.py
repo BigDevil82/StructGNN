@@ -12,7 +12,7 @@ from torch_geometric.loader import DataLoader
 from src.surrogate.training.lightgbm_baseline import CLASS_TASK, LAYOUT_FEATURES, PARAM_FEATURES
 
 CAT_COLS = ["conc_bot", "intensity", "site_class", "seismic_group"]
-FEATURE_COLS = PARAM_FEATURES + LAYOUT_FEATURES
+FEATURE_COLS = PARAM_FEATURES  # + LAYOUT_FEATURES
 NUM_COLS = [col for col in FEATURE_COLS if col not in CAT_COLS]
 
 

@@ -29,6 +29,7 @@ logger = setup_file_logger(
     "ShearwallAnalyzer", Path("outputs/result/logs/shearwall_analyzer.log"), logging.INFO
 )
 logger.info("\n\n\n\nSHEARWALL ANALYZER STARTED\n")
+ops.logFile("outputs/logs/ops.log", "-noEcho")
 
 
 def build_single(json_path: Path) -> None:
@@ -53,7 +54,7 @@ def build_single(json_path: Path) -> None:
 
     logger.info(f"Geometry scale factor used: {scale:.2f}")
 
-    standard_story_groups = [StandardStoryGroupConfig(count=8, story_height=3.0)]
+    standard_story_groups = [StandardStoryGroupConfig(count=18, story_height=3.0)]
     config = ModelConfig(num_modes=num_modes, standard_story_groups=standard_story_groups)
     config.seismic.combination_method = combine_method
 

@@ -63,6 +63,10 @@ def main() -> None:
     fig_path = out_dir / "param_error_bars.png"
     _plot_param_error_bars(param_metrics, fig_path)
 
+    hist_path = out_dir / "steel_true_hist.png"
+    _plot_true_steel_histogram(df, hist_path)
+    norm_hist_path = out_dir / "steel_true_hist_normalized.png"
+    _plot_normalized_true_histogram(df, norm_hist_path)
     summary = {
         "overall": _metrics(df),
         "outputs": {
@@ -73,6 +77,8 @@ def main() -> None:
             "param_bucket": str(out_dir / "metrics_by_param_bucket.csv"),
             "layout": str(out_dir / "metrics_by_layout.csv"),
             "param_error_plot": str(fig_path),
+            "steel_true_hist": str(hist_path),
+            "steel_true_hist_normalized": str(norm_hist_path),
         },
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=True, indent=2), encoding="utf-8")
@@ -205,6 +211,49 @@ def _plot_param_error_bars(param_metrics: pd.DataFrame, output_path: Path) -> No
     plt.close(fig)
 
 
+def _plot_true_steel_histogram(df: pd.DataFrame, output_path: Path) -> None:
+    """Plot histogram of the true steel usage (`steel_true_kg`) and save to `output_path`."""
+    vals = df["steel_true_kg"].dropna().to_numpy(dtype=float)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.hist(vals, bins=30, color="#4C78A8", edgecolor="black")
+    ax.set_xlabel("True steel usage (kg)")
+    ax.set_ylabel("Count")
+    ax.set_title("Distribution of True Steel Usage")
+    ax.grid(alpha=0.25)
+    fig.savefig(output_path, dpi=180)
+    plt.close(fig)
+
+
+def _normalize_target(y: torch.Tensor, y_mean: float, y_std: float) -> torch.Tensor:
+    return (torch.log1p(y) - y_mean) / y_std
+
+
+def _plot_normalized_true_histogram(df: pd.DataFrame, output_path: Path) -> None:
+    """Compute normalization using log1p, plot histogram of normalized targets, and save."""
+    vals = df["steel_true_kg"].dropna().to_numpy(dtype=float)
+    if len(vals) == 0:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.text(0.5, 0.5, "No data", ha="center", va="center")
+        fig.savefig(output_path, dpi=180)
+        plt.close(fig)
+        return
+
+    y = torch.tensor(vals, dtype=torch.float32)
+    y_log = torch.log1p(y)
+    y_mean = float(y_log.mean().item())
+    y_std = float(y_log.std(unbiased=False).item())
+    norm = _normalize_target(y, y_mean, y_std).numpy()
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.hist(norm, bins=30, color="#4C78A8", edgecolor="black")
+    ax.set_xlabel("Normalized target")
+    ax.set_ylabel("Count")
+    ax.set_title(f"Normalized True Steel Usage (mean={y_mean:.3f}, std={y_std:.3f})")
+    ax.grid(alpha=0.25)
+    fig.savefig(output_path, dpi=180)
+    plt.close(fig)
+
+
 def _make_report(
     summary: dict,
     y_bucket: pd.DataFrame,
@@ -233,11 +282,15 @@ def _make_report(
     lines.append("## Worst Parameter Buckets")
     lines.append("")
     worst_param = param_metrics.sort_values("mae", ascending=False).head(15)
-    lines.append(_metric_table(worst_param[["param", "bucket", "count", "mae", "rmse", "mape", "r2", "bias"]]))
+    lines.append(
+        _metric_table(worst_param[["param", "bucket", "count", "mae", "rmse", "mape", "r2", "bias"]])
+    )
     lines.append("")
     lines.append("## Worst Layouts")
     lines.append("")
-    lines.append(_metric_table(layout_metrics.head(15)[["layout_id", "count", "mae", "rmse", "mape", "r2", "bias"]]))
+    lines.append(
+        _metric_table(layout_metrics.head(15)[["layout_id", "count", "mae", "rmse", "mape", "r2", "bias"]])
+    )
     lines.append("")
     lines.append("## Outputs")
     for key, value in summary["outputs"].items():
