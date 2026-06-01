@@ -267,3 +267,22 @@
 #   --dataset-path data\parametric\surrogate_dataset\splits\surrogate_samples_with_splits.parquet `
 #   --predictions-path data\parametric\surrogate_dataset\predictions_lightgbm.parquet `
 #   --output-dir outputs\surrogate\analysis_figures
+
+
+
+# ---------------------------------------------------------------------------
+# 9. GNN steel ranking preselection to GA
+# ---------------------------------------------------------------------------
+
+# python scripts\shearwall_optimize_main.py `
+#   --algorithm ga `
+#   --layout-path data\dxf\cad_json_data\fem_raw\L17_101.json `
+#   --N 18 --intensity 6.0 --site-class II --seismic-group 1 `
+#   --ga-pop 8 --ga-gen 3 `
+#   --optimizer-workers 4 `
+#   --ga-steel-ranking `
+#   --ga-steel-ranking-eval-ratio 0.5 `
+#   --ga-steel-ranking-min-eval 4 `
+#   --ga-steel-ranking-random-ratio 0.125 `
+#   --ga-steel-ranking-artifact data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt `
+#   --ga-steel-ranking-graph-cache data\parametric\cache\gnn_room_graph_cache
