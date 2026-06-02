@@ -10,19 +10,19 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# Selected from the surrogate test split, three layouts per layout family.
 LARGE_LAYOUTS = [
-    "L17_101",
-    "L17_102",
-    "L17_109",
     "L17_123",
     "L17_125",
-    "L17_130",
-    "L17_137",
-    "L17_145",
-    "L17_155",
-    "L17_208",
+    "L17_127",
+    "L27_57",
+    "L27_59",
+    "L27_100",
+    "L1L28_11",
+    "L1L28_25",
+    "L1L28_30",
 ]
-SMALL_LAYOUTS = ["L17_101", "L17_123", "L17_145", "L17_208"]
+SMALL_LAYOUTS = ["L17_123", "L27_57", "L1L28_11"]
 LARGE_SEEDS = [42, 7, 2025, 3407]
 SMALL_SEEDS = [42, 7]
 
