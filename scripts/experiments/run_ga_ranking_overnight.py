@@ -31,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run overnight GA ranking experiments.")
     p.add_argument("--out-root", default=r"outputs\result\optimization\ranking_overnight")
     p.add_argument("--only", nargs="+", choices=("primary_large", "ratio_025", "ratio_075", "robust_i7"))
-    p.add_argument("--ga-pop", type=int, default=16)
+    p.add_argument("--ga-pop", type=int, default=24)
     p.add_argument("--ga-gen", type=int, default=8)
     p.add_argument("--optimizer-workers", type=int, default=4)
     p.add_argument("--include-fused", action="store_true")
@@ -183,7 +183,9 @@ def _write_combined_summary(out_root: Path) -> None:
         df.insert(0, "experiment", path.parent.name)
         paired_rows.append(df)
     if paired_rows:
-        pd.concat(paired_rows, ignore_index=True).to_csv(out_root / "combined_paired_summary_by_method.csv", index=False)
+        pd.concat(paired_rows, ignore_index=True).to_csv(
+            out_root / "combined_paired_summary_by_method.csv", index=False
+        )
 
 
 if __name__ == "__main__":
