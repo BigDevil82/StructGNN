@@ -100,6 +100,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-steel-ranking-min-eval", type=int, default=8)
     p.add_argument("--ga-steel-ranking-random-ratio", type=float, default=0.1)
     p.add_argument("--ga-steel-ranking-batch-size", type=int, default=512)
+    p.add_argument("--ga-steel-ranking-use-feasibility", action="store_true")
+    p.add_argument(
+        "--ga-steel-ranking-feasibility-artifact",
+        default=r"data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt",
+    )
+    p.add_argument(
+        "--ga-steel-ranking-feasibility-graph-cache",
+        default=r"data\parametric\cache\gnn_room_graph_cache",
+    )
+    p.add_argument(
+        "--ga-steel-ranking-feasibility-layout-features",
+        default=r"data\parametric\surrogate_dataset\layout_features.parquet",
+    )
+    p.add_argument("--ga-steel-ranking-feasibility-threshold", type=float, default=None)
+    p.add_argument("--ga-steel-ranking-feasibility-penalty-kg", type=float, default=200000.0)
     p.add_argument("--ga-random-preselect", action="store_true")
     p.add_argument("--ga-random-preselect-eval-ratio", type=float, default=0.5)
     p.add_argument("--ga-random-preselect-min-eval", type=int, default=8)
@@ -182,6 +197,12 @@ def main() -> None:
             min_eval_count=args.ga_steel_ranking_min_eval,
             random_ratio=args.ga_steel_ranking_random_ratio,
             batch_size=args.ga_steel_ranking_batch_size,
+            use_feasibility_penalty=args.ga_steel_ranking_use_feasibility,
+            feasibility_artifact_path=args.ga_steel_ranking_feasibility_artifact,
+            feasibility_graph_cache_dir=args.ga_steel_ranking_feasibility_graph_cache,
+            feasibility_layout_features_path=args.ga_steel_ranking_feasibility_layout_features,
+            feasibility_threshold=args.ga_steel_ranking_feasibility_threshold,
+            feasibility_penalty_kg=args.ga_steel_ranking_feasibility_penalty_kg,
         ),
         random_preselection=RandomPreselectionConfig(
             enabled=args.ga_random_preselect,

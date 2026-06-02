@@ -11,6 +11,7 @@ from torch_geometric.loader import DataLoader
 from src.surrogate.gnn.dataset import ParamPreprocessor, SurrogateGNNDataset
 from src.surrogate.gnn.model import LayoutParamGNN
 from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES
+from .surrogate_screening import GNNFeasibilityScreener, SurrogateScreeningConfig
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,22 @@ class SteelRankingConfig:
     batch_size: int = 512
     num_workers: int = 0
     skipped_objective: float = 1.0e12
+    use_feasibility_penalty: bool = False
+    feasibility_artifact_path: str = (
+        r"data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt"
+    )
+    feasibility_graph_cache_dir: str = r"data\parametric\cache\gnn_room_graph_cache"
+    feasibility_layout_features_path: str = r"data\parametric\surrogate_dataset\layout_features.parquet"
+    feasibility_threshold: float | None = None
+    feasibility_penalty_kg: float = 200000.0
+
+
+@dataclass(frozen=True)
+class SteelRankingPrediction:
+    score: float
+    steel_kg: float
+    feasible_probability: float | None = None
+    infeasible_risk: float = 0.0
 
 
 class GNNSteelRanker:
@@ -39,6 +56,7 @@ class GNNSteelRanker:
         self.layout_id = str(layout_id)
         self.fixed_params = dict(fixed_params)
         self._cache: dict[tuple[Any, ...], float] = {}
+        self._rank_cache: dict[tuple[Any, ...], SteelRankingPrediction] = {}
 
         artifact = torch.load(Path(cfg.artifact_path), map_location="cpu", weights_only=True)
         self.pre = ParamPreprocessor.from_dict(artifact["preprocess"])
@@ -55,8 +73,48 @@ class GNNSteelRanker:
         if match.empty:
             raise ValueError(f"Missing layout features for layout_id={self.layout_id}: {cfg.layout_features_path}")
         self.layout_features = match.iloc[0][LAYOUT_FEATURES].to_dict()
+        self.feasibility = self._build_feasibility_screener()
 
     def predict(self, decisions: list[dict[str, Any]]) -> list[float]:
+        return [item.score for item in self.rank(decisions)]
+
+    def rank(self, decisions: list[dict[str, Any]]) -> list[SteelRankingPrediction]:
+        if not self.cfg.use_feasibility_penalty:
+            return [
+                SteelRankingPrediction(score=steel, steel_kg=steel)
+                for steel in self._predict_steel(decisions)
+            ]
+
+        out: list[SteelRankingPrediction | None] = [None] * len(decisions)
+        pending: list[tuple[int, dict[str, Any], tuple[Any, ...]]] = []
+        for i, decision in enumerate(decisions):
+            key = _decision_key(decision)
+            cached = self._rank_cache.get(key)
+            if cached is None:
+                pending.append((i, decision, key))
+            else:
+                out[i] = cached
+
+        if pending:
+            items = [item[1] for item in pending]
+            steel_preds = self._predict_steel(items)
+            feas = self.feasibility.screen(items) if self.feasibility is not None else []
+            for (idx, _, key), steel, decision in zip(pending, steel_preds, feas):
+                prob = float(decision.probability)
+                risk = max(0.0, min(1.0, 1.0 - prob))
+                score = float(steel) + float(self.cfg.feasibility_penalty_kg) * risk
+                item = SteelRankingPrediction(
+                    score=score,
+                    steel_kg=float(steel),
+                    feasible_probability=prob,
+                    infeasible_risk=risk,
+                )
+                self._rank_cache[key] = item
+                out[idx] = item
+
+        return [item for item in out if item is not None]
+
+    def _predict_steel(self, decisions: list[dict[str, Any]]) -> list[float]:
         out: list[float | None] = [None] * len(decisions)
         pending: list[tuple[int, dict[str, Any], tuple[Any, ...]]] = []
         for i, decision in enumerate(decisions):
@@ -75,6 +133,24 @@ class GNNSteelRanker:
                 out[idx] = float(pred)
 
         return [float(v) for v in out if v is not None]
+
+    def _build_feasibility_screener(self) -> GNNFeasibilityScreener | None:
+        if not self.cfg.use_feasibility_penalty:
+            return None
+        cfg = SurrogateScreeningConfig(
+            enabled=True,
+            artifact_path=self.cfg.feasibility_artifact_path,
+            graph_cache_dir=self.cfg.feasibility_graph_cache_dir,
+            layout_features_path=self.cfg.feasibility_layout_features_path,
+            screening_threshold=self.cfg.feasibility_threshold,
+            batch_size=self.cfg.batch_size,
+            num_workers=self.cfg.num_workers,
+        )
+        return GNNFeasibilityScreener(
+            cfg,
+            layout_id=self.layout_id,
+            fixed_params=self.fixed_params,
+        )
 
     def _build_frame(self, decisions: list[dict[str, Any]]) -> pd.DataFrame:
         rows = []

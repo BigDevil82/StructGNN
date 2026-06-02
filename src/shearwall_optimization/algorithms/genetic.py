@@ -104,6 +104,13 @@ class GeneticAlgorithmOptimizer(Optimizer):
                             "surrogate_material_accept": bool(res.metrics.get("surrogate_material_accept", False)),
                             "steel_rank_skip": bool(res.metrics.get("steel_rank_skip", False)),
                             "steel_rank_score": float(res.metrics.get("steel_rank_score", float("nan"))),
+                            "steel_rank_kg": float(res.metrics.get("steel_rank_kg", float("nan"))),
+                            "steel_rank_feasible_probability": float(
+                                res.metrics.get("steel_rank_feasible_probability", float("nan"))
+                            ),
+                            "steel_rank_infeasible_risk": float(
+                                res.metrics.get("steel_rank_infeasible_risk", float("nan"))
+                            ),
                             "random_preselect_skip": bool(res.metrics.get("random_preselect_skip", False)),
                         }
                         for _, res in raw_scored
@@ -223,7 +230,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
     ) -> list[tuple[dict[str, Any], EvaluationResult]]:
         assert self.steel_ranker is not None
         cfg = self.config.steel_ranking or SteelRankingConfig(enabled=False)
-        scores = self.steel_ranker.predict(repaired)
+        rank_preds = self.steel_ranker.rank(repaired)
+        scores = [item.score for item in rank_preds]
         n = len(repaired)
         eval_count = min(n, max(int(cfg.min_eval_count), int(round(n * cfg.eval_ratio))))
         order = sorted(range(n), key=lambda i: scores[i])
@@ -244,7 +252,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
         results: list[EvaluationResult | None] = [None] * n
         for idx, res in zip(selected_indices, eval_results):
             metrics = dict(res.metrics)
-            metrics["steel_rank_score"] = float(scores[idx])
+            metrics.update(self._steel_rank_metrics(rank_preds[idx], selected=True))
             metrics["steel_rank_selected"] = True
             results[idx] = EvaluationResult(
                 objective=res.objective,
@@ -256,10 +264,10 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
         for i in range(n):
             if results[i] is None:
-                results[i] = self._steel_rank_skipped_result(scores[i], cfg)
+                results[i] = self._steel_rank_skipped_result(rank_preds[i], cfg)
         return [(x, res) for x, res in zip(repaired, results) if res is not None]
 
-    def _steel_rank_skipped_result(self, score: float, cfg: SteelRankingConfig) -> EvaluationResult:
+    def _steel_rank_skipped_result(self, pred, cfg: SteelRankingConfig) -> EvaluationResult:
         objective = float(cfg.skipped_objective)
         return EvaluationResult(
             objective=objective,
@@ -268,9 +276,21 @@ class GeneticAlgorithmOptimizer(Optimizer):
             constraints={"steel_rank_skip": 1.0},
             metrics={
                 "steel_rank_skip": True,
-                "steel_rank_score": float(score),
+                **self._steel_rank_metrics(pred, selected=False),
             },
         )
+
+    @staticmethod
+    def _steel_rank_metrics(pred, *, selected: bool) -> dict[str, float | bool]:
+        return {
+            "steel_rank_score": float(pred.score),
+            "steel_rank_kg": float(pred.steel_kg),
+            "steel_rank_feasible_probability": (
+                float("nan") if pred.feasible_probability is None else float(pred.feasible_probability)
+            ),
+            "steel_rank_infeasible_risk": float(pred.infeasible_risk),
+            "steel_rank_selected": bool(selected),
+        }
 
     def _real_evaluate_many(self, items: list[dict[str, Any]]) -> list[EvaluationResult]:
         if not items:

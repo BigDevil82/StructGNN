@@ -16,7 +16,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run GA FEA-budget comparison experiments.")
     p.add_argument("--layouts", nargs="+", default=["L17_101", "L17_123", "L17_125"])
     p.add_argument("--seeds", nargs="+", type=int, default=[42, 7])
-    p.add_argument("--methods", nargs="+", choices=("full", "random", "gnn_rank"), default=["full", "random", "gnn_rank"])
+    p.add_argument(
+        "--methods",
+        nargs="+",
+        choices=("full", "random", "gnn_rank", "gnn_fused"),
+        default=["full", "random", "gnn_rank"],
+    )
     p.add_argument("--out-dir", default=r"outputs\result\optimization\ranking_batch")
     p.add_argument("--N", type=int, default=18)
     p.add_argument("--intensity", type=float, default=6.0)
@@ -32,6 +37,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--random-ratio", type=float, default=0.125)
     p.add_argument("--steel-ranking-artifact", default=r"data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt")
     p.add_argument("--steel-ranking-graph-cache", default=r"data\parametric\cache\gnn_room_graph_cache")
+    p.add_argument(
+        "--feasibility-artifact",
+        default=r"data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt",
+    )
+    p.add_argument(
+        "--feasibility-graph-cache",
+        default=r"data\parametric\cache\gnn_room_graph_cache",
+    )
+    p.add_argument("--feasibility-penalty-kg", type=float, default=200000.0)
     p.add_argument("--continue-on-error", action="store_true")
     p.add_argument("--skip-existing", action="store_true")
     return p
@@ -133,7 +147,7 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path) -> list[
             "--ga-random-preselect-min-eval",
             str(args.min_eval),
         ]
-    elif method == "gnn_rank":
+    elif method in {"gnn_rank", "gnn_fused"}:
         cmd += [
             "--ga-steel-ranking",
             "--ga-steel-ranking-eval-ratio",
@@ -147,6 +161,16 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path) -> list[
             "--ga-steel-ranking-graph-cache",
             args.steel_ranking_graph_cache,
         ]
+        if method == "gnn_fused":
+            cmd += [
+                "--ga-steel-ranking-use-feasibility",
+                "--ga-steel-ranking-feasibility-artifact",
+                args.feasibility_artifact,
+                "--ga-steel-ranking-feasibility-graph-cache",
+                args.feasibility_graph_cache,
+                "--ga-steel-ranking-feasibility-penalty-kg",
+                str(args.feasibility_penalty_kg),
+            ]
     return cmd
 
 
