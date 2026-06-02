@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-pop", type=int, default=16)
     p.add_argument("--ga-gen", type=int, default=8)
     p.add_argument("--optimizer-workers", type=int, default=4)
+    p.add_argument("--include-fused", action="store_true")
+    p.add_argument("--feasibility-penalty-kg", type=float, default=200000.0)
     p.add_argument("--dry-run", action="store_true")
     return p
 
@@ -73,6 +75,8 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
         "--continue-on-error",
         "--skip-existing",
     ]
+    if args.include_fused:
+        common += ["--feasibility-penalty-kg", str(args.feasibility_penalty_kg)]
     return [
         (
             "primary_large",
@@ -84,6 +88,7 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
                 min_eval=8,
                 random_ratio=0.125,
                 extra=common,
+                include_fused=args.include_fused,
             ),
         ),
         (
@@ -96,6 +101,7 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
                 min_eval=4,
                 random_ratio=0.125,
                 extra=common,
+                include_fused=args.include_fused,
             ),
         ),
         (
@@ -108,6 +114,7 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
                 min_eval=8,
                 random_ratio=0.125,
                 extra=common,
+                include_fused=args.include_fused,
             ),
         ),
         (
@@ -120,6 +127,7 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
                 min_eval=8,
                 random_ratio=0.125,
                 extra=common + ["--intensity", "7.0"],
+                include_fused=args.include_fused,
             ),
         ),
     ]
@@ -134,7 +142,11 @@ def _batch_cmd(
     min_eval: int,
     random_ratio: float,
     extra: list[str],
+    include_fused: bool,
 ) -> list[str]:
+    methods = ["full", "random", "gnn_rank"]
+    if include_fused:
+        methods.append("gnn_fused")
     return [
         sys.executable,
         "scripts/experiments/run_ga_ranking_batch.py",
@@ -143,9 +155,7 @@ def _batch_cmd(
         "--seeds",
         *[str(seed) for seed in seeds],
         "--methods",
-        "full",
-        "random",
-        "gnn_rank",
+        *methods,
         "--out-dir",
         str(out_dir),
         "--eval-ratio",

@@ -12,11 +12,13 @@ SMALL_SEEDS = [42, 7]
 METHOD_LABELS = {
     "full": "Full GA-FEA",
     "gnn_rank": "GNN ranking",
+    "gnn_fused": "GNN fused",
     "random": "Random preselect",
 }
 METHOD_COLORS = {
     "full": "#4C78A8",
     "gnn_rank": "#F58518",
+    "gnn_fused": "#B279A2",
     "random": "#54A24B",
 }
 
@@ -33,7 +35,7 @@ def main() -> None:
 def _plot_primary_summary() -> None:
     df = pd.read_csv(ROOT / "primary_large" / "summary_by_method.csv")
     df["label"] = df["method"].map(METHOD_LABELS)
-    colors = [METHOD_COLORS[m] for m in df["method"]]
+    colors = [METHOD_COLORS.get(m, "#777777") for m in df["method"]]
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 3.6))
     axes[0].bar(df["label"], df["mean_fea_calls"], color=colors)
@@ -59,7 +61,7 @@ def _plot_primary_summary() -> None:
 
 def _plot_primary_paired_distributions() -> None:
     df = pd.read_csv(ROOT / "primary_large" / "paired_summary.csv")
-    methods = ["gnn_rank", "random"]
+    methods = [m for m in ["gnn_rank", "gnn_fused", "random"] if m in set(df["method"])]
     labels = [METHOD_LABELS[m] for m in methods]
     both = df[df["full_feasible"] & df["method_feasible"]]
 
@@ -94,7 +96,7 @@ def _plot_eval_ratio_tradeoff() -> None:
     df = pd.DataFrame(rows)
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 3.6), sharex=True)
-    for method in ["gnn_rank", "random"]:
+    for method in [m for m in ["gnn_rank", "gnn_fused", "random"] if m in set(df["method"])]:
         g = df[df["method"] == method].sort_values("eval_ratio")
         label = METHOD_LABELS[method]
         color = METHOD_COLORS[method]
