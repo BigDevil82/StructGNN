@@ -17,11 +17,36 @@ INTENSITY_BY_FAMILY = {
     "L1L28": 8.0,
 }
 DEFAULT_SEEDS = [42, 7, 2025, 3407, 1009]
+TEST_LAYOUTS = [
+    "L17_123",
+    "L17_125",
+    "L17_127",
+    "L17_157",
+    "L17_159",
+    "L17_223",
+    "L17_226",
+    "L1L28_11",
+    "L1L28_25",
+    "L1L28_30",
+    "L1L28_44",
+    "L1L28_47",
+    "L1L28_74",
+    "L1L28_80",
+    "L1L28_198",
+    "L1L28_206",
+    "L1L28_215",
+    "L1L28_221",
+    "L27_57",
+    "L27_59",
+    "L27_100",
+    "L27_151",
+]
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run primary GA ranking experiment on all test layouts.")
     p.add_argument("--out-root", default=r"outputs\result\optimization\ranking_test_primary")
+    p.add_argument("--layout-source", choices=["builtin", "split"], default="builtin")
     p.add_argument(
         "--split-path",
         default=r"data\parametric\surrogate_dataset\splits\surrogate_samples_with_splits.parquet",
@@ -49,7 +74,7 @@ def main() -> None:
     out_dir = out_root / "primary_large"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    layouts = _load_test_layouts(Path(args.split_path), Path(args.layout_json_dir))
+    layouts = _load_test_layouts(args.layout_source, Path(args.split_path), Path(args.layout_json_dir))
     conditions = _make_conditions(layouts, args.seeds, args.condition_seed)
     layout_path = out_root / "test_layouts.csv"
     condition_path = out_root / "conditions.csv"
@@ -100,7 +125,10 @@ def main() -> None:
         _write_combined_summary(out_root)
 
 
-def _load_test_layouts(split_path: Path, layout_json_dir: Path) -> list[str]:
+def _load_test_layouts(source: str, split_path: Path, layout_json_dir: Path) -> list[str]:
+    if source == "builtin":
+        return [layout for layout in TEST_LAYOUTS if (layout_json_dir / f"{layout}.json").exists()]
+
     df = pd.read_parquet(split_path, columns=["layout_id", "split"])
     layouts = sorted(
         df.loc[df["split"].astype(str).eq("test"), "layout_id"].astype(str).unique(),

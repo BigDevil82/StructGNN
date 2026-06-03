@@ -1,7 +1,12 @@
 import argparse
+import sys
 from pathlib import Path
 
 import pandas as pd
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.surrogate.features.layout_features import (
     LayoutFeatureConfig,
@@ -26,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-merged-path",
         default=r"data\parametric\surrogate_dataset\surrogate_samples_with_layout_features.parquet",
     )
+    parser.add_argument("--skip-merge", action="store_true")
     parser.add_argument("--xy-scale-to-m", type=float, default=0.001)
     parser.add_argument("--boundary-band-ratio", type=float, default=0.15)
     return parser
@@ -43,6 +49,12 @@ def main() -> None:
     out_feature = Path(args.output_feature_path)
     out_feature.parent.mkdir(parents=True, exist_ok=True)
     feature_df.to_parquet(out_feature, index=False)
+
+    if args.skip_merge:
+        print(f"Layouts: {feature_df['layout_id'].nunique()}")
+        print(f"Layout features: {len(feature_df.columns) - 1}")
+        print(f"Feature file: {out_feature}")
+        return
 
     sample_df = pd.read_parquet(args.sample_dataset)
     merged = merge_layout_features(sample_df, feature_df)
