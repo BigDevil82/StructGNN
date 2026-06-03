@@ -16,6 +16,7 @@ from src.shearwall_optimization.algorithms import (
 )
 from src.shearwall_optimization.problems import ShearWallLimitConfig, ShearWallObjectiveConfig
 from src.shearwall_optimization.runners import run_shearwall_optimization
+from src.shearwall_optimization.local_calibration import OnlineLocalCalibrationConfig
 from src.shearwall_optimization.surrogate_cost import SurrogateCostPreselectionConfig
 from src.shearwall_optimization.surrogate_screening import SurrogateScreeningConfig
 
@@ -91,6 +92,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-cost-batch-size", type=int, default=512)
     p.add_argument("--ga-cost-feasibility-penalty", type=float, default=1.0e6)
     p.add_argument("--ga-cost-feasibility-hinge-target", type=float, default=0.5)
+    p.add_argument("--ga-local-calibration", action="store_true")
+    p.add_argument("--ga-local-calibration-min-samples", type=int, default=25)
+    p.add_argument("--ga-local-screening-target-recall", type=float, default=0.995)
+    p.add_argument("--ga-local-screening-threshold-scale", type=float, default=0.1)
+    p.add_argument("--ga-local-steel-min-samples", type=int, default=25)
+    p.add_argument("--ga-local-steel-gpr-min-samples", type=int, default=50)
+    p.add_argument("--ga-local-steel-lgbm-min-samples", type=int, default=200)
 
     p.add_argument("--pso-swarm", type=int, default=24)
     p.add_argument("--pso-iter", type=int, default=20)
@@ -163,6 +171,15 @@ def main() -> None:
             batch_size=args.ga_cost_batch_size,
             feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
             feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
+        ),
+        local_calibration=OnlineLocalCalibrationConfig(
+            enabled=args.ga_local_calibration,
+            min_samples=args.ga_local_calibration_min_samples,
+            screening_target_recall=args.ga_local_screening_target_recall,
+            screening_threshold_scale=args.ga_local_screening_threshold_scale,
+            steel_min_samples=args.ga_local_steel_min_samples,
+            steel_gpr_min_samples=args.ga_local_steel_gpr_min_samples,
+            steel_lgbm_min_samples=args.ga_local_steel_lgbm_min_samples,
         ),
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)

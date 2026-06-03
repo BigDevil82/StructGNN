@@ -36,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--optimizer-workers", type=int, default=4)
     p.add_argument("--include-screen-cost", action="store_true")
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
+    p.add_argument("--local-calibration", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     return p
 
@@ -77,6 +78,8 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
     ]
     if args.include_screen_cost:
         common += ["--feasibility-penalty-cost", str(args.feasibility_penalty_cost)]
+    if args.local_calibration:
+        common += ["--local-calibration"]
     return [
         (
             "primary_large",

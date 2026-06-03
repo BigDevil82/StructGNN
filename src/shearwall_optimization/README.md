@@ -73,6 +73,7 @@ python scripts\shearwall_optimize_main.py `
   --layout-path data\dxf\cad_json_data\fem_raw\L17_101.json `
   --ga-surrogate-screen `
   --ga-surrogate-cost-preselect `
+  --ga-local-calibration `
   --ga-cost-eval-ratio 0.4 `
   --ga-cost-min-eval 8
 ```
@@ -81,6 +82,27 @@ The preselector does not accept surrogate objectives as final results. It only
 decides which candidates are sent to FEM in the current generation. Candidates
 not selected are marked with `metrics.cost_preselect_skip=True`; selected
 candidates are evaluated by the real FEM pipeline.
+
+## Online Local Calibration
+
+GA can update two local calibration models from newly completed FEM results:
+
+- Feasibility probability: Platt scaling on the global GNN probability.
+- Steel usage: residual correction of the global GNN steel prediction. The
+  current policy uses Ridge for small samples, GPR for medium samples, and
+  LightGBM after enough local samples are available.
+
+Enable it with `--ga-local-calibration`. The calibration state is stored in
+each generation history:
+
+- `local_calibration_samples`
+- `local_feasibility_model`
+- `local_feasibility_threshold`
+- `local_steel_model`
+
+The calibrated models only affect screening and cost-based FEM budget
+allocation. Final accepted optimization results still come from the real FEM
+evaluation.
 
 ## Multi-objective Interface
 

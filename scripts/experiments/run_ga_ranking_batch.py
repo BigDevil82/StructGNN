@@ -47,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--feasibility-hinge-target", type=float, default=0.5)
+    p.add_argument("--local-calibration", action="store_true")
+    p.add_argument("--local-calibration-min-samples", type=int, default=25)
+    p.add_argument("--local-screening-threshold-scale", type=float, default=0.1)
     p.add_argument("--continue-on-error", action="store_true")
     p.add_argument("--skip-existing", action="store_true")
     return p
@@ -105,6 +108,7 @@ def main() -> None:
             median_fea_calls=("fea_calls", "median"),
             mean_screened_ratio=("screened_ratio", "mean"),
             mean_cost_preselect_skipped_ratio=("cost_preselect_skipped_ratio", "mean"),
+            mean_local_calibration_samples=("local_calibration_samples", "mean"),
         )
         agg.to_csv(out_dir / "summary_by_method.csv")
         print(agg)
@@ -158,6 +162,14 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: di
             "--ga-cost-feasibility-hinge-target",
             str(args.feasibility_hinge_target),
         ]
+        if args.local_calibration:
+            cmd += [
+                "--ga-local-calibration",
+                "--ga-local-calibration-min-samples",
+                str(args.local_calibration_min_samples),
+                "--ga-local-screening-threshold-scale",
+                str(args.local_screening_threshold_scale),
+            ]
         if method == "gnn_screen_cost":
             cmd += [
                 "--ga-surrogate-screen",
@@ -222,6 +234,9 @@ def _summarize(path: Path, layout: str, seed: int, method: str) -> dict[str, obj
         "first_feasible_fea_calls": first_feasible,
         "screened_ratio": float(last.get("screened_ratio", 0.0)),
         "cost_preselect_skipped_ratio": float(last.get("cost_preselect_skipped_ratio", 0.0)),
+        "local_calibration_samples": int(last.get("local_calibration_samples", 0)),
+        "local_feasibility_model": last.get("local_feasibility_model", ""),
+        "local_steel_model": last.get("local_steel_model", ""),
         "result_path": str(path),
         "finished_at": datetime.now().isoformat(timespec="seconds"),
     }

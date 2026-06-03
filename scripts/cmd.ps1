@@ -246,6 +246,7 @@
 #   --ga-log-every 1 `
 #   --ga-surrogate-screen `
 #   --ga-surrogate-cost-preselect `
+#   --ga-local-calibration `
 #   --ga-surrogate-artifact data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt `
 #   --ga-surrogate-graph-cache data\parametric\cache\gnn_room_graph_cache `
 #   --ga-surrogate-layout-features data\parametric\surrogate_dataset\layout_features.parquet `
@@ -253,7 +254,8 @@
 #   --ga-cost-graph-cache data\parametric\cache\gnn_room_graph_cache `
 #   --ga-cost-layout-features data\parametric\surrogate_dataset\layout_features.parquet `
 #   --ga-cost-eval-ratio 0.4 `
-#   --ga-cost-min-eval 8
+#   --ga-cost-min-eval 8 `
+#   --ga-local-screening-threshold-scale 0.1
 
 
 # ---------------------------------------------------------------------------
@@ -285,4 +287,5 @@
 #   --ga-gen 8 `
 #   --optimizer-workers 8 `
 #   --eval-ratio 0.4 `
-#   --min-eval 8
+#   --min-eval 8 `
+#   --local-calibration

@@ -4,6 +4,7 @@ from .algorithms.optuna_bo import OptunaBayesConfig, OptunaBayesOptimizer
 from .algorithms.pso import ParticleSwarmConfig, ParticleSwarmOptimizer
 from .algorithms.random_search import RandomSearchConfig, RandomSearchOptimizer
 from .core.contracts import EvaluationResult, OptimizationProblem, OptimizationResult, VariableSpec
+from .local_calibration import OnlineLocalCalibrationConfig
 from .surrogate_cost import SurrogateCostPreselectionConfig
 from .surrogate_evaluation import SurrogateAcceptanceConfig, SurrogateEvaluationConfig
 from .surrogate_screening import SurrogateScreeningConfig
@@ -41,4 +42,5 @@ __all__ = [
     "SurrogateEvaluationConfig",
     "SurrogateScreeningConfig",
     "SurrogateCostPreselectionConfig",
+    "OnlineLocalCalibrationConfig",
 ]

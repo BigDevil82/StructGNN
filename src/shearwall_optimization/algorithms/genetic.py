@@ -4,6 +4,7 @@ from typing import Any
 
 from ..core.contracts import EvaluationResult, OptimizationResult
 from ..core.optimizer import Optimizer
+from ..local_calibration import OnlineLocalCalibrationConfig, OnlineLocalCalibrator
 from ..surrogate_cost import GNNMaterialCostEstimator, SurrogateCostPrediction, SurrogateCostPreselectionConfig
 from ..surrogate_screening import GNNFeasibilityScreener, ScreeningDecision, SurrogateScreeningConfig
 
@@ -22,6 +23,7 @@ class GeneticAlgorithmConfig:
     seed: int = 42
     surrogate_screening: SurrogateScreeningConfig | None = None
     cost_preselection: SurrogateCostPreselectionConfig | None = None
+    local_calibration: OnlineLocalCalibrationConfig | None = None
 
 
 class GeneticAlgorithmOptimizer(Optimizer):
@@ -31,6 +33,9 @@ class GeneticAlgorithmOptimizer(Optimizer):
         self.rng = random.Random(self.config.seed)
         self.screener = self._build_screener()
         self.cost_estimator = self._build_cost_estimator()
+        self.local_calibrator = OnlineLocalCalibrator(
+            self.config.local_calibration or OnlineLocalCalibrationConfig(enabled=False)
+        )
 
     def optimize(self) -> OptimizationResult:
         print("[GA] Starting optimization")
@@ -73,6 +78,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     "cost_preselect_skipped_count": cost_preselect_skipped_count,
                     "cost_preselect_skipped_ratio": cost_preselect_skipped_count / max(1, len(raw_scored)),
                     "fea_evaluation_count": int(getattr(self.problem, "fea_evaluation_count", -1)),
+                    **self.local_calibrator.summary(),
                     "population": [
                         {
                             "objective": float(res.objective),
@@ -167,7 +173,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
     ) -> list[tuple[dict[str, Any], EvaluationResult]]:
         n = len(repaired)
         results: list[EvaluationResult | None] = [None] * n
-        screening = self.screener.screen(repaired) if self.screener is not None else [None] * n
+        raw_screening = self.screener.screen(repaired) if self.screener is not None else [None] * n
+        screening = self._calibrate_screening(raw_screening)
 
         candidate_indices = []
         for i, decision in enumerate(screening):
@@ -177,6 +184,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
                 candidate_indices.append(i)
 
         cost_preds: dict[int, SurrogateCostPrediction] = {}
+        global_cost_preds: dict[int, SurrogateCostPrediction] = {}
         if self.cost_estimator is not None and candidate_indices:
             items = [repaired[i] for i in candidate_indices]
             probs = [
@@ -184,7 +192,11 @@ class GeneticAlgorithmOptimizer(Optimizer):
                 for i in candidate_indices
             ]
             preds = self.cost_estimator.predict(items, feasible_probabilities=probs)
-            cost_preds = dict(zip(candidate_indices, preds))
+            global_cost_preds = dict(zip(candidate_indices, preds))
+            cost_preds = {
+                idx: self._calibrate_cost_prediction(repaired[idx], pred)
+                for idx, pred in global_cost_preds.items()
+            }
             selected_indices = self._select_cost_candidates(candidate_indices, cost_preds)
         else:
             selected_indices = list(candidate_indices)
@@ -197,6 +209,12 @@ class GeneticAlgorithmOptimizer(Optimizer):
             pred = cost_preds.get(idx)
             if pred is not None:
                 metrics.update(self._cost_prediction_metrics(pred, selected=True))
+            self._update_local_calibration(
+                repaired[idx],
+                res,
+                raw_screening[idx],
+                global_cost_preds.get(idx),
+            )
             results[idx] = EvaluationResult(
                 objective=res.objective,
                 objectives=res.objectives,
@@ -210,6 +228,61 @@ class GeneticAlgorithmOptimizer(Optimizer):
                 pred = cost_preds.get(i)
                 results[i] = self._cost_preselect_skipped_result(pred)
         return [(x, res) for x, res in zip(repaired, results) if res is not None]
+
+    def _calibrate_screening(
+        self, raw: list[ScreeningDecision | None]
+    ) -> list[ScreeningDecision | None]:
+        out = []
+        for decision in raw:
+            if decision is None:
+                out.append(None)
+                continue
+            cal = self.local_calibrator.calibrate_feasibility(decision.probability, decision.threshold)
+            out.append(
+                ScreeningDecision(
+                    reject=cal.reject,
+                    probability=cal.probability,
+                    threshold=cal.threshold,
+                )
+            )
+        return out
+
+    def _calibrate_cost_prediction(
+        self,
+        decision: dict[str, Any],
+        pred: SurrogateCostPrediction,
+    ) -> SurrogateCostPrediction:
+        steel_kg, _, _ = self.local_calibrator.calibrate_steel(decision, pred.steel_kg)
+        steel_cost = self.problem.objective_cfg.steel_price_per_kg * steel_kg
+        material = pred.concrete_cost + steel_cost
+        cfg = self.config.cost_preselection or SurrogateCostPreselectionConfig(enabled=False)
+        score = material + float(cfg.feasibility_penalty_cost) * float(pred.infeasible_risk)
+        return SurrogateCostPrediction(
+            score=float(score),
+            steel_kg=float(steel_kg),
+            concrete_kg=float(pred.concrete_kg),
+            concrete_cost=float(pred.concrete_cost),
+            steel_cost=float(steel_cost),
+            material_cost=float(material),
+            feasible_probability=pred.feasible_probability,
+            infeasible_risk=float(pred.infeasible_risk),
+        )
+
+    def _update_local_calibration(
+        self,
+        decision: dict[str, Any],
+        result: EvaluationResult,
+        screening: ScreeningDecision | None,
+        pred: SurrogateCostPrediction | None,
+    ) -> None:
+        if not self.local_calibrator.cfg.enabled:
+            return
+        self.local_calibrator.update(
+            decision,
+            result,
+            global_probability=None if screening is None else float(screening.probability),
+            global_steel_kg=None if pred is None else float(pred.steel_kg),
+        )
 
     def _select_cost_candidates(
         self,

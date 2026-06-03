@@ -62,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-eval", type=int, default=8)
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--feasibility-hinge-target", type=float, default=0.5)
+    p.add_argument("--local-calibration", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     return p
 
@@ -113,6 +114,8 @@ def main() -> None:
         "--continue-on-error",
         "--skip-existing",
     ]
+    if args.local_calibration:
+        cmd.append("--local-calibration")
     print("[test-primary]", " ".join(cmd))
     if not args.dry_run:
         subprocess.run(cmd, cwd=PROJECT_ROOT, check=False)
