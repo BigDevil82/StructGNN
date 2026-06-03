@@ -43,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--manual-scale-factor", type=float, default=None)
     p.add_argument("--optimizer-workers", type=int, default=0, help="0 means sequential evaluation.")
 
-    p.add_argument("--steel-price-per-kg", type=float, default=0.005)
+    p.add_argument("--steel-price-per-kg", type=float, default=5.0)
     p.add_argument("--infeasible-penalty", type=float, default=1e6)
     p.add_argument("--limit-max-torsion", type=float, default=1.5)
     p.add_argument("--limit-max-drift", type=float, default=1.0 / 1000.0)

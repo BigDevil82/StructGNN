@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--site-class", default="II")
     p.add_argument("--seismic-group", type=int, default=1)
     p.add_argument("--condition-csv", default=None)
+    p.add_argument("--steel-price-per-kg", type=float, default=5.0)
     p.add_argument("--ga-pop", type=int, default=8)
     p.add_argument("--ga-gen", type=int, default=3)
     p.add_argument("--ga-elite", type=int, default=1)
@@ -133,6 +134,8 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: di
         str(cond["site_class"]),
         "--seismic-group",
         str(cond["seismic_group"]),
+        "--steel-price-per-kg",
+        str(args.steel_price_per_kg),
         "--ga-pop",
         str(args.ga_pop),
         "--ga-gen",
