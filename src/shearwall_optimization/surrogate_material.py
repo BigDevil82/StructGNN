@@ -9,7 +9,7 @@ import pandas as pd
 
 from src.shearwall_modeling.design.constants import ReinforcementDesignConstants
 from src.shearwall_modeling.parametric.space import split_stories
-from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES
+from src.surrogate.features.consts import LAYOUT_FEATURES, PARAM_FEATURES
 
 CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]
 

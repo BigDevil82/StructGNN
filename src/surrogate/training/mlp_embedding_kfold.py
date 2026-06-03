@@ -18,7 +18,8 @@ from sklearn.metrics import (
 )
 from torch.utils.data import DataLoader, TensorDataset
 
-from .lightgbm_baseline import CLASS_TASK, LAYOUT_FEATURES, PARAM_FEATURES
+from ..features.consts import LAYOUT_FEATURES, PARAM_FEATURES
+from .lightgbm_baseline import CLASS_TASK
 
 CAT_COLS = ["conc_bot", "site_class", "seismic_group", "intensity"]
 

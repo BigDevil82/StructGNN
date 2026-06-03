@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES
+from src.surrogate.features.consts import LAYOUT_FEATURES, PARAM_FEATURES
 
 TARGET = "material_steel_kg"
 CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]

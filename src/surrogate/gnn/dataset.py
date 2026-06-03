@@ -9,7 +9,8 @@ import torch
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
-from src.surrogate.training.lightgbm_baseline import CLASS_TASK, LAYOUT_FEATURES, PARAM_FEATURES
+from src.surrogate.features.consts import LAYOUT_FEATURES, PARAM_FEATURES
+from src.surrogate.training.lightgbm_baseline import CLASS_TASK
 
 CAT_COLS = ["conc_bot", "intensity", "site_class", "seismic_group"]
 FEATURE_COLS = PARAM_FEATURES  # + LAYOUT_FEATURES

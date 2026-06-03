@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.surrogate.training.lightgbm_baseline import PARAM_FEATURES
+from src.surrogate.features.consts import PARAM_FEATURES
 
 
 def build_parser() -> argparse.ArgumentParser:

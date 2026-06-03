@@ -8,9 +8,10 @@ import pandas as pd
 import torch
 from torch_geometric.loader import DataLoader
 
+from src.surrogate.features.consts import LAYOUT_FEATURES
 from src.surrogate.gnn.dataset import ParamPreprocessor, SurrogateGNNDataset
 from src.surrogate.gnn.model import LayoutParamGNN
-from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES
+
 from .surrogate_screening import GNNFeasibilityScreener, SurrogateScreeningConfig
 
 
@@ -71,7 +72,9 @@ class GNNSteelRanker:
         feature_df = pd.read_parquet(cfg.layout_features_path)
         match = feature_df[feature_df["layout_id"].astype(str) == self.layout_id]
         if match.empty:
-            raise ValueError(f"Missing layout features for layout_id={self.layout_id}: {cfg.layout_features_path}")
+            raise ValueError(
+                f"Missing layout features for layout_id={self.layout_id}: {cfg.layout_features_path}"
+            )
         self.layout_features = match.iloc[0][LAYOUT_FEATURES].to_dict()
         self.feasibility = self._build_feasibility_screener()
 

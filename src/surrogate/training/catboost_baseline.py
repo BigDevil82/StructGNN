@@ -20,7 +20,8 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from .lightgbm_baseline import CLASS_TASK, LAYOUT_FEATURES, PARAM_FEATURES, REG_TASKS
+from ..features.consts import LAYOUT_FEATURES, PARAM_FEATURES
+from .lightgbm_baseline import CLASS_TASK, REG_TASKS
 
 
 @dataclass(frozen=True)

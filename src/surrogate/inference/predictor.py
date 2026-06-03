@@ -18,7 +18,8 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from src.surrogate.training.lightgbm_baseline import LAYOUT_FEATURES, PARAM_FEATURES, REG_TASKS
+from src.surrogate.features.consts import LAYOUT_FEATURES, PARAM_FEATURES
+from src.surrogate.training.lightgbm_baseline import REG_TASKS
 from src.surrogate.training.mlp_embedding_kfold import EmbeddingMLP, predict_prob, transform_with_preprocess
 
 CAT_COLS = ["conc_bot", "site_class", "intensity", "seismic_group"]
