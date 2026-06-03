@@ -5,12 +5,8 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import torch
-from torch_geometric.loader import DataLoader
 
 from src.surrogate.features.consts import LAYOUT_FEATURES, PARAM_FEATURES
-from src.surrogate.gnn.dataset import ParamPreprocessor, SurrogateGNNDataset
-from src.surrogate.gnn.model import LayoutParamGNN
 
 
 @dataclass(frozen=True)
@@ -47,6 +43,11 @@ class GNNFeasibilityScreener:
         self.fixed_params = dict(fixed_params)
         self._cache: dict[tuple[Any, ...], ScreeningDecision] = {}
 
+        import torch
+        from src.surrogate.gnn.dataset import ParamPreprocessor
+        from src.surrogate.gnn.model import LayoutParamGNN
+
+        self.torch = torch
         artifact = torch.load(Path(cfg.artifact_path), map_location="cpu", weights_only=True)
         self.threshold = (
             float(artifact.get("screening_threshold", 0.0))
@@ -114,6 +115,10 @@ class GNNFeasibilityScreener:
         return pd.DataFrame(rows)
 
     def _predict_prob(self, df: pd.DataFrame) -> list[float]:
+        from torch_geometric.loader import DataLoader
+
+        from src.surrogate.gnn.dataset import SurrogateGNNDataset
+
         missing = [col for col in PARAM_FEATURES + LAYOUT_FEATURES if col not in df.columns]
         if missing:
             raise ValueError(f"Surrogate screening input missing columns: {missing}")
@@ -126,11 +131,11 @@ class GNNFeasibilityScreener:
             num_workers=self.cfg.num_workers,
         )
         probs = []
-        with torch.no_grad():
+        with self.torch.no_grad():
             for batch in loader:
                 batch = batch.to(self.device)
                 logits = self.model(batch)
-                probs.extend(torch.sigmoid(logits).detach().cpu().tolist())
+                probs.extend(self.torch.sigmoid(logits).detach().cpu().tolist())
         return [float(v) for v in probs]
 
 

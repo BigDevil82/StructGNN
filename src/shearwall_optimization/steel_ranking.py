@@ -5,12 +5,8 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import torch
-from torch_geometric.loader import DataLoader
 
 from src.surrogate.features.consts import LAYOUT_FEATURES
-from src.surrogate.gnn.dataset import ParamPreprocessor, SurrogateGNNDataset
-from src.surrogate.gnn.model import LayoutParamGNN
 
 from .surrogate_screening import GNNFeasibilityScreener, SurrogateScreeningConfig
 
@@ -59,6 +55,11 @@ class GNNSteelRanker:
         self._cache: dict[tuple[Any, ...], float] = {}
         self._rank_cache: dict[tuple[Any, ...], SteelRankingPrediction] = {}
 
+        import torch
+        from src.surrogate.gnn.dataset import ParamPreprocessor
+        from src.surrogate.gnn.model import LayoutParamGNN
+
+        self.torch = torch
         artifact = torch.load(Path(cfg.artifact_path), map_location="cpu", weights_only=True)
         self.pre = ParamPreprocessor.from_dict(artifact["preprocess"])
         self.y_mean = float(artifact["target_log_mean"])
@@ -171,6 +172,10 @@ class GNNSteelRanker:
         return pd.DataFrame(rows)
 
     def _predict_df(self, df: pd.DataFrame) -> list[float]:
+        from torch_geometric.loader import DataLoader
+
+        from src.surrogate.gnn.dataset import SurrogateGNNDataset
+
         ds = SurrogateGNNDataset(df, graph_cache_dir=self.cfg.graph_cache_dir, preprocessor=self.pre)
         loader = DataLoader(
             ds,
@@ -179,11 +184,11 @@ class GNNSteelRanker:
             num_workers=self.cfg.num_workers,
         )
         preds = []
-        with torch.no_grad():
+        with self.torch.no_grad():
             for batch in loader:
                 batch = batch.to(self.device)
                 pred_norm = self.model(batch)
-                pred = torch.expm1(pred_norm * self.y_std + self.y_mean)
+                pred = self.torch.expm1(pred_norm * self.y_std + self.y_mean)
                 preds.extend(pred.detach().cpu().tolist())
         return [float(max(v, 0.0)) for v in preds]
 
