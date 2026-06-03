@@ -60,9 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--optimizer-workers", type=int, default=8)
     p.add_argument("--eval-ratio", type=float, default=0.5)
     p.add_argument("--min-eval", type=int, default=8)
-    p.add_argument("--random-ratio", type=float, default=0.125)
-    p.add_argument("--feasibility-penalty-kg", type=float, default=100000.0)
-    p.add_argument("--feasibility-penalty-mode", choices=["hinge", "linear"], default="hinge")
+    p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--feasibility-hinge-target", type=float, default=0.5)
     p.add_argument("--dry-run", action="store_true")
     return p
@@ -90,8 +88,8 @@ def main() -> None:
         *[str(seed) for seed in args.seeds],
         "--methods",
         "full",
-        "gnn_rank",
-        "gnn_fused",
+        "gnn_cost",
+        "gnn_screen_cost",
         "--out-dir",
         str(out_dir),
         "--condition-csv",
@@ -108,12 +106,8 @@ def main() -> None:
         str(args.eval_ratio),
         "--min-eval",
         str(args.min_eval),
-        "--random-ratio",
-        str(args.random_ratio),
-        "--feasibility-penalty-kg",
-        str(args.feasibility_penalty_kg),
-        "--feasibility-penalty-mode",
-        args.feasibility_penalty_mode,
+        "--feasibility-penalty-cost",
+        str(args.feasibility_penalty_cost),
         "--feasibility-hinge-target",
         str(args.feasibility_hinge_target),
         "--continue-on-error",

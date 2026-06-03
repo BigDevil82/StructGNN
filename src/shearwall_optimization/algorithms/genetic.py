@@ -4,21 +4,8 @@ from typing import Any
 
 from ..core.contracts import EvaluationResult, OptimizationResult
 from ..core.optimizer import Optimizer
-from ..surrogate_evaluation import (
-    SurrogateAcceptanceConfig,
-    SurrogateEvaluationAccelerator,
-    SurrogateEvaluationConfig,
-)
-from ..surrogate_screening import SurrogateScreeningConfig
-from ..steel_ranking import GNNSteelRanker, SteelRankingConfig
-
-
-@dataclass(frozen=True)
-class RandomPreselectionConfig:
-    enabled: bool = False
-    eval_ratio: float = 0.4
-    min_eval_count: int = 8
-    skipped_objective: float = 1.0e12
+from ..surrogate_cost import GNNMaterialCostEstimator, SurrogateCostPrediction, SurrogateCostPreselectionConfig
+from ..surrogate_screening import GNNFeasibilityScreener, ScreeningDecision, SurrogateScreeningConfig
 
 
 @dataclass(frozen=True)
@@ -34,9 +21,7 @@ class GeneticAlgorithmConfig:
     log_every: int = 1
     seed: int = 42
     surrogate_screening: SurrogateScreeningConfig | None = None
-    surrogate_acceptance: SurrogateAcceptanceConfig | None = None
-    steel_ranking: SteelRankingConfig | None = None
-    random_preselection: RandomPreselectionConfig | None = None
+    cost_preselection: SurrogateCostPreselectionConfig | None = None
 
 
 class GeneticAlgorithmOptimizer(Optimizer):
@@ -44,8 +29,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
         super().__init__(problem)
         self.config = config or GeneticAlgorithmConfig()
         self.rng = random.Random(self.config.seed)
-        self.surrogate = self._build_surrogate()
-        self.steel_ranker = self._build_steel_ranker()
+        self.screener = self._build_screener()
+        self.cost_estimator = self._build_cost_estimator()
 
     def optimize(self) -> OptimizationResult:
         print("[GA] Starting optimization")
@@ -65,14 +50,11 @@ class GeneticAlgorithmOptimizer(Optimizer):
             screened_count = sum(
                 1 for _, res in raw_scored if res.constraints.get("surrogate_screen_reject", 0.0) > 0.0
             )
-            surrogate_accepted_count = sum(
-                1 for _, res in raw_scored if bool(res.metrics.get("surrogate_material_accept", False))
+            cost_preselect_skipped_count = sum(
+                1 for _, res in raw_scored if bool(res.metrics.get("cost_preselect_skip", False))
             )
-            steel_rank_skipped_count = sum(
-                1 for _, res in raw_scored if bool(res.metrics.get("steel_rank_skip", False))
-            )
-            random_preselect_skipped_count = sum(
-                1 for _, res in raw_scored if bool(res.metrics.get("random_preselect_skip", False))
+            cost_preselect_selected_count = sum(
+                1 for _, res in raw_scored if bool(res.metrics.get("cost_preselect_selected", False))
             )
             feasible_ratio = feasible_count / max(1, len(raw_scored))
             history.append(
@@ -86,12 +68,10 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     "feasible_ratio": feasible_ratio,
                     "screened_count": screened_count,
                     "screened_ratio": screened_count / max(1, len(raw_scored)),
-                    "surrogate_accepted_count": surrogate_accepted_count,
-                    "surrogate_accepted_ratio": surrogate_accepted_count / max(1, len(raw_scored)),
-                    "steel_rank_skipped_count": steel_rank_skipped_count,
-                    "steel_rank_skipped_ratio": steel_rank_skipped_count / max(1, len(raw_scored)),
-                    "random_preselect_skipped_count": random_preselect_skipped_count,
-                    "random_preselect_skipped_ratio": random_preselect_skipped_count / max(1, len(raw_scored)),
+                    "cost_preselect_selected_count": cost_preselect_selected_count,
+                    "cost_preselect_selected_ratio": cost_preselect_selected_count / max(1, len(raw_scored)),
+                    "cost_preselect_skipped_count": cost_preselect_skipped_count,
+                    "cost_preselect_skipped_ratio": cost_preselect_skipped_count / max(1, len(raw_scored)),
                     "fea_evaluation_count": int(getattr(self.problem, "fea_evaluation_count", -1)),
                     "population": [
                         {
@@ -101,17 +81,20 @@ class GeneticAlgorithmOptimizer(Optimizer):
                             "surrogate_screen_reject": bool(
                                 res.constraints.get("surrogate_screen_reject", 0.0) > 0.0
                             ),
-                            "surrogate_material_accept": bool(res.metrics.get("surrogate_material_accept", False)),
-                            "steel_rank_skip": bool(res.metrics.get("steel_rank_skip", False)),
-                            "steel_rank_score": float(res.metrics.get("steel_rank_score", float("nan"))),
-                            "steel_rank_kg": float(res.metrics.get("steel_rank_kg", float("nan"))),
-                            "steel_rank_feasible_probability": float(
-                                res.metrics.get("steel_rank_feasible_probability", float("nan"))
+                            "cost_preselect_skip": bool(res.metrics.get("cost_preselect_skip", False)),
+                            "cost_preselect_selected": bool(res.metrics.get("cost_preselect_selected", False)),
+                            "surrogate_cost_score": float(res.metrics.get("surrogate_cost_score", float("nan"))),
+                            "surrogate_material_cost": float(res.metrics.get("surrogate_material_cost", float("nan"))),
+                            "surrogate_concrete_cost": float(res.metrics.get("surrogate_concrete_cost", float("nan"))),
+                            "surrogate_steel_cost": float(res.metrics.get("surrogate_steel_cost", float("nan"))),
+                            "surrogate_concrete_kg": float(res.metrics.get("surrogate_concrete_kg", float("nan"))),
+                            "surrogate_steel_kg": float(res.metrics.get("surrogate_steel_kg", float("nan"))),
+                            "surrogate_final_pass_prob": float(
+                                res.metrics.get("surrogate_final_pass_prob", float("nan"))
                             ),
-                            "steel_rank_infeasible_risk": float(
-                                res.metrics.get("steel_rank_infeasible_risk", float("nan"))
+                            "surrogate_infeasible_risk": float(
+                                res.metrics.get("surrogate_infeasible_risk", float("nan"))
                             ),
-                            "random_preselect_skip": bool(res.metrics.get("random_preselect_skip", False)),
                         }
                         for _, res in raw_scored
                     ],
@@ -131,9 +114,8 @@ class GeneticAlgorithmOptimizer(Optimizer):
                     f"global_best_feasible={global_best_res.feasible} "
                     f"feasible_ratio={feasible_ratio:.1%} "
                     f"screened_ratio={screened_count / max(1, len(raw_scored)):.1%} "
-                    f"surrogate_accepted_ratio={surrogate_accepted_count / max(1, len(raw_scored)):.1%} "
-                    f"steel_rank_skipped_ratio={steel_rank_skipped_count / max(1, len(raw_scored)):.1%} "
-                    f"random_skip_ratio={random_preselect_skipped_count / max(1, len(raw_scored)):.1%} "
+                    f"cost_selected_ratio={cost_preselect_selected_count / max(1, len(raw_scored)):.1%} "
+                    f"cost_skipped_ratio={cost_preselect_skipped_count / max(1, len(raw_scored)):.1%} "
                     f"fea_count={int(getattr(self.problem, 'fea_evaluation_count', -1))}"
                 )
 
@@ -154,7 +136,7 @@ class GeneticAlgorithmOptimizer(Optimizer):
             scored.sort(key=lambda item: self._rank_key(item[1]))
             global_best_item = scored[0]
         best_x, best_res = global_best_item
-        if bool(best_res.metrics.get("surrogate_material_accept", False)):
+        if self._is_synthetic_result(best_res):
             best_res = self.problem.evaluate(best_x)
         if history:
             history[-1]["final_fea_evaluation_count"] = int(getattr(self.problem, "fea_evaluation_count", -1))
@@ -175,33 +157,46 @@ class GeneticAlgorithmOptimizer(Optimizer):
         self, pop: list[dict[str, Any]]
     ) -> list[tuple[dict[str, Any], EvaluationResult]]:
         repaired = [self.problem.repair(x) for x in pop]
-        if self.steel_ranker is not None:
-            return self._evaluate_population_with_steel_ranking(repaired)
-        if self.config.random_preselection is not None and self.config.random_preselection.enabled:
-            return self._evaluate_population_with_random_preselection(repaired)
-        if self.surrogate is not None:
-            results = self.surrogate.evaluate_many(repaired, self._real_evaluate_many)
-            return list(zip(repaired, results))
+        if self.screener is not None or self.cost_estimator is not None:
+            return self._evaluate_population_with_surrogates(repaired)
         results = self._real_evaluate_many(repaired)
         return list(zip(repaired, results))
 
-    def _evaluate_population_with_random_preselection(
+    def _evaluate_population_with_surrogates(
         self, repaired: list[dict[str, Any]]
     ) -> list[tuple[dict[str, Any], EvaluationResult]]:
-        cfg = self.config.random_preselection or RandomPreselectionConfig(enabled=False)
         n = len(repaired)
-        eval_count = min(n, max(int(cfg.min_eval_count), int(round(n * cfg.eval_ratio))))
-        selected_indices = sorted(self.rng.sample(range(n), k=eval_count))
-        selected_items = [repaired[i] for i in selected_indices]
-        if self.surrogate is not None:
-            eval_results = self.surrogate.evaluate_many(selected_items, self._real_evaluate_many)
-        else:
-            eval_results = self._real_evaluate_many(selected_items)
-
         results: list[EvaluationResult | None] = [None] * n
+        screening = self.screener.screen(repaired) if self.screener is not None else [None] * n
+
+        candidate_indices = []
+        for i, decision in enumerate(screening):
+            if decision is not None and decision.reject:
+                results[i] = self._screened_result(decision)
+            else:
+                candidate_indices.append(i)
+
+        cost_preds: dict[int, SurrogateCostPrediction] = {}
+        if self.cost_estimator is not None and candidate_indices:
+            items = [repaired[i] for i in candidate_indices]
+            probs = [
+                None if screening[i] is None else float(screening[i].probability)
+                for i in candidate_indices
+            ]
+            preds = self.cost_estimator.predict(items, feasible_probabilities=probs)
+            cost_preds = dict(zip(candidate_indices, preds))
+            selected_indices = self._select_cost_candidates(candidate_indices, cost_preds)
+        else:
+            selected_indices = list(candidate_indices)
+
+        selected_items = [repaired[i] for i in selected_indices]
+        eval_results = self._real_evaluate_many(selected_items)
+
         for idx, res in zip(selected_indices, eval_results):
             metrics = dict(res.metrics)
-            metrics["random_preselect_selected"] = True
+            pred = cost_preds.get(idx)
+            if pred is not None:
+                metrics.update(self._cost_prediction_metrics(pred, selected=True))
             results[idx] = EvaluationResult(
                 objective=res.objective,
                 objectives=res.objectives,
@@ -212,85 +207,71 @@ class GeneticAlgorithmOptimizer(Optimizer):
 
         for i in range(n):
             if results[i] is None:
-                results[i] = self._random_preselection_skipped_result(cfg)
+                pred = cost_preds.get(i)
+                results[i] = self._cost_preselect_skipped_result(pred)
         return [(x, res) for x, res in zip(repaired, results) if res is not None]
 
-    def _random_preselection_skipped_result(self, cfg: RandomPreselectionConfig) -> EvaluationResult:
-        objective = float(cfg.skipped_objective)
-        return EvaluationResult(
-            objective=objective,
-            objectives={"material_cost": objective, "total_violation": 1.0},
-            feasible=False,
-            constraints={"random_preselect_skip": 1.0},
-            metrics={"random_preselect_skip": True},
-        )
-
-    def _evaluate_population_with_steel_ranking(
-        self, repaired: list[dict[str, Any]]
-    ) -> list[tuple[dict[str, Any], EvaluationResult]]:
-        assert self.steel_ranker is not None
-        cfg = self.config.steel_ranking or SteelRankingConfig(enabled=False)
-        rank_preds = self.steel_ranker.rank(repaired)
-        scores = [item.score for item in rank_preds]
-        n = len(repaired)
+    def _select_cost_candidates(
+        self,
+        indices: list[int],
+        preds: dict[int, SurrogateCostPrediction],
+    ) -> list[int]:
+        cfg = self.config.cost_preselection or SurrogateCostPreselectionConfig(enabled=False)
+        n = len(indices)
         eval_count = min(n, max(int(cfg.min_eval_count), int(round(n * cfg.eval_ratio))))
-        order = sorted(range(n), key=lambda i: scores[i])
-        selected = set(order[:eval_count])
+        return sorted(sorted(indices, key=lambda i: preds[i].score)[:eval_count])
 
-        remaining = [i for i in range(n) if i not in selected]
-        random_count = min(len(remaining), int(round(n * cfg.random_ratio)))
-        if random_count > 0:
-            selected.update(self.rng.sample(remaining, k=random_count))
-
-        selected_indices = sorted(selected)
-        selected_items = [repaired[i] for i in selected_indices]
-        if self.surrogate is not None:
-            eval_results = self.surrogate.evaluate_many(selected_items, self._real_evaluate_many)
-        else:
-            eval_results = self._real_evaluate_many(selected_items)
-
-        results: list[EvaluationResult | None] = [None] * n
-        for idx, res in zip(selected_indices, eval_results):
-            metrics = dict(res.metrics)
-            metrics.update(self._steel_rank_metrics(rank_preds[idx], selected=True))
-            metrics["steel_rank_selected"] = True
-            results[idx] = EvaluationResult(
-                objective=res.objective,
-                objectives=res.objectives,
-                feasible=res.feasible,
-                constraints=res.constraints,
-                metrics=metrics,
-            )
-
-        for i in range(n):
-            if results[i] is None:
-                results[i] = self._steel_rank_skipped_result(rank_preds[i], cfg)
-        return [(x, res) for x, res in zip(repaired, results) if res is not None]
-
-    def _steel_rank_skipped_result(self, pred, cfg: SteelRankingConfig) -> EvaluationResult:
-        objective = float(cfg.skipped_objective)
+    def _screened_result(self, decision: ScreeningDecision) -> EvaluationResult:
+        cfg = self.config.surrogate_screening or SurrogateScreeningConfig(enabled=False)
+        objective = float(cfg.rejected_objective)
         return EvaluationResult(
             objective=objective,
             objectives={"material_cost": objective, "total_violation": 1.0},
             feasible=False,
-            constraints={"steel_rank_skip": 1.0},
+            constraints={"surrogate_screen_reject": 1.0},
             metrics={
-                "steel_rank_skip": True,
-                **self._steel_rank_metrics(pred, selected=False),
+                "surrogate_screen_reject": True,
+                "surrogate_final_pass_prob": float(decision.probability),
+                "surrogate_screening_threshold": float(decision.threshold),
             },
         )
 
+    def _cost_preselect_skipped_result(self, pred: SurrogateCostPrediction | None) -> EvaluationResult:
+        cfg = self.config.cost_preselection or SurrogateCostPreselectionConfig(enabled=False)
+        objective = float(cfg.skipped_objective)
+        metrics: dict[str, float | bool] = {"cost_preselect_skip": True}
+        if pred is not None:
+            metrics.update(self._cost_prediction_metrics(pred, selected=False))
+        return EvaluationResult(
+            objective=objective,
+            objectives={"material_cost": objective, "total_violation": 1.0},
+            feasible=False,
+            constraints={"cost_preselect_skip": 1.0},
+            metrics=metrics,
+        )
+
     @staticmethod
-    def _steel_rank_metrics(pred, *, selected: bool) -> dict[str, float | bool]:
+    def _cost_prediction_metrics(pred: SurrogateCostPrediction, *, selected: bool) -> dict[str, float | bool]:
         return {
-            "steel_rank_score": float(pred.score),
-            "steel_rank_kg": float(pred.steel_kg),
-            "steel_rank_feasible_probability": (
+            "surrogate_cost_score": float(pred.score),
+            "surrogate_material_cost": float(pred.material_cost),
+            "surrogate_concrete_cost": float(pred.concrete_cost),
+            "surrogate_steel_cost": float(pred.steel_cost),
+            "surrogate_concrete_kg": float(pred.concrete_kg),
+            "surrogate_steel_kg": float(pred.steel_kg),
+            "surrogate_final_pass_prob": (
                 float("nan") if pred.feasible_probability is None else float(pred.feasible_probability)
             ),
-            "steel_rank_infeasible_risk": float(pred.infeasible_risk),
-            "steel_rank_selected": bool(selected),
+            "surrogate_infeasible_risk": float(pred.infeasible_risk),
+            "cost_preselect_selected": bool(selected),
         }
+
+    @staticmethod
+    def _is_synthetic_result(res: EvaluationResult) -> bool:
+        return bool(
+            res.metrics.get("cost_preselect_skip", False)
+            or res.metrics.get("surrogate_screen_reject", False)
+        )
 
     def _real_evaluate_many(self, items: list[dict[str, Any]]) -> list[EvaluationResult]:
         if not items:
@@ -299,36 +280,36 @@ class GeneticAlgorithmOptimizer(Optimizer):
             return self.problem.evaluate_many(items, max_workers=self.config.max_workers)
         return [self.problem.evaluate(x) for x in items]
 
-    def _build_surrogate(self) -> SurrogateEvaluationAccelerator | None:
-        cfg = SurrogateEvaluationConfig(
-            screening=self.config.surrogate_screening,
-            acceptance=self.config.surrogate_acceptance,
+    def _build_screener(self) -> GNNFeasibilityScreener | None:
+        cfg = self.config.surrogate_screening
+        if cfg is None or not cfg.enabled:
+            return None
+        if (
+            not hasattr(self.problem, "layout_path")
+            or not hasattr(self.problem, "fixed_params")
+        ):
+            raise ValueError("Surrogate screening requires problem.layout_path and problem.fixed_params.")
+        return GNNFeasibilityScreener(
+            cfg,
+            layout_id=self.problem.layout_path.stem,
+            fixed_params=self.problem.fixed_params,
         )
-        if not cfg.enabled:
+
+    def _build_cost_estimator(self) -> GNNMaterialCostEstimator | None:
+        cfg = self.config.cost_preselection
+        if cfg is None or not cfg.enabled:
             return None
         if (
             not hasattr(self.problem, "layout_path")
             or not hasattr(self.problem, "fixed_params")
             or not hasattr(self.problem, "objective_cfg")
         ):
-            raise ValueError("Surrogate evaluation requires problem.layout_path, fixed_params and objective_cfg.")
-        return SurrogateEvaluationAccelerator(
-            cfg,
-            layout_path=self.problem.layout_path,
-            fixed_params=self.problem.fixed_params,
-            objective_cfg=self.problem.objective_cfg,
-        )
-
-    def _build_steel_ranker(self) -> GNNSteelRanker | None:
-        cfg = self.config.steel_ranking
-        if cfg is None or not cfg.enabled:
-            return None
-        if not hasattr(self.problem, "layout_path") or not hasattr(self.problem, "fixed_params"):
-            raise ValueError("Steel ranking requires problem.layout_path and problem.fixed_params.")
-        return GNNSteelRanker(
+            raise ValueError("Cost preselection requires problem.layout_path, fixed_params and objective_cfg.")
+        return GNNMaterialCostEstimator(
             cfg,
             layout_id=self.problem.layout_path.stem,
             fixed_params=self.problem.fixed_params,
+            steel_price_per_kg=self.problem.objective_cfg.steel_price_per_kg,
         )
 
     def _tournament_pick(self, scored: list[tuple[dict[str, Any], EvaluationResult]]) -> dict[str, Any]:

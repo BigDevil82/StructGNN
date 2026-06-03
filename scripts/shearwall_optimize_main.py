@@ -13,12 +13,10 @@ from src.shearwall_optimization.algorithms import (
     OptunaBayesConfig,
     ParticleSwarmConfig,
     RandomSearchConfig,
-    RandomPreselectionConfig,
 )
 from src.shearwall_optimization.problems import ShearWallLimitConfig, ShearWallObjectiveConfig
 from src.shearwall_optimization.runners import run_shearwall_optimization
-from src.shearwall_optimization.steel_ranking import SteelRankingConfig
-from src.shearwall_optimization.surrogate_evaluation import SurrogateAcceptanceConfig
+from src.shearwall_optimization.surrogate_cost import SurrogateCostPreselectionConfig
 from src.shearwall_optimization.surrogate_screening import SurrogateScreeningConfig
 
 
@@ -63,11 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-surrogate-screen", action="store_true")
     p.add_argument(
         "--ga-surrogate-artifact",
-        default=r"data\parametric\surrogate_dataset\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt",
+        default=r"data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt",
     )
     p.add_argument(
         "--ga-surrogate-graph-cache",
-        default=r"data\parametric\surrogate_dataset\gnn_room_graph_cache",
+        default=r"data\parametric\cache\gnn_room_graph_cache",
     )
     p.add_argument(
         "--ga-surrogate-layout-features",
@@ -75,51 +73,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--ga-surrogate-threshold", type=float, default=None)
     p.add_argument("--ga-surrogate-batch-size", type=int, default=512)
-    p.add_argument("--ga-surrogate-accept", action="store_true")
+    p.add_argument("--ga-surrogate-cost-preselect", action="store_true")
     p.add_argument(
-        "--ga-steel-artifact-dir",
-        default=r"data\parametric\surrogate_dataset\steel_quantile_lightgbm",
-    )
-    p.add_argument("--ga-accept-pass-threshold", type=float, default=0.99)
-    p.add_argument("--ga-accept-max-steel-rel-gap", type=float, default=0.75)
-    p.add_argument("--ga-accept-audit-rate", type=float, default=0.0)
-    p.add_argument("--ga-steel-ranking", action="store_true")
-    p.add_argument(
-        "--ga-steel-ranking-artifact",
+        "--ga-cost-steel-artifact",
         default=r"data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt",
     )
     p.add_argument(
-        "--ga-steel-ranking-graph-cache",
+        "--ga-cost-graph-cache",
         default=r"data\parametric\cache\gnn_room_graph_cache",
     )
     p.add_argument(
-        "--ga-steel-ranking-layout-features",
+        "--ga-cost-layout-features",
         default=r"data\parametric\surrogate_dataset\layout_features.parquet",
     )
-    p.add_argument("--ga-steel-ranking-eval-ratio", type=float, default=0.4)
-    p.add_argument("--ga-steel-ranking-min-eval", type=int, default=8)
-    p.add_argument("--ga-steel-ranking-random-ratio", type=float, default=0.1)
-    p.add_argument("--ga-steel-ranking-batch-size", type=int, default=512)
-    p.add_argument("--ga-steel-ranking-use-feasibility", action="store_true")
-    p.add_argument(
-        "--ga-steel-ranking-feasibility-artifact",
-        default=r"data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt",
-    )
-    p.add_argument(
-        "--ga-steel-ranking-feasibility-graph-cache",
-        default=r"data\parametric\cache\gnn_room_graph_cache",
-    )
-    p.add_argument(
-        "--ga-steel-ranking-feasibility-layout-features",
-        default=r"data\parametric\surrogate_dataset\layout_features.parquet",
-    )
-    p.add_argument("--ga-steel-ranking-feasibility-threshold", type=float, default=None)
-    p.add_argument("--ga-steel-ranking-feasibility-penalty-kg", type=float, default=100000.0)
-    p.add_argument("--ga-steel-ranking-feasibility-penalty-mode", choices=["hinge", "linear"], default="hinge")
-    p.add_argument("--ga-steel-ranking-feasibility-hinge-target", type=float, default=0.5)
-    p.add_argument("--ga-random-preselect", action="store_true")
-    p.add_argument("--ga-random-preselect-eval-ratio", type=float, default=0.5)
-    p.add_argument("--ga-random-preselect-min-eval", type=int, default=8)
+    p.add_argument("--ga-cost-eval-ratio", type=float, default=0.4)
+    p.add_argument("--ga-cost-min-eval", type=int, default=8)
+    p.add_argument("--ga-cost-batch-size", type=int, default=512)
+    p.add_argument("--ga-cost-feasibility-penalty", type=float, default=1.0e6)
+    p.add_argument("--ga-cost-feasibility-hinge-target", type=float, default=0.5)
 
     p.add_argument("--pso-swarm", type=int, default=24)
     p.add_argument("--pso-iter", type=int, default=20)
@@ -182,36 +153,16 @@ def main() -> None:
             screening_threshold=args.ga_surrogate_threshold,
             batch_size=args.ga_surrogate_batch_size,
         ),
-        surrogate_acceptance=SurrogateAcceptanceConfig(
-            enabled=args.ga_surrogate_accept,
-            steel_artifact_dir=args.ga_steel_artifact_dir,
-            pass_probability_threshold=args.ga_accept_pass_threshold,
-            max_steel_rel_upper_gap=args.ga_accept_max_steel_rel_gap,
-            audit_rate=args.ga_accept_audit_rate,
-            seed=args.seed,
-        ),
-        steel_ranking=SteelRankingConfig(
-            enabled=args.ga_steel_ranking,
-            artifact_path=args.ga_steel_ranking_artifact,
-            graph_cache_dir=args.ga_steel_ranking_graph_cache,
-            layout_features_path=args.ga_steel_ranking_layout_features,
-            eval_ratio=args.ga_steel_ranking_eval_ratio,
-            min_eval_count=args.ga_steel_ranking_min_eval,
-            random_ratio=args.ga_steel_ranking_random_ratio,
-            batch_size=args.ga_steel_ranking_batch_size,
-            use_feasibility_penalty=args.ga_steel_ranking_use_feasibility,
-            feasibility_artifact_path=args.ga_steel_ranking_feasibility_artifact,
-            feasibility_graph_cache_dir=args.ga_steel_ranking_feasibility_graph_cache,
-            feasibility_layout_features_path=args.ga_steel_ranking_feasibility_layout_features,
-            feasibility_threshold=args.ga_steel_ranking_feasibility_threshold,
-            feasibility_penalty_kg=args.ga_steel_ranking_feasibility_penalty_kg,
-            feasibility_penalty_mode=args.ga_steel_ranking_feasibility_penalty_mode,
-            feasibility_hinge_target=args.ga_steel_ranking_feasibility_hinge_target,
-        ),
-        random_preselection=RandomPreselectionConfig(
-            enabled=args.ga_random_preselect,
-            eval_ratio=args.ga_random_preselect_eval_ratio,
-            min_eval_count=args.ga_random_preselect_min_eval,
+        cost_preselection=SurrogateCostPreselectionConfig(
+            enabled=args.ga_surrogate_cost_preselect,
+            steel_artifact_path=args.ga_cost_steel_artifact,
+            graph_cache_dir=args.ga_cost_graph_cache,
+            layout_features_path=args.ga_cost_layout_features,
+            eval_ratio=args.ga_cost_eval_ratio,
+            min_eval_count=args.ga_cost_min_eval,
+            batch_size=args.ga_cost_batch_size,
+            feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
+            feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
         ),
     )
     random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)

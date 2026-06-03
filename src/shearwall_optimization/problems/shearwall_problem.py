@@ -12,6 +12,7 @@ from src.shearwall_modeling.parametric import (
 )
 
 from ..core.contracts import EvaluationResult, OptimizationProblem, VariableSpec
+from ..cost_estimation import material_cost
 
 
 @dataclass(frozen=True)
@@ -298,25 +299,11 @@ def _evaluate_decision(
     )
     analysis_result = analyze_parametric_model(input_data, params, analysis_cfg)
 
-    concrete_price_map = {
-        "C30": 500 / 2400,
-        "C35": 530 / 2400,
-        "C40": 560 / 2400,
-        "C45": 590 / 2400,
-        "C50": 620 / 2400,
-    }
-    price_bot = concrete_price_map.get(params.conc_bot, concrete_price_map["C30"])
-    price_mid = concrete_price_map.get(params.conc_mid, concrete_price_map["C30"])
-    price_top = concrete_price_map.get(params.conc_top, concrete_price_map["C30"])
-    tw_bot = float(params.tw_bot)
-    tw_mid = float(params.tw_mid)
-    tw_top = float(params.tw_top)
-    total_thickness = max(1.0, tw_bot + tw_mid + tw_top)
-    avg_concrete_price = (tw_bot * price_bot + tw_mid * price_mid + tw_top * price_top) / total_thickness
-
-    total_cost = (
-        avg_concrete_price * analysis_result.material_concrete_kg
-        + objective_cfg.steel_price_per_kg * analysis_result.material_steel_kg
+    cost = material_cost(
+        concrete_kg=analysis_result.material_concrete_kg,
+        steel_kg=analysis_result.material_steel_kg,
+        row=asdict(params),
+        steel_price_per_kg=objective_cfg.steel_price_per_kg,
     )
 
     metric_values = {
@@ -377,12 +364,14 @@ def _evaluate_decision(
     }
     feasible = all(v <= 0.0 for v in constraints.values())
 
-    objective = total_cost * (1.0 + total_violation)
+    objective = cost.material_cost * (1.0 + total_violation)
     if not feasible:
         objective += objective_cfg.infeasible_penalty
 
     objectives = {
-        "material_cost": total_cost,
+        "material_cost": cost.material_cost,
+        "concrete_cost": cost.concrete_cost,
+        "steel_cost": cost.steel_cost,
         "total_violation": total_violation,
         "constraints": constraints,
     }

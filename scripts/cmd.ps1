@@ -161,7 +161,7 @@
 # ---------------------------------------------------------------------------
 
 # LightGBM mean + upper-quantile steel model.
-# Used by the current GA surrogate material acceptance path.
+# Legacy experiment for conservative steel upper-bound prediction.
 # python scripts\surrogate\train_steel_quantile_lightgbm.py `
 #   --dataset-path data\parametric\surrogate_dataset\splits\surrogate_samples_with_splits.parquet `
 #   --output-dir data\parametric\surrogate_dataset\steel_quantile_lightgbm `
@@ -232,26 +232,28 @@
 #   --ga-surrogate-graph-cache data\parametric\surrogate_dataset\gnn_room_graph_cache `
 #   --ga-surrogate-layout-features data\parametric\surrogate_dataset\layout_features.parquet
 
-# GA with screening + conservative material acceptance.
-# This currently uses LightGBM steel upper-bound prediction.
+# GA with screening + surrogate cost preselection.
+# Feasibility screening rejects clearly infeasible candidates; the cost preselector
+# ranks the remaining candidates by fast concrete cost + GNN steel cost.
 # python scripts\shearwall_optimize_main.py `
 #   --algorithm ga `
 #   --layout-path data\dxf\cad_json_data\fem_raw\L17_101.json `
-#   --out outputs\result\optimization\ga_screen995_material_accept.json `
+#   --out outputs\result\optimization\ga_screen995_cost_preselect.json `
 #   --ga-pop 24 `
 #   --ga-gen 20 `
 #   --ga-mutation 0.3 `
 #   --ga-verbose `
 #   --ga-log-every 1 `
 #   --ga-surrogate-screen `
-#   --ga-surrogate-accept `
-#   --ga-surrogate-artifact data\parametric\surrogate_dataset\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt `
-#   --ga-surrogate-graph-cache data\parametric\surrogate_dataset\gnn_room_graph_cache `
+#   --ga-surrogate-cost-preselect `
+#   --ga-surrogate-artifact data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt `
+#   --ga-surrogate-graph-cache data\parametric\cache\gnn_room_graph_cache `
 #   --ga-surrogate-layout-features data\parametric\surrogate_dataset\layout_features.parquet `
-#   --ga-steel-artifact-dir data\parametric\surrogate_dataset\steel_quantile_lightgbm `
-#   --ga-accept-pass-threshold 0.99 `
-#   --ga-accept-max-steel-rel-gap 0.75 `
-#   --ga-accept-audit-rate 0.0
+#   --ga-cost-steel-artifact data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt `
+#   --ga-cost-graph-cache data\parametric\cache\gnn_room_graph_cache `
+#   --ga-cost-layout-features data\parametric\surrogate_dataset\layout_features.parquet `
+#   --ga-cost-eval-ratio 0.4 `
+#   --ga-cost-min-eval 8
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +262,7 @@
 
 # Visualize an optimization result JSON.
 # python scripts\visualize_optimization_result_main.py `
-#   --result outputs\result\optimization\ga_screen995_material_accept.json
+#   --result outputs\result\optimization\ga_screen995_cost_preselect.json
 
 # Generate surrogate analysis figures.
 # python scripts\surrogate\generate_analysis_figures.py `
@@ -271,18 +273,16 @@
 
 
 # ---------------------------------------------------------------------------
-# 9. GNN steel ranking preselection to GA
+# 9. Surrogate cost preselection batch experiment
 # ---------------------------------------------------------------------------
 
-# python scripts\shearwall_optimize_main.py `
-#   --algorithm ga `
-#   --layout-path data\dxf\cad_json_data\fem_raw\L17_101.json `
-#   --N 18 --intensity 6.0 --site-class II --seismic-group 1 `
-#   --ga-pop 8 --ga-gen 3 `
-#   --optimizer-workers 4 `
-#   --ga-steel-ranking `
-#   --ga-steel-ranking-eval-ratio 0.5 `
-#   --ga-steel-ranking-min-eval 4 `
-#   --ga-steel-ranking-random-ratio 0.125 `
-#   --ga-steel-ranking-artifact data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt `
-#   --ga-steel-ranking-graph-cache data\parametric\cache\gnn_room_graph_cache
+# python scripts\experiments\run_ga_ranking_batch.py `
+#   --layouts L17_123 L27_57 L1L28_11 `
+#   --seeds 42 7 `
+#   --methods full gnn_cost gnn_screen_cost `
+#   --out-dir outputs\result\optimization\cost_preselect_batch `
+#   --ga-pop 24 `
+#   --ga-gen 8 `
+#   --optimizer-workers 8 `
+#   --eval-ratio 0.4 `
+#   --min-eval 8

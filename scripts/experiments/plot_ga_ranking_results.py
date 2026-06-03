@@ -11,15 +11,13 @@ SMALL_LAYOUTS = ["L17_101", "L17_123", "L17_145", "L17_208"]
 SMALL_SEEDS = [42, 7]
 METHOD_LABELS = {
     "full": "Full GA-FEA",
-    "gnn_rank": "GNN ranking",
-    "gnn_fused": "GNN fused",
-    "random": "Random preselect",
+    "gnn_cost": "Surrogate cost",
+    "gnn_screen_cost": "Screen + cost",
 }
 METHOD_COLORS = {
     "full": "#4C78A8",
-    "gnn_rank": "#F58518",
-    "gnn_fused": "#B279A2",
-    "random": "#54A24B",
+    "gnn_cost": "#F58518",
+    "gnn_screen_cost": "#B279A2",
 }
 
 
@@ -61,7 +59,7 @@ def _plot_primary_summary() -> None:
 
 def _plot_primary_paired_distributions() -> None:
     df = pd.read_csv(ROOT / "primary_large" / "paired_summary.csv")
-    methods = [m for m in ["gnn_rank", "gnn_fused", "random"] if m in set(df["method"])]
+    methods = [m for m in ["gnn_cost", "gnn_screen_cost"] if m in set(df["method"])]
     labels = [METHOD_LABELS[m] for m in methods]
     both = df[df["full_feasible"] & df["method_feasible"]]
 
@@ -96,7 +94,7 @@ def _plot_eval_ratio_tradeoff() -> None:
     df = pd.DataFrame(rows)
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 3.6), sharex=True)
-    for method in [m for m in ["gnn_rank", "gnn_fused", "random"] if m in set(df["method"])]:
+    for method in [m for m in ["gnn_cost", "gnn_screen_cost"] if m in set(df["method"])]:
         g = df[df["method"] == method].sort_values("eval_ratio")
         label = METHOD_LABELS[method]
         color = METHOD_COLORS[method]
@@ -140,7 +138,9 @@ def _ratio_rows(data: Path | pd.DataFrame, ratio: float) -> list[dict[str, float
 
 def _plot_layout_level_tradeoff() -> None:
     df = pd.read_csv(ROOT / "primary_large" / "paired_summary.csv")
-    gnn = df[df["method"] == "gnn_rank"].copy()
+    gnn = df[df["method"] == "gnn_screen_cost"].copy()
+    if gnn.empty:
+        gnn = df[df["method"] == "gnn_cost"].copy()
     agg = (
         gnn.groupby("layout_id")
         .agg(
@@ -155,7 +155,7 @@ def _plot_layout_level_tradeoff() -> None:
 
     fig, ax1 = plt.subplots(figsize=(10, 4.2))
     x = range(len(agg))
-    ax1.bar(x, agg["mean_fea_reduction"] * 100.0, color=METHOD_COLORS["gnn_rank"], alpha=0.85)
+    ax1.bar(x, agg["mean_fea_reduction"] * 100.0, color=METHOD_COLORS["gnn_screen_cost"], alpha=0.85)
     ax1.set_ylabel("Mean FEA reduction (%)")
     ax1.set_ylim(0, max(55, agg["mean_fea_reduction"].max() * 120))
     ax1.set_xticks(list(x))
@@ -166,7 +166,7 @@ def _plot_layout_level_tradeoff() -> None:
     ax2.plot(list(x), agg["median_objective_ratio"], color="#333333", marker="o", linewidth=1.5)
     ax2.axhline(1.0, color="#777777", linestyle="--", linewidth=1)
     ax2.set_ylabel("Median objective ratio")
-    ax2.set_title("GNN ranking performance by layout")
+    ax2.set_title("Surrogate preselection performance by layout")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "layout_level_gnn_tradeoff.png", dpi=220)
     plt.close(fig)

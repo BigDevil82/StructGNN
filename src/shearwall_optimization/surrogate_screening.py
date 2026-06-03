@@ -13,9 +13,9 @@ from src.surrogate.features.consts import LAYOUT_FEATURES, PARAM_FEATURES
 class SurrogateScreeningConfig:
     enabled: bool = False
     artifact_path: str = (
-        r"data\parametric\surrogate_dataset\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt"
+        r"data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt"
     )
-    graph_cache_dir: str = r"data\parametric\surrogate_dataset\gnn_room_graph_cache"
+    graph_cache_dir: str = r"data\parametric\cache\gnn_room_graph_cache"
     layout_features_path: str = r"data\parametric\surrogate_dataset\layout_features.parquet"
     screening_threshold: float | None = None
     batch_size: int = 512

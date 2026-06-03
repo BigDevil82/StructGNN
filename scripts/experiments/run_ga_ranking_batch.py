@@ -19,8 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--methods",
         nargs="+",
-        choices=("full", "random", "gnn_rank", "gnn_fused"),
-        default=["full", "random", "gnn_rank"],
+        choices=("full", "gnn_cost", "gnn_screen_cost"),
+        default=["full", "gnn_cost", "gnn_screen_cost"],
     )
     p.add_argument("--out-dir", default=r"outputs\result\optimization\ranking_batch")
     p.add_argument("--N", type=int, default=18)
@@ -35,9 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--optimizer-workers", type=int, default=4)
     p.add_argument("--eval-ratio", type=float, default=0.5)
     p.add_argument("--min-eval", type=int, default=4)
-    p.add_argument("--random-ratio", type=float, default=0.125)
-    p.add_argument("--steel-ranking-artifact", default=r"data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt")
-    p.add_argument("--steel-ranking-graph-cache", default=r"data\parametric\cache\gnn_room_graph_cache")
+    p.add_argument("--steel-artifact", default=r"data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt")
+    p.add_argument("--graph-cache", default=r"data\parametric\cache\gnn_room_graph_cache")
     p.add_argument(
         "--feasibility-artifact",
         default=r"data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1\gnn_final_pass.pt",
@@ -46,8 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--feasibility-graph-cache",
         default=r"data\parametric\cache\gnn_room_graph_cache",
     )
-    p.add_argument("--feasibility-penalty-kg", type=float, default=100000.0)
-    p.add_argument("--feasibility-penalty-mode", choices=["hinge", "linear"], default="hinge")
+    p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--feasibility-hinge-target", type=float, default=0.5)
     p.add_argument("--continue-on-error", action="store_true")
     p.add_argument("--skip-existing", action="store_true")
@@ -105,8 +103,8 @@ def main() -> None:
             mean_material_cost=("material_cost", "mean"),
             mean_fea_calls=("fea_calls", "mean"),
             median_fea_calls=("fea_calls", "median"),
-            mean_steel_rank_skipped_ratio=("steel_rank_skipped_ratio", "mean"),
-            mean_random_skipped_ratio=("random_preselect_skipped_ratio", "mean"),
+            mean_screened_ratio=("screened_ratio", "mean"),
+            mean_cost_preselect_skipped_ratio=("cost_preselect_skipped_ratio", "mean"),
         )
         agg.to_csv(out_dir / "summary_by_method.csv")
         print(agg)
@@ -144,41 +142,29 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: di
         "--seed",
         str(seed),
     ]
-    if method == "random":
+    if method in {"gnn_cost", "gnn_screen_cost"}:
         cmd += [
-            "--ga-random-preselect",
-            "--ga-random-preselect-eval-ratio",
+            "--ga-surrogate-cost-preselect",
+            "--ga-cost-eval-ratio",
             str(args.eval_ratio),
-            "--ga-random-preselect-min-eval",
+            "--ga-cost-min-eval",
             str(args.min_eval),
+            "--ga-cost-steel-artifact",
+            args.steel_artifact,
+            "--ga-cost-graph-cache",
+            args.graph_cache,
+            "--ga-cost-feasibility-penalty",
+            str(args.feasibility_penalty_cost),
+            "--ga-cost-feasibility-hinge-target",
+            str(args.feasibility_hinge_target),
         ]
-    elif method in {"gnn_rank", "gnn_fused"}:
-        cmd += [
-            "--ga-steel-ranking",
-            "--ga-steel-ranking-eval-ratio",
-            str(args.eval_ratio),
-            "--ga-steel-ranking-min-eval",
-            str(args.min_eval),
-            "--ga-steel-ranking-random-ratio",
-            str(args.random_ratio),
-            "--ga-steel-ranking-artifact",
-            args.steel_ranking_artifact,
-            "--ga-steel-ranking-graph-cache",
-            args.steel_ranking_graph_cache,
-        ]
-        if method == "gnn_fused":
+        if method == "gnn_screen_cost":
             cmd += [
-                "--ga-steel-ranking-use-feasibility",
-                "--ga-steel-ranking-feasibility-artifact",
+                "--ga-surrogate-screen",
+                "--ga-surrogate-artifact",
                 args.feasibility_artifact,
-                "--ga-steel-ranking-feasibility-graph-cache",
+                "--ga-surrogate-graph-cache",
                 args.feasibility_graph_cache,
-                "--ga-steel-ranking-feasibility-penalty-kg",
-                str(args.feasibility_penalty_kg),
-                "--ga-steel-ranking-feasibility-penalty-mode",
-                args.feasibility_penalty_mode,
-                "--ga-steel-ranking-feasibility-hinge-target",
-                str(args.feasibility_hinge_target),
             ]
     return cmd
 
@@ -234,8 +220,8 @@ def _summarize(path: Path, layout: str, seed: int, method: str) -> dict[str, obj
         "material_cost": float(payload.get("best_objectives", {}).get("material_cost", float("nan"))),
         "fea_calls": int(last.get("final_fea_evaluation_count", last.get("fea_evaluation_count", -1))),
         "first_feasible_fea_calls": first_feasible,
-        "steel_rank_skipped_ratio": float(last.get("steel_rank_skipped_ratio", 0.0)),
-        "random_preselect_skipped_ratio": float(last.get("random_preselect_skipped_ratio", 0.0)),
+        "screened_ratio": float(last.get("screened_ratio", 0.0)),
+        "cost_preselect_skipped_ratio": float(last.get("cost_preselect_skipped_ratio", 0.0)),
         "result_path": str(path),
         "finished_at": datetime.now().isoformat(timespec="seconds"),
     }

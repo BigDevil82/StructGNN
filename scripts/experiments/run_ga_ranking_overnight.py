@@ -34,8 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-pop", type=int, default=24)
     p.add_argument("--ga-gen", type=int, default=8)
     p.add_argument("--optimizer-workers", type=int, default=4)
-    p.add_argument("--include-fused", action="store_true")
-    p.add_argument("--feasibility-penalty-kg", type=float, default=200000.0)
+    p.add_argument("--include-screen-cost", action="store_true")
+    p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--dry-run", action="store_true")
     return p
 
@@ -75,8 +75,8 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
         "--continue-on-error",
         "--skip-existing",
     ]
-    if args.include_fused:
-        common += ["--feasibility-penalty-kg", str(args.feasibility_penalty_kg)]
+    if args.include_screen_cost:
+        common += ["--feasibility-penalty-cost", str(args.feasibility_penalty_cost)]
     return [
         (
             "primary_large",
@@ -86,9 +86,8 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
                 seeds=LARGE_SEEDS,
                 eval_ratio=0.5,
                 min_eval=8,
-                random_ratio=0.125,
                 extra=common,
-                include_fused=args.include_fused,
+                include_screen_cost=args.include_screen_cost,
             ),
         ),
         (
@@ -99,9 +98,8 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
                 seeds=SMALL_SEEDS,
                 eval_ratio=0.25,
                 min_eval=4,
-                random_ratio=0.125,
                 extra=common,
-                include_fused=args.include_fused,
+                include_screen_cost=args.include_screen_cost,
             ),
         ),
         (
@@ -112,9 +110,8 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
                 seeds=SMALL_SEEDS,
                 eval_ratio=0.75,
                 min_eval=8,
-                random_ratio=0.125,
                 extra=common,
-                include_fused=args.include_fused,
+                include_screen_cost=args.include_screen_cost,
             ),
         ),
         (
@@ -125,9 +122,8 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
                 seeds=SMALL_SEEDS,
                 eval_ratio=0.5,
                 min_eval=8,
-                random_ratio=0.125,
                 extra=common + ["--intensity", "7.0"],
-                include_fused=args.include_fused,
+                include_screen_cost=args.include_screen_cost,
             ),
         ),
     ]
@@ -140,13 +136,12 @@ def _batch_cmd(
     seeds: list[int],
     eval_ratio: float,
     min_eval: int,
-    random_ratio: float,
     extra: list[str],
-    include_fused: bool,
+    include_screen_cost: bool,
 ) -> list[str]:
-    methods = ["full", "random", "gnn_rank"]
-    if include_fused:
-        methods.append("gnn_fused")
+    methods = ["full", "gnn_cost"]
+    if include_screen_cost:
+        methods.append("gnn_screen_cost")
     return [
         sys.executable,
         "scripts/experiments/run_ga_ranking_batch.py",
@@ -162,8 +157,6 @@ def _batch_cmd(
         str(eval_ratio),
         "--min-eval",
         str(min_eval),
-        "--random-ratio",
-        str(random_ratio),
         *extra,
     ]
 
