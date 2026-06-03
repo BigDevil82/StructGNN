@@ -30,7 +30,9 @@ class SteelRankingConfig:
     feasibility_graph_cache_dir: str = r"data\parametric\cache\gnn_room_graph_cache"
     feasibility_layout_features_path: str = r"data\parametric\surrogate_dataset\layout_features.parquet"
     feasibility_threshold: float | None = None
-    feasibility_penalty_kg: float = 200000.0
+    feasibility_penalty_kg: float = 100000.0
+    feasibility_penalty_mode: str = "hinge"
+    feasibility_hinge_target: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -105,7 +107,7 @@ class GNNSteelRanker:
             feas = self.feasibility.screen(items) if self.feasibility is not None else []
             for (idx, _, key), steel, decision in zip(pending, steel_preds, feas):
                 prob = float(decision.probability)
-                risk = max(0.0, min(1.0, 1.0 - prob))
+                risk = self._feasibility_risk(prob)
                 score = float(steel) + float(self.cfg.feasibility_penalty_kg) * risk
                 item = SteelRankingPrediction(
                     score=score,
@@ -117,6 +119,14 @@ class GNNSteelRanker:
                 out[idx] = item
 
         return [item for item in out if item is not None]
+
+    def _feasibility_risk(self, probability: float) -> float:
+        prob = max(0.0, min(1.0, float(probability)))
+        if self.cfg.feasibility_penalty_mode == "linear":
+            return 1.0 - prob
+        if self.cfg.feasibility_penalty_mode == "hinge":
+            return max(0.0, float(self.cfg.feasibility_hinge_target) - prob)
+        raise ValueError(f"Unsupported feasibility_penalty_mode={self.cfg.feasibility_penalty_mode}")
 
     def _predict_steel(self, decisions: list[dict[str, Any]]) -> list[float]:
         out: list[float | None] = [None] * len(decisions)

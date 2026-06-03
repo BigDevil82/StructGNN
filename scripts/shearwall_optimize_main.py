@@ -114,7 +114,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=r"data\parametric\surrogate_dataset\layout_features.parquet",
     )
     p.add_argument("--ga-steel-ranking-feasibility-threshold", type=float, default=None)
-    p.add_argument("--ga-steel-ranking-feasibility-penalty-kg", type=float, default=200000.0)
+    p.add_argument("--ga-steel-ranking-feasibility-penalty-kg", type=float, default=100000.0)
+    p.add_argument("--ga-steel-ranking-feasibility-penalty-mode", choices=["hinge", "linear"], default="hinge")
+    p.add_argument("--ga-steel-ranking-feasibility-hinge-target", type=float, default=0.5)
     p.add_argument("--ga-random-preselect", action="store_true")
     p.add_argument("--ga-random-preselect-eval-ratio", type=float, default=0.5)
     p.add_argument("--ga-random-preselect-min-eval", type=int, default=8)
@@ -203,6 +205,8 @@ def main() -> None:
             feasibility_layout_features_path=args.ga_steel_ranking_feasibility_layout_features,
             feasibility_threshold=args.ga_steel_ranking_feasibility_threshold,
             feasibility_penalty_kg=args.ga_steel_ranking_feasibility_penalty_kg,
+            feasibility_penalty_mode=args.ga_steel_ranking_feasibility_penalty_mode,
+            feasibility_hinge_target=args.ga_steel_ranking_feasibility_hinge_target,
         ),
         random_preselection=RandomPreselectionConfig(
             enabled=args.ga_random_preselect,

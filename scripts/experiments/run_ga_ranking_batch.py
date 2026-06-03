@@ -27,6 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--intensity", type=float, default=6.0)
     p.add_argument("--site-class", default="II")
     p.add_argument("--seismic-group", type=int, default=1)
+    p.add_argument("--condition-csv", default=None)
     p.add_argument("--ga-pop", type=int, default=8)
     p.add_argument("--ga-gen", type=int, default=3)
     p.add_argument("--ga-elite", type=int, default=1)
@@ -45,7 +46,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--feasibility-graph-cache",
         default=r"data\parametric\cache\gnn_room_graph_cache",
     )
-    p.add_argument("--feasibility-penalty-kg", type=float, default=200000.0)
+    p.add_argument("--feasibility-penalty-kg", type=float, default=100000.0)
+    p.add_argument("--feasibility-penalty-mode", choices=["hinge", "linear"], default="hinge")
+    p.add_argument("--feasibility-hinge-target", type=float, default=0.5)
     p.add_argument("--continue-on-error", action="store_true")
     p.add_argument("--skip-existing", action="store_true")
     return p
@@ -55,12 +58,14 @@ def main() -> None:
     args = build_parser().parse_args()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    conditions = _load_conditions(args.condition_csv)
     rows = []
     for layout in args.layouts:
         for seed in args.seeds:
+            cond = _condition_for(args, conditions, layout, seed)
             for method in args.methods:
                 out_path = out_dir / f"{layout}_seed{seed}_{method}.json"
-                cmd = _command(args, layout, seed, method, out_path)
+                cmd = _command(args, layout, seed, method, out_path, cond)
                 if args.skip_existing and out_path.exists():
                     print(f"[batch] skip existing {out_path}")
                     rows.append(_summarize(out_path, layout, seed, method))
@@ -108,7 +113,7 @@ def main() -> None:
         _write_paired_summary(ok, out_dir)
 
 
-def _command(args, layout: str, seed: int, method: str, out_path: Path) -> list[str]:
+def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: dict[str, object]) -> list[str]:
     cmd = [
         sys.executable,
         "scripts/shearwall_optimize_main.py",
@@ -121,11 +126,11 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path) -> list[
         "--N",
         str(args.N),
         "--intensity",
-        str(args.intensity),
+        str(cond["intensity"]),
         "--site-class",
-        args.site_class,
+        str(cond["site_class"]),
         "--seismic-group",
-        str(args.seismic_group),
+        str(cond["seismic_group"]),
         "--ga-pop",
         str(args.ga_pop),
         "--ga-gen",
@@ -170,8 +175,41 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path) -> list[
                 args.feasibility_graph_cache,
                 "--ga-steel-ranking-feasibility-penalty-kg",
                 str(args.feasibility_penalty_kg),
+                "--ga-steel-ranking-feasibility-penalty-mode",
+                args.feasibility_penalty_mode,
+                "--ga-steel-ranking-feasibility-hinge-target",
+                str(args.feasibility_hinge_target),
             ]
     return cmd
+
+
+def _load_conditions(path: str | None) -> dict[tuple[str, int], dict[str, object]]:
+    if not path:
+        return {}
+    df = pd.read_csv(path)
+    required = {"layout_id", "seed", "intensity", "site_class", "seismic_group"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Condition CSV missing columns: {sorted(missing)}")
+    out = {}
+    for row in df.to_dict("records"):
+        out[(str(row["layout_id"]), int(row["seed"]))] = {
+            "intensity": float(row["intensity"]),
+            "site_class": str(row["site_class"]),
+            "seismic_group": int(row["seismic_group"]),
+        }
+    return out
+
+
+def _condition_for(args, conditions: dict[tuple[str, int], dict[str, object]], layout: str, seed: int) -> dict[str, object]:
+    return conditions.get(
+        (layout, seed),
+        {
+            "intensity": float(args.intensity),
+            "site_class": str(args.site_class),
+            "seismic_group": int(args.seismic_group),
+        },
+    )
 
 
 def _summarize(path: Path, layout: str, seed: int, method: str) -> dict[str, object]:
@@ -188,6 +226,9 @@ def _summarize(path: Path, layout: str, seed: int, method: str) -> dict[str, obj
         "layout_id": layout,
         "seed": seed,
         "method": method,
+        "intensity": payload.get("fixed_params", {}).get("intensity"),
+        "site_class": payload.get("fixed_params", {}).get("site_class"),
+        "seismic_group": payload.get("fixed_params", {}).get("seismic_group"),
         "best_feasible": bool(payload.get("best_feasible", False)),
         "best_objective": float(payload.get("best_objective", float("inf"))),
         "material_cost": float(payload.get("best_objectives", {}).get("material_cost", float("nan"))),

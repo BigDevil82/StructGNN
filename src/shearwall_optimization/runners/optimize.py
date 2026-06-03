@@ -1,4 +1,6 @@
 import json
+import math
+import numbers
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -74,6 +76,7 @@ def run_shearwall_optimization(
     payload = {
         "algorithm": algorithm,
         "layout_path": layout_path,
+        "fixed_params": fixed_params or {},
         "analysis_cfg": asdict(cfg),
         "best_solution": result.best_solution,
         "best_objective": result.best_objective,
@@ -84,10 +87,30 @@ def run_shearwall_optimization(
     }
     output = Path(out_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    payload = _json_safe(payload)
+    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     try:
         generate_optimization_plots(payload=payload, result_path=output)
     except Exception:
         # Plotting should not block optimization result persistence.
         pass
     return result
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, numbers.Real):
+        numeric = float(value)
+        return numeric if math.isfinite(numeric) else None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    return value
