@@ -72,3 +72,41 @@ The key columns are:
 - `mae_improve_pct`, `rmse_improve_pct`, `mape_improve_pct`
 
 A positive improvement means the local residual model improves over the original global surrogate on the same holdout samples.
+
+## Feasibility Probability Calibration
+
+`feasibility_probability_calibration.py` tests whether a layout-local calibration set can improve the feasibility classifier probability.
+
+Supported methods:
+
+- `platt`: logistic calibration on the global probability logit.
+- `isotonic`: monotonic probability calibration.
+- `logistic`: local logistic classifier using probability plus design variables.
+- `residual_ridge`, `residual_rf`, `residual_lgbm`: learn `y_true - p_global` and correct the probability.
+- `vote`: average global probability with several local classifiers.
+
+Quick run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\local_calibration\feasibility_probability_calibration.py `
+  --max-layouts 6 `
+  --calib-sizes 25,50,100,200,500 `
+  --repeats 3 `
+  --screening-threshold-scale 0.1 `
+  --output-dir outputs\result\local_calibration\feasibility_probability_quick_scale01
+```
+
+Full run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\local_calibration\feasibility_probability_calibration.py `
+  --layouts all `
+  --calib-sizes 25,50,100,200,500,1000 `
+  --repeats 5 `
+  --screening-threshold-scale 0.1 `
+  --output-dir outputs\result\local_calibration\feasibility_probability_full_scale01
+```
+
+The main probability-quality metrics are `brier` and `ece`.
+For optimization screening, inspect `screen_reject_rate` together with `screen_recall`.
+`--screening-threshold-scale` makes the local reject threshold more conservative; values below `1.0` reduce false rejection risk at the cost of rejecting fewer candidates.
