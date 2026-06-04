@@ -44,8 +44,9 @@ TEST_LAYOUTS = [
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Run primary GA ranking experiment on all test layouts.")
+    p = argparse.ArgumentParser(description="Run primary surrogate-assisted optimization experiment on test layouts.")
     p.add_argument("--out-root", default=r"outputs\result\optimization\ranking_test_primary")
+    p.add_argument("--algorithm", choices=["ga", "pso", "optuna"], default="ga")
     p.add_argument("--layout-source", choices=["builtin", "split"], default="builtin")
     p.add_argument(
         "--split-path",
@@ -57,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-pop", type=int, default=24)
     p.add_argument("--ga-gen", type=int, default=8)
     p.add_argument("--ga-elite", type=int, default=2)
+    p.add_argument("--pso-swarm", type=int, default=24)
+    p.add_argument("--pso-iter", type=int, default=8)
+    p.add_argument("--optuna-trials", type=int, default=360)
+    p.add_argument("--optuna-startup-trials", type=int, default=48)
+    p.add_argument("--optuna-batch-size", type=int, default=24)
     p.add_argument("--optimizer-workers", type=int, default=8)
     p.add_argument("--job-workers", type=int, default=1)
     p.add_argument("--eval-ratio", type=float, default=0.5)
@@ -64,6 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--feasibility-hinge-target", type=float, default=0.5)
     p.add_argument("--local-calibration", action="store_true")
+    p.add_argument("--skip-full", action="store_true", help="Run only surrogate-assisted methods.")
     p.add_argument("--dry-run", action="store_true")
     return p
 
@@ -81,27 +88,22 @@ def main() -> None:
     pd.DataFrame({"layout_id": layouts, "family": [_family(x) for x in layouts]}).to_csv(layout_path, index=False)
     pd.DataFrame(conditions).to_csv(condition_path, index=False)
 
+    methods = ["gnn_cost", "gnn_screen_cost"] if args.skip_full else ["full", "gnn_cost", "gnn_screen_cost"]
     cmd = [
         sys.executable,
         "scripts/experiments/run_ga_ranking_batch.py",
+        "--algorithm",
+        args.algorithm,
         "--layouts",
         *layouts,
         "--seeds",
         *[str(seed) for seed in args.seeds],
         "--methods",
-        "full",
-        "gnn_cost",
-        "gnn_screen_cost",
+        *methods,
         "--out-dir",
         str(out_dir),
         "--condition-csv",
         str(condition_path),
-        "--ga-pop",
-        str(args.ga_pop),
-        "--ga-gen",
-        str(args.ga_gen),
-        "--ga-elite",
-        str(args.ga_elite),
         "--optimizer-workers",
         str(args.optimizer_workers),
         "--job-workers",
@@ -117,6 +119,31 @@ def main() -> None:
         "--continue-on-error",
         "--skip-existing",
     ]
+    if args.algorithm == "ga":
+        cmd += [
+            "--ga-pop",
+            str(args.ga_pop),
+            "--ga-gen",
+            str(args.ga_gen),
+            "--ga-elite",
+            str(args.ga_elite),
+        ]
+    elif args.algorithm == "pso":
+        cmd += [
+            "--pso-swarm",
+            str(args.pso_swarm),
+            "--pso-iter",
+            str(args.pso_iter),
+        ]
+    elif args.algorithm == "optuna":
+        cmd += [
+            "--optuna-trials",
+            str(args.optuna_trials),
+            "--optuna-startup-trials",
+            str(args.optuna_startup_trials),
+            "--optuna-batch-size",
+            str(args.optuna_batch_size),
+        ]
     if args.local_calibration:
         cmd.append("--local-calibration")
     print("[test-primary]", " ".join(cmd))
