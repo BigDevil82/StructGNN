@@ -46,7 +46,7 @@ TEST_LAYOUTS = [
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run primary surrogate-assisted optimization experiment on test layouts.")
     p.add_argument("--out-root", default=r"outputs\result\optimization\ranking_test_primary")
-    p.add_argument("--algorithm", choices=["ga", "pso", "optuna"], default="ga")
+    p.add_argument("--algorithm", choices=["ga", "pso", "optuna", "random"], default="ga")
     p.add_argument("--layout-source", choices=["builtin", "split"], default="builtin")
     p.add_argument(
         "--split-path",
@@ -63,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--optuna-trials", type=int, default=360)
     p.add_argument("--optuna-startup-trials", type=int, default=48)
     p.add_argument("--optuna-batch-size", type=int, default=24)
+    p.add_argument("--random-trials", type=int, default=720)
+    p.add_argument("--random-batch-size", type=int, default=48)
     p.add_argument("--optimizer-workers", type=int, default=8)
     p.add_argument("--job-workers", type=int, default=1)
     p.add_argument("--eval-ratio", type=float, default=0.5)
@@ -143,6 +145,13 @@ def main() -> None:
             str(args.optuna_startup_trials),
             "--optuna-batch-size",
             str(args.optuna_batch_size),
+        ]
+    elif args.algorithm == "random":
+        cmd += [
+            "--random-trials",
+            str(args.random_trials),
+            "--random-batch-size",
+            str(args.random_batch_size),
         ]
     if args.local_calibration:
         cmd.append("--local-calibration")

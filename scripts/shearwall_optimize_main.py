@@ -108,6 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--pso-vclamp", type=float, default=0.25)
 
     p.add_argument("--random-trials", type=int, default=200)
+    p.add_argument("--random-batch-size", type=int, default=24)
     p.add_argument("--optuna-trials", type=int, default=50)
     p.add_argument("--optuna-startup-trials", type=int, default=10)
     p.add_argument("--optuna-batch-size", type=int, default=24)
@@ -183,7 +184,40 @@ def main() -> None:
             steel_lgbm_min_samples=args.ga_local_steel_lgbm_min_samples,
         ),
     )
-    random_cfg = RandomSearchConfig(n_trials=args.random_trials, seed=args.seed)
+    random_cfg = RandomSearchConfig(
+        n_trials=args.random_trials,
+        batch_size=args.random_batch_size,
+        max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
+        seed=args.seed,
+        surrogate_screening=SurrogateScreeningConfig(
+            enabled=args.ga_surrogate_screen,
+            artifact_path=args.ga_surrogate_artifact,
+            graph_cache_dir=args.ga_surrogate_graph_cache,
+            layout_features_path=args.ga_surrogate_layout_features,
+            screening_threshold=args.ga_surrogate_threshold,
+            batch_size=args.ga_surrogate_batch_size,
+        ),
+        cost_preselection=SurrogateCostPreselectionConfig(
+            enabled=args.ga_surrogate_cost_preselect,
+            steel_artifact_path=args.ga_cost_steel_artifact,
+            graph_cache_dir=args.ga_cost_graph_cache,
+            layout_features_path=args.ga_cost_layout_features,
+            eval_ratio=args.ga_cost_eval_ratio,
+            min_eval_count=args.ga_cost_min_eval,
+            batch_size=args.ga_cost_batch_size,
+            feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
+            feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
+        ),
+        local_calibration=OnlineLocalCalibrationConfig(
+            enabled=args.ga_local_calibration,
+            min_samples=args.ga_local_calibration_min_samples,
+            screening_target_recall=args.ga_local_screening_target_recall,
+            screening_threshold_scale=args.ga_local_screening_threshold_scale,
+            steel_min_samples=args.ga_local_steel_min_samples,
+            steel_gpr_min_samples=args.ga_local_steel_gpr_min_samples,
+            steel_lgbm_min_samples=args.ga_local_steel_lgbm_min_samples,
+        ),
+    )
     pso_cfg = ParticleSwarmConfig(
         swarm_size=args.pso_swarm,
         iterations=args.pso_iter,

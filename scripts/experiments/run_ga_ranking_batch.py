@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=["full", "gnn_cost", "gnn_screen_cost"],
     )
     p.add_argument("--out-dir", default=r"outputs\result\optimization\ranking_batch")
-    p.add_argument("--algorithm", choices=("ga", "pso", "optuna"), default="ga")
+    p.add_argument("--algorithm", choices=("ga", "pso", "optuna", "random"), default="ga")
     p.add_argument("--N", type=int, default=18)
     p.add_argument("--intensity", type=float, default=6.0)
     p.add_argument("--site-class", default="II")
@@ -51,6 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--optuna-trials", type=int, default=120)
     p.add_argument("--optuna-startup-trials", type=int, default=24)
     p.add_argument("--optuna-batch-size", type=int, default=24)
+    p.add_argument("--random-trials", type=int, default=720)
+    p.add_argument("--random-batch-size", type=int, default=48)
     p.add_argument("--optimizer-workers", type=int, default=4)
     p.add_argument("--job-workers", type=int, default=1, help="Number of GA subprocesses to run concurrently.")
     p.add_argument("--eval-ratio", type=float, default=0.5)
@@ -229,6 +231,13 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: di
             str(args.optuna_startup_trials),
             "--optuna-batch-size",
             str(args.optuna_batch_size),
+        ]
+    elif args.algorithm == "random":
+        cmd += [
+            "--random-trials",
+            str(args.random_trials),
+            "--random-batch-size",
+            str(args.random_batch_size),
         ]
     cmd += [
         "--optimizer-workers",
