@@ -5,6 +5,18 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 
+PLOT_SENTINEL_OBJECTIVE = 1.0e10
+
+
+def _is_plottable_population_point(item: dict[str, Any], value_key: str) -> bool:
+    if bool(item.get("cost_preselect_skip", False)) or bool(item.get("surrogate_screen_reject", False)):
+        return False
+    try:
+        value = float(item.get(value_key, float("nan")))
+    except (TypeError, ValueError):
+        return False
+    return value == value and abs(value) < PLOT_SENTINEL_OBJECTIVE
+
 
 def _extract_steps(history: list[dict[str, Any]]) -> list[int]:
     steps: list[int] = []
@@ -85,6 +97,8 @@ def _plot_trial_scatter(history: list[dict[str, Any]], out_path: Path) -> bool:
         if "objective" not in item:
             continue
         obj = float(item["objective"])
+        if not (obj == obj and abs(obj) < PLOT_SENTINEL_OBJECTIVE):
+            continue
         xs.append(trial)
         ys.append(obj)
         best = min(best, obj)
@@ -118,10 +132,16 @@ def _plot_population_scatter(history: list[dict[str, Any]], out_path: Path) -> b
 
     for item in history:
         population = item.get("population")
+        if not isinstance(population, list) or not population:
+            continue
 
         obj_feasible_pairs = [
-            (float(p.get("objective", float("nan"))), bool(p.get("feasible", False))) for p in population
+            (float(p.get("objective", float("nan"))), bool(p.get("feasible", False)))
+            for p in population
+            if _is_plottable_population_point(p, "objective")
         ]
+        if not obj_feasible_pairs:
+            continue
 
         for obj, feasible in obj_feasible_pairs:
             eval_count += 1
@@ -159,7 +179,7 @@ def _plot_material_cost_scatter(history: list[dict[str, Any]], out_path: Path) -
         population = item.get("population")
         if isinstance(population, list) and population:
             for p in population:
-                if "material_cost" not in p:
+                if "material_cost" not in p or not _is_plottable_population_point(p, "material_cost"):
                     continue
                 eval_count += 1
                 xs.append(float(eval_count))
