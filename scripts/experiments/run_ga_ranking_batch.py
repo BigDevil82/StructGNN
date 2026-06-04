@@ -4,12 +4,23 @@ import argparse
 import json
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+@dataclass(frozen=True)
+class RunTask:
+    layout: str
+    seed: int
+    method: str
+    out_path: Path
+    cmd: list[str]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-elite", type=int, default=1)
     p.add_argument("--ga-mutation", type=float, default=0.3)
     p.add_argument("--optimizer-workers", type=int, default=4)
+    p.add_argument("--job-workers", type=int, default=1, help="Number of GA subprocesses to run concurrently.")
     p.add_argument("--eval-ratio", type=float, default=0.5)
     p.add_argument("--min-eval", type=int, default=4)
     p.add_argument("--steel-artifact", default=r"data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt")
@@ -62,6 +74,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     conditions = _load_conditions(args.condition_csv)
     rows = []
+    tasks: list[RunTask] = []
     for layout in args.layouts:
         for seed in args.seeds:
             cond = _condition_for(args, conditions, layout, seed)
@@ -73,24 +86,31 @@ def main() -> None:
                     rows.append(_summarize(out_path, layout, seed, method))
                     pd.DataFrame(rows).to_csv(out_dir / "summary.csv", index=False)
                     continue
-                print("[batch]", " ".join(cmd))
+                tasks.append(RunTask(layout=layout, seed=seed, method=method, out_path=out_path, cmd=cmd))
+
+    if args.job_workers <= 1:
+        for task in tasks:
+            rows.append(_run_task(task, args.continue_on_error, log_dir=None))
+            pd.DataFrame(rows).to_csv(out_dir / "summary.csv", index=False)
+    else:
+        log_dir = out_dir / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with ThreadPoolExecutor(max_workers=args.job_workers) as executor:
+            futures = {
+                executor.submit(_run_task, task, args.continue_on_error, log_dir): task for task in tasks
+            }
+            completed = 0
+            for future in as_completed(futures):
+                task = futures[future]
                 try:
-                    subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
-                except subprocess.CalledProcessError as exc:
+                    row = future.result()
+                except Exception as exc:
                     if not args.continue_on_error:
                         raise
-                    rows.append(
-                        {
-                            "ok": False,
-                            "layout_id": layout,
-                            "seed": seed,
-                            "method": method,
-                            "error": str(exc),
-                            "finished_at": datetime.now().isoformat(timespec="seconds"),
-                        }
-                    )
-                    continue
-                rows.append(_summarize(out_path, layout, seed, method))
+                    row = _error_row(task, str(exc))
+                rows.append(row)
+                completed += 1
+                print(f"[batch] finished {completed}/{len(tasks)} {task.out_path.name}")
                 pd.DataFrame(rows).to_csv(out_dir / "summary.csv", index=False)
 
     summary = pd.DataFrame(rows)
@@ -114,6 +134,35 @@ def main() -> None:
         agg.to_csv(out_dir / "summary_by_method.csv")
         print(agg)
         _write_paired_summary(ok, out_dir)
+
+
+def _run_task(task: RunTask, continue_on_error: bool, log_dir: Path | None) -> dict[str, object]:
+    print("[batch]", " ".join(task.cmd))
+    try:
+        if log_dir is None:
+            subprocess.run(task.cmd, cwd=PROJECT_ROOT, check=True)
+        else:
+            stdout_path = log_dir / f"{task.out_path.stem}.stdout.log"
+            stderr_path = log_dir / f"{task.out_path.stem}.stderr.log"
+            with stdout_path.open("w", encoding="utf-8") as stdout, stderr_path.open("w", encoding="utf-8") as stderr:
+                subprocess.run(task.cmd, cwd=PROJECT_ROOT, check=True, stdout=stdout, stderr=stderr)
+    except subprocess.CalledProcessError as exc:
+        if not continue_on_error:
+            raise
+        return _error_row(task, str(exc))
+    return _summarize(task.out_path, task.layout, task.seed, task.method)
+
+
+def _error_row(task: RunTask, error: str) -> dict[str, object]:
+    return {
+        "ok": False,
+        "layout_id": task.layout,
+        "seed": task.seed,
+        "method": task.method,
+        "error": error,
+        "result_path": str(task.out_path),
+        "finished_at": datetime.now().isoformat(timespec="seconds"),
+    }
 
 
 def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: dict[str, object]) -> list[str]:

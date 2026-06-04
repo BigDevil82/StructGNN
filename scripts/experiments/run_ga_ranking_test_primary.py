@@ -58,6 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-gen", type=int, default=8)
     p.add_argument("--ga-elite", type=int, default=2)
     p.add_argument("--optimizer-workers", type=int, default=8)
+    p.add_argument("--job-workers", type=int, default=1)
     p.add_argument("--eval-ratio", type=float, default=0.5)
     p.add_argument("--min-eval", type=int, default=8)
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
@@ -103,6 +104,8 @@ def main() -> None:
         str(args.ga_elite),
         "--optimizer-workers",
         str(args.optimizer_workers),
+        "--job-workers",
+        str(args.job_workers),
         "--eval-ratio",
         str(args.eval_ratio),
         "--min-eval",

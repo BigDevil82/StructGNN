@@ -34,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-pop", type=int, default=24)
     p.add_argument("--ga-gen", type=int, default=8)
     p.add_argument("--optimizer-workers", type=int, default=4)
+    p.add_argument("--job-workers", type=int, default=1)
     p.add_argument("--include-screen-cost", action="store_true")
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--local-calibration", action="store_true")
@@ -73,6 +74,8 @@ def _experiments(args, out_root: Path) -> list[tuple[str, list[str]]]:
         "2",
         "--optimizer-workers",
         str(args.optimizer_workers),
+        "--job-workers",
+        str(args.job_workers),
         "--continue-on-error",
         "--skip-existing",
     ]
