@@ -2,8 +2,12 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
-from ..core.contracts import OptimizationResult
+from ..core.contracts import EvaluationResult, OptimizationResult
 from ..core.optimizer import Optimizer
+from ..local_calibration import OnlineLocalCalibrationConfig
+from ..surrogate_candidate import SurrogateCandidateEvaluator, SurrogateEvaluationConfig
+from ..surrogate_cost import SurrogateCostPreselectionConfig
+from ..surrogate_screening import SurrogateScreeningConfig
 
 
 @dataclass(frozen=True)
@@ -16,6 +20,9 @@ class ParticleSwarmConfig:
     velocity_clamp: float = 0.25
     max_workers: int | None = None
     seed: int = 42
+    surrogate_screening: SurrogateScreeningConfig | None = None
+    cost_preselection: SurrogateCostPreselectionConfig | None = None
+    local_calibration: OnlineLocalCalibrationConfig | None = None
 
 
 class ParticleSwarmOptimizer(Optimizer):
@@ -23,8 +30,18 @@ class ParticleSwarmOptimizer(Optimizer):
         super().__init__(problem)
         self.config = config or ParticleSwarmConfig()
         self.rng = random.Random(self.config.seed)
+        self.evaluator = SurrogateCandidateEvaluator(
+            problem,
+            SurrogateEvaluationConfig(
+                max_workers=self.config.max_workers,
+                surrogate_screening=self.config.surrogate_screening,
+                cost_preselection=self.config.cost_preselection,
+                local_calibration=self.config.local_calibration,
+            ),
+        )
 
     def optimize(self) -> OptimizationResult:
+        print("[PSO] Starting optimization")
         dim = len(self.problem.variables)
         particles = [[self.rng.random() for _ in range(dim)] for _ in range(self.config.swarm_size)]
         velocities = [[0.0 for _ in range(dim)] for _ in range(self.config.swarm_size)]
@@ -32,7 +49,7 @@ class ParticleSwarmOptimizer(Optimizer):
         pbest_pos = [list(p) for p in particles]
         pbest_eval = self._evaluate_vectors(particles)
 
-        gbest_idx = min(range(self.config.swarm_size), key=lambda i: pbest_eval[i].objective)
+        gbest_idx = min(range(self.config.swarm_size), key=lambda i: self._rank_key(pbest_eval[i]))
         gbest_pos = list(pbest_pos[gbest_idx])
         gbest_eval = pbest_eval[gbest_idx]
 
@@ -53,34 +70,34 @@ class ParticleSwarmOptimizer(Optimizer):
 
             iter_eval = self._evaluate_vectors(particles)
             for i, cur_eval in enumerate(iter_eval):
-                if cur_eval.objective < pbest_eval[i].objective:
+                if self._rank_key(cur_eval) < self._rank_key(pbest_eval[i]):
                     pbest_pos[i] = list(particles[i])
                     pbest_eval[i] = cur_eval
 
-                if cur_eval.objective < gbest_eval.objective:
+                if self._rank_key(cur_eval) < self._rank_key(gbest_eval):
                     gbest_pos = list(particles[i])
                     gbest_eval = cur_eval
 
+            counts = self.evaluator.population_counts(iter_eval)
             history.append(
                 {
                     "iteration": it,
                     "best_objective": gbest_eval.objective,
                     "best_feasible": gbest_eval.feasible,
-                    "feasible_count": sum(1 for r in iter_eval if r.feasible),
-                    "feasible_ratio": sum(1 for r in iter_eval if r.feasible) / max(1, len(iter_eval)),
-                    "population": [
-                        {
-                            "objective": float(r.objective),
-                            "feasible": bool(r.feasible),
-                            "material_cost": float(r.objectives.get("material_cost", float("nan"))),
-                        }
-                        for r in iter_eval
-                    ],
+                    **counts,
+                    "fea_evaluation_count": int(getattr(self.problem, "fea_evaluation_count", -1)),
+                    **self.evaluator.local_summary(),
+                    "population": [self.evaluator.population_item(r) for r in iter_eval],
                     "best_constraints": dict(gbest_eval.constraints),
                 }
             )
 
         best_solution = self.problem.decode(gbest_pos)
+        if self.evaluator.is_synthetic_result(gbest_eval):
+            best_solution = self.problem.repair(best_solution)
+            gbest_eval = self.problem.evaluate(best_solution)
+        if history:
+            history[-1]["final_fea_evaluation_count"] = int(getattr(self.problem, "fea_evaluation_count", -1))
         return OptimizationResult(
             best_solution=best_solution,
             best_objective=gbest_eval.objective,
@@ -92,6 +109,8 @@ class ParticleSwarmOptimizer(Optimizer):
 
     def _evaluate_vectors(self, vectors: list[list[float]]):
         decoded = [self.problem.decode(v) for v in vectors]
-        if hasattr(self.problem, "evaluate_many"):
-            return self.problem.evaluate_many(decoded, max_workers=self.config.max_workers)
-        return [self.problem.evaluate(x) for x in decoded]
+        return [res for _, res in self.evaluator.evaluate(decoded)]
+
+    @staticmethod
+    def _rank_key(res: EvaluationResult) -> tuple[bool, float]:
+        return SurrogateCandidateEvaluator.rank_key(res)

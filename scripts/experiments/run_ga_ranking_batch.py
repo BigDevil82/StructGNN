@@ -16,6 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 @dataclass(frozen=True)
 class RunTask:
+    algorithm: str
     layout: str
     seed: int
     method: str
@@ -34,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=["full", "gnn_cost", "gnn_screen_cost"],
     )
     p.add_argument("--out-dir", default=r"outputs\result\optimization\ranking_batch")
+    p.add_argument("--algorithm", choices=("ga", "pso", "optuna"), default="ga")
     p.add_argument("--N", type=int, default=18)
     p.add_argument("--intensity", type=float, default=6.0)
     p.add_argument("--site-class", default="II")
@@ -44,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-gen", type=int, default=3)
     p.add_argument("--ga-elite", type=int, default=1)
     p.add_argument("--ga-mutation", type=float, default=0.3)
+    p.add_argument("--pso-swarm", type=int, default=24)
+    p.add_argument("--pso-iter", type=int, default=20)
+    p.add_argument("--optuna-trials", type=int, default=120)
+    p.add_argument("--optuna-startup-trials", type=int, default=24)
+    p.add_argument("--optuna-batch-size", type=int, default=24)
     p.add_argument("--optimizer-workers", type=int, default=4)
     p.add_argument("--job-workers", type=int, default=1, help="Number of GA subprocesses to run concurrently.")
     p.add_argument("--eval-ratio", type=float, default=0.5)
@@ -83,10 +90,19 @@ def main() -> None:
                 cmd = _command(args, layout, seed, method, out_path, cond)
                 if args.skip_existing and out_path.exists():
                     print(f"[batch] skip existing {out_path}")
-                    rows.append(_summarize(out_path, layout, seed, method))
+                    rows.append(_summarize(out_path, args.algorithm, layout, seed, method))
                     pd.DataFrame(rows).to_csv(out_dir / "summary.csv", index=False)
                     continue
-                tasks.append(RunTask(layout=layout, seed=seed, method=method, out_path=out_path, cmd=cmd))
+                tasks.append(
+                    RunTask(
+                        algorithm=args.algorithm,
+                        layout=layout,
+                        seed=seed,
+                        method=method,
+                        out_path=out_path,
+                        cmd=cmd,
+                    )
+                )
 
     if args.job_workers <= 1:
         for task in tasks:
@@ -150,12 +166,13 @@ def _run_task(task: RunTask, continue_on_error: bool, log_dir: Path | None) -> d
         if not continue_on_error:
             raise
         return _error_row(task, str(exc))
-    return _summarize(task.out_path, task.layout, task.seed, task.method)
+    return _summarize(task.out_path, task.algorithm, task.layout, task.seed, task.method)
 
 
 def _error_row(task: RunTask, error: str) -> dict[str, object]:
     return {
         "ok": False,
+        "algorithm": task.algorithm,
         "layout_id": task.layout,
         "seed": task.seed,
         "method": task.method,
@@ -170,7 +187,7 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: di
         sys.executable,
         "scripts/shearwall_optimize_main.py",
         "--algorithm",
-        "ga",
+        str(args.algorithm),
         "--layout-path",
         str(Path("data/dxf/cad_json_data/fem_raw") / f"{layout}.json"),
         "--out",
@@ -185,14 +202,35 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: di
         str(cond["seismic_group"]),
         "--steel-price-per-kg",
         str(args.steel_price_per_kg),
-        "--ga-pop",
-        str(args.ga_pop),
-        "--ga-gen",
-        str(args.ga_gen),
-        "--ga-elite",
-        str(args.ga_elite),
-        "--ga-mutation",
-        str(args.ga_mutation),
+    ]
+    if args.algorithm == "ga":
+        cmd += [
+            "--ga-pop",
+            str(args.ga_pop),
+            "--ga-gen",
+            str(args.ga_gen),
+            "--ga-elite",
+            str(args.ga_elite),
+            "--ga-mutation",
+            str(args.ga_mutation),
+        ]
+    elif args.algorithm == "pso":
+        cmd += [
+            "--pso-swarm",
+            str(args.pso_swarm),
+            "--pso-iter",
+            str(args.pso_iter),
+        ]
+    elif args.algorithm == "optuna":
+        cmd += [
+            "--optuna-trials",
+            str(args.optuna_trials),
+            "--optuna-startup-trials",
+            str(args.optuna_startup_trials),
+            "--optuna-batch-size",
+            str(args.optuna_batch_size),
+        ]
+    cmd += [
         "--optimizer-workers",
         str(args.optimizer_workers),
         "--seed",
@@ -262,7 +300,7 @@ def _condition_for(args, conditions: dict[tuple[str, int], dict[str, object]], l
     )
 
 
-def _summarize(path: Path, layout: str, seed: int, method: str) -> dict[str, object]:
+def _summarize(path: Path, algorithm: str, layout: str, seed: int, method: str) -> dict[str, object]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     history = payload.get("history", [])
     last = history[-1] if history else {}
@@ -273,6 +311,7 @@ def _summarize(path: Path, layout: str, seed: int, method: str) -> dict[str, obj
             break
     return {
         "ok": True,
+        "algorithm": algorithm,
         "layout_id": layout,
         "seed": seed,
         "method": method,

@@ -110,6 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--random-trials", type=int, default=200)
     p.add_argument("--optuna-trials", type=int, default=50)
     p.add_argument("--optuna-startup-trials", type=int, default=10)
+    p.add_argument("--optuna-batch-size", type=int, default=24)
     p.add_argument("--optuna-progress", action="store_true")
     p.add_argument("--nsga2-trials", type=int, default=80)
     p.add_argument("--nsga2-pop", type=int, default=24)
@@ -192,12 +193,70 @@ def main() -> None:
         velocity_clamp=args.pso_vclamp,
         max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
         seed=args.seed,
+        surrogate_screening=SurrogateScreeningConfig(
+            enabled=args.ga_surrogate_screen,
+            artifact_path=args.ga_surrogate_artifact,
+            graph_cache_dir=args.ga_surrogate_graph_cache,
+            layout_features_path=args.ga_surrogate_layout_features,
+            screening_threshold=args.ga_surrogate_threshold,
+            batch_size=args.ga_surrogate_batch_size,
+        ),
+        cost_preselection=SurrogateCostPreselectionConfig(
+            enabled=args.ga_surrogate_cost_preselect,
+            steel_artifact_path=args.ga_cost_steel_artifact,
+            graph_cache_dir=args.ga_cost_graph_cache,
+            layout_features_path=args.ga_cost_layout_features,
+            eval_ratio=args.ga_cost_eval_ratio,
+            min_eval_count=args.ga_cost_min_eval,
+            batch_size=args.ga_cost_batch_size,
+            feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
+            feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
+        ),
+        local_calibration=OnlineLocalCalibrationConfig(
+            enabled=args.ga_local_calibration,
+            min_samples=args.ga_local_calibration_min_samples,
+            screening_target_recall=args.ga_local_screening_target_recall,
+            screening_threshold_scale=args.ga_local_screening_threshold_scale,
+            steel_min_samples=args.ga_local_steel_min_samples,
+            steel_gpr_min_samples=args.ga_local_steel_gpr_min_samples,
+            steel_lgbm_min_samples=args.ga_local_steel_lgbm_min_samples,
+        ),
     )
     optuna_cfg = OptunaBayesConfig(
         n_trials=args.optuna_trials,
         n_startup_trials=args.optuna_startup_trials,
+        batch_size=args.optuna_batch_size,
+        max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
         seed=args.seed,
         show_progress_bar=args.optuna_progress,
+        surrogate_screening=SurrogateScreeningConfig(
+            enabled=args.ga_surrogate_screen,
+            artifact_path=args.ga_surrogate_artifact,
+            graph_cache_dir=args.ga_surrogate_graph_cache,
+            layout_features_path=args.ga_surrogate_layout_features,
+            screening_threshold=args.ga_surrogate_threshold,
+            batch_size=args.ga_surrogate_batch_size,
+        ),
+        cost_preselection=SurrogateCostPreselectionConfig(
+            enabled=args.ga_surrogate_cost_preselect,
+            steel_artifact_path=args.ga_cost_steel_artifact,
+            graph_cache_dir=args.ga_cost_graph_cache,
+            layout_features_path=args.ga_cost_layout_features,
+            eval_ratio=args.ga_cost_eval_ratio,
+            min_eval_count=args.ga_cost_min_eval,
+            batch_size=args.ga_cost_batch_size,
+            feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
+            feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
+        ),
+        local_calibration=OnlineLocalCalibrationConfig(
+            enabled=args.ga_local_calibration,
+            min_samples=args.ga_local_calibration_min_samples,
+            screening_target_recall=args.ga_local_screening_target_recall,
+            screening_threshold_scale=args.ga_local_screening_threshold_scale,
+            steel_min_samples=args.ga_local_steel_min_samples,
+            steel_gpr_min_samples=args.ga_local_steel_gpr_min_samples,
+            steel_lgbm_min_samples=args.ga_local_steel_lgbm_min_samples,
+        ),
     )
     nsga2_cfg = NSGA2Config(
         n_trials=args.nsga2_trials,
