@@ -27,6 +27,7 @@ def main() -> None:
     _plot_primary_paired_distributions()
     _plot_eval_ratio_tradeoff()
     _plot_layout_level_tradeoff()
+    _plot_combined_figure()
     print(f"figures saved to {FIG_DIR}")
 
 
@@ -169,6 +170,24 @@ def _plot_layout_level_tradeoff() -> None:
     ax2.set_title("Surrogate preselection performance by layout")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "layout_level_gnn_tradeoff.png", dpi=220)
+    plt.close(fig)
+
+
+def _plot_combined_figure() -> None:
+    items = [
+        ("Overall performance", FIG_DIR / "primary_summary.png"),
+        ("Paired comparison", FIG_DIR / "primary_paired_distributions.png"),
+        ("Evaluation-ratio tradeoff", FIG_DIR / "eval_ratio_tradeoff.png"),
+        ("Layout-level tradeoff", FIG_DIR / "layout_level_gnn_tradeoff.png"),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=(18, 12))
+    for ax, (title, path) in zip(axes.ravel(), items):
+        image = plt.imread(path)
+        ax.imshow(image)
+        ax.set_title(title, fontsize=13, pad=8)
+        ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(FIG_DIR / "combined_optimization_results.png", dpi=220)
     plt.close(fig)
 
 
