@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run primary surrogate-assisted optimization experiment on test layouts.")
     p.add_argument("--out-root", default=r"outputs\result\optimization\ranking_test_primary")
     p.add_argument("--algorithm", choices=["ga", "pso", "optuna", "random"], default="ga")
-    p.add_argument("--layout-source", choices=["builtin", "split"], default="builtin")
+    p.add_argument("--layout-source", choices=["builtin", "split", "all"], default="builtin")
     p.add_argument(
         "--split-path",
         default=r"data\parametric\surrogate_dataset\splits\surrogate_samples_with_splits.parquet",
@@ -68,6 +68,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--random-batch-size", type=int, default=48)
     p.add_argument("--optimizer-workers", type=int, default=8)
     p.add_argument("--job-workers", type=int, default=1)
+    p.add_argument(
+        "--methods",
+        nargs="+",
+        choices=["full", "gnn_cost", "gnn_screen_cost"],
+        default=None,
+        help="Methods to run. Overrides --skip-full when provided.",
+    )
     p.add_argument("--eval-ratio", type=float, default=0.5)
     p.add_argument("--min-eval", type=int, default=8)
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
@@ -91,7 +98,12 @@ def main() -> None:
     pd.DataFrame({"layout_id": layouts, "family": [_family(x) for x in layouts]}).to_csv(layout_path, index=False)
     pd.DataFrame(conditions).to_csv(condition_path, index=False)
 
-    methods = ["gnn_cost", "gnn_screen_cost"] if args.skip_full else ["full", "gnn_cost", "gnn_screen_cost"]
+    if args.methods is not None:
+        methods = args.methods
+    elif args.skip_full:
+        methods = ["gnn_cost", "gnn_screen_cost"]
+    else:
+        methods = ["full", "gnn_cost", "gnn_screen_cost"]
     cmd = [
         sys.executable,
         "scripts/experiments/run_ga_ranking_batch.py",
@@ -167,6 +179,10 @@ def main() -> None:
 def _load_test_layouts(source: str, split_path: Path, layout_json_dir: Path) -> list[str]:
     if source == "builtin":
         return [layout for layout in TEST_LAYOUTS if (layout_json_dir / f"{layout}.json").exists()]
+    if source == "all":
+        allowed = {"L17", "L27", "L1L28"}
+        layouts = [path.stem for path in layout_json_dir.glob("*.json")]
+        return sorted([layout for layout in layouts if _family(layout) in allowed], key=_layout_sort_key)
 
     df = pd.read_parquet(split_path, columns=["layout_id", "split"])
     layouts = sorted(
