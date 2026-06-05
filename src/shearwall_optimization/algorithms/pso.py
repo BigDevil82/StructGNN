@@ -18,6 +18,7 @@ class ParticleSwarmConfig:
     cognitive: float = 1.49
     social: float = 1.49
     velocity_clamp: float = 0.25
+    mutation_rate: float = 0.0
     max_workers: int | None = None
     seed: int = 42
     surrogate_screening: SurrogateScreeningConfig | None = None
@@ -55,6 +56,7 @@ class ParticleSwarmOptimizer(Optimizer):
 
         history: list[dict[str, Any]] = []
         for it in range(1, self.config.iterations + 1):
+            mutated_count = 0
             for i in range(self.config.swarm_size):
                 for d in range(dim):
                     r1 = self.rng.random()
@@ -67,6 +69,10 @@ class ParticleSwarmOptimizer(Optimizer):
                     v = max(-self.config.velocity_clamp, min(self.config.velocity_clamp, v))
                     velocities[i][d] = v
                     particles[i][d] = max(0.0, min(1.0, particles[i][d] + v))
+                    if self.rng.random() < self.config.mutation_rate:
+                        particles[i][d] = self.rng.random()
+                        velocities[i][d] = 0.0
+                        mutated_count += 1
 
             iter_eval = self._evaluate_vectors(particles)
             for i, cur_eval in enumerate(iter_eval):
@@ -86,6 +92,8 @@ class ParticleSwarmOptimizer(Optimizer):
                     "best_feasible": gbest_eval.feasible,
                     **counts,
                     "fea_evaluation_count": int(getattr(self.problem, "fea_evaluation_count", -1)),
+                    "pso_mutated_coordinate_count": mutated_count,
+                    "pso_mutation_rate": self.config.mutation_rate,
                     **self.evaluator.local_summary(),
                     "population": [self.evaluator.population_item(r) for r in iter_eval],
                     "best_constraints": dict(gbest_eval.constraints),

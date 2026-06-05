@@ -60,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-elite", type=int, default=2)
     p.add_argument("--pso-swarm", type=int, default=24)
     p.add_argument("--pso-iter", type=int, default=8)
+    p.add_argument("--pso-mutation-rate", type=float, default=0.0)
     p.add_argument("--optuna-trials", type=int, default=360)
     p.add_argument("--optuna-startup-trials", type=int, default=48)
     p.add_argument("--optuna-batch-size", type=int, default=24)
@@ -136,6 +137,8 @@ def main() -> None:
             str(args.pso_swarm),
             "--pso-iter",
             str(args.pso_iter),
+            "--pso-mutation-rate",
+            str(args.pso_mutation_rate),
         ]
     elif args.algorithm == "optuna":
         cmd += [

@@ -106,6 +106,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--pso-cognitive", type=float, default=1.49)
     p.add_argument("--pso-social", type=float, default=1.49)
     p.add_argument("--pso-vclamp", type=float, default=0.25)
+    p.add_argument("--pso-mutation-rate", type=float, default=0.0)
 
     p.add_argument("--random-trials", type=int, default=200)
     p.add_argument("--random-batch-size", type=int, default=24)
@@ -225,6 +226,7 @@ def main() -> None:
         cognitive=args.pso_cognitive,
         social=args.pso_social,
         velocity_clamp=args.pso_vclamp,
+        mutation_rate=args.pso_mutation_rate,
         max_workers=(args.optimizer_workers if args.optimizer_workers > 0 else None),
         seed=args.seed,
         surrogate_screening=SurrogateScreeningConfig(
