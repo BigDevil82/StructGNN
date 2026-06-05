@@ -32,7 +32,7 @@ def _extract_steps(history: list[dict[str, Any]]) -> list[int]:
     return steps
 
 
-def _plot_objective_curve(history: list[dict[str, Any]], out_path: Path) -> None:
+def _draw_objective_curve(ax, history: list[dict[str, Any]]) -> bool:
     steps = _extract_steps(history)
     current = [float(item.get("objective", item.get("best_objective", float("nan")))) for item in history]
     best = []
@@ -42,20 +42,17 @@ def _plot_objective_curve(history: list[dict[str, Any]], out_path: Path) -> None
         best_so_far = min(best_so_far, v)
         best.append(best_so_far)
 
-    plt.figure(figsize=(8, 4.8))
-    plt.plot(steps, current, label="current", linewidth=1.2, alpha=0.7)
-    plt.plot(steps, best, label="best_so_far", linewidth=2.0)
-    plt.xlabel("step")
-    plt.ylabel("objective")
-    plt.title("Optimization Objective History")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=180)
-    plt.close()
+    ax.plot(steps, current, label="current", linewidth=1.2, alpha=0.7)
+    ax.plot(steps, best, label="best_so_far", linewidth=2.0)
+    ax.set_xlabel("step")
+    ax.set_ylabel("objective")
+    ax.set_title("Optimization Objective History")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    return True
 
 
-def _plot_feasible_ratio_curve(history: list[dict[str, Any]], out_path: Path) -> bool:
+def _draw_feasible_ratio_curve(ax, history: list[dict[str, Any]]) -> bool:
     steps = _extract_steps(history)
     ratios: list[float] = []
     has_ratio = False
@@ -70,20 +67,16 @@ def _plot_feasible_ratio_curve(history: list[dict[str, Any]], out_path: Path) ->
     if not has_ratio:
         return False
 
-    plt.figure(figsize=(8, 4.8))
-    plt.plot(steps, ratios, color="tab:green", linewidth=2.0)
-    plt.ylim(0.0, 1.05)
-    plt.xlabel("step")
-    plt.ylabel("feasible_ratio")
-    plt.title("Feasible Ratio History")
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=180)
-    plt.close()
+    ax.plot(steps, ratios, color="tab:green", linewidth=2.0)
+    ax.set_ylim(0.0, 1.05)
+    ax.set_xlabel("step")
+    ax.set_ylabel("feasible_ratio")
+    ax.set_title("Feasible Ratio History")
+    ax.grid(True, alpha=0.3)
     return True
 
 
-def _plot_trial_scatter(history: list[dict[str, Any]], out_path: Path) -> bool:
+def _draw_trial_scatter(ax, history: list[dict[str, Any]]) -> bool:
     xs: list[int] = []
     ys: list[float] = []
     best_line_x: list[int] = []
@@ -108,21 +101,17 @@ def _plot_trial_scatter(history: list[dict[str, Any]], out_path: Path) -> bool:
     if not xs:
         return False
 
-    plt.figure(figsize=(8, 4.8))
-    plt.scatter(xs, ys, s=20, alpha=0.75, color="tab:blue", label="samples")
-    plt.plot(best_line_x, best_line_y, color="tab:red", linewidth=2.0, label="best_so_far")
-    plt.xlabel("trial")
-    plt.ylabel("objective")
-    plt.title("Trial Objective Scatter")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=180)
-    plt.close()
+    ax.scatter(xs, ys, s=20, alpha=0.75, color="tab:blue", label="samples")
+    ax.plot(best_line_x, best_line_y, color="tab:red", linewidth=2.0, label="best_so_far")
+    ax.set_xlabel("trial")
+    ax.set_ylabel("objective")
+    ax.set_title("Trial Objective Scatter")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
     return True
 
 
-def _plot_population_scatter(history: list[dict[str, Any]], out_path: Path) -> bool:
+def _draw_population_scatter(ax, history: list[dict[str, Any]]) -> bool:
     xs: list[float] = []
     ys: list[float] = []
     cs: list[str] = []
@@ -154,22 +143,18 @@ def _plot_population_scatter(history: list[dict[str, Any]], out_path: Path) -> b
     if not xs:
         return False
 
-    plt.figure(figsize=(9, 5.2))
-    plt.scatter(xs, ys, c=cs, s=18, alpha=0.6, label="individual")
-    plt.plot(line_x, line_y, color="tab:red", linewidth=2.0, label="best_so_far")
-    plt.xlabel("evaluation")
-    plt.ylabel("objective")
-    plt.yscale("log")
-    plt.title("Population Objective Scatter by Evaluation")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=180)
-    plt.close()
+    ax.scatter(xs, ys, c=cs, s=18, alpha=0.6, label="individual")
+    ax.plot(line_x, line_y, color="tab:red", linewidth=2.0, label="best_so_far")
+    ax.set_xlabel("evaluation")
+    ax.set_ylabel("objective")
+    ax.set_yscale("log")
+    ax.set_title("Population Objective Scatter by Evaluation")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
     return True
 
 
-def _plot_material_cost_scatter(history: list[dict[str, Any]], out_path: Path) -> bool:
+def _draw_material_cost_scatter(ax, history: list[dict[str, Any]]) -> bool:
     xs: list[float] = []
     ys: list[float] = []
     cs: list[str] = []
@@ -198,19 +183,15 @@ def _plot_material_cost_scatter(history: list[dict[str, Any]], out_path: Path) -
     if not xs:
         return False
 
-    plt.figure(figsize=(9, 5.2))
-    plt.scatter(xs, ys, c=cs, s=20, alpha=0.7)
-    plt.xlabel("evaluation")
-    plt.ylabel("material_cost")
-    plt.title("Material Cost Scatter by Evaluation")
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=180)
-    plt.close()
+    ax.scatter(xs, ys, c=cs, s=20, alpha=0.7)
+    ax.set_xlabel("evaluation")
+    ax.set_ylabel("material_cost")
+    ax.set_title("Material Cost Scatter by Evaluation")
+    ax.grid(True, alpha=0.3)
     return True
 
 
-def _plot_pareto_scatter(history: list[dict[str, Any]], out_path: Path) -> bool:
+def _draw_pareto_scatter(ax, history: list[dict[str, Any]]) -> bool:
     xs: list[float] = []
     ys: list[float] = []
     colors: list[str] = []
@@ -231,19 +212,22 @@ def _plot_pareto_scatter(history: list[dict[str, Any]], out_path: Path) -> bool:
     if not xs:
         return False
 
-    plt.figure(figsize=(6.2, 5.2))
-    plt.scatter(xs, ys, c=colors, s=24, alpha=0.85)
-    plt.xlabel("material_cost")
-    plt.ylabel(y_label)
+    ax.scatter(xs, ys, c=colors, s=24, alpha=0.85)
+    ax.set_xlabel("material_cost")
+    ax.set_ylabel(y_label)
     title = "Pareto Scatter"
     if has_pareto:
         title += " (red = pareto)"
-    plt.title(title)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=180)
-    plt.close()
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
     return True
+
+
+def _draw_empty_panel(ax, title: str) -> None:
+    ax.set_title(title)
+    ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+    ax.set_xticks([])
+    ax.set_yticks([])
 
 
 def generate_optimization_plots(
@@ -260,30 +244,27 @@ def generate_optimization_plots(
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     algorithm = str(payload.get("algorithm", "")).lower()
-    saved: list[str] = []
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    panels = axes.ravel()
 
-    obj_path = plot_dir / f"{result_path.stem}_objective.png"
-    _plot_objective_curve(history, obj_path)
-    saved.append(str(obj_path))
+    _draw_objective_curve(panels[0], history)
 
-    pop_path = plot_dir / f"{result_path.stem}_population_scatter.png"
-    if _plot_population_scatter(history, pop_path):
-        saved.append(str(pop_path))
+    if not _draw_population_scatter(panels[1], history):
+        if not _draw_trial_scatter(panels[1], history):
+            _draw_empty_panel(panels[1], "Evaluation Objective Scatter")
 
-    trial_path = plot_dir / f"{result_path.stem}_trial_scatter.png"
-    if _plot_trial_scatter(history, trial_path):
-        saved.append(str(trial_path))
+    if algorithm == "nsga2":
+        if not _draw_pareto_scatter(panels[2], history):
+            _draw_empty_panel(panels[2], "Pareto Scatter")
+    elif not _draw_feasible_ratio_curve(panels[2], history):
+        _draw_empty_panel(panels[2], "Feasible Ratio History")
 
-    feasible_path = plot_dir / f"{result_path.stem}_feasible_ratio.png"
-    if _plot_feasible_ratio_curve(history, feasible_path):
-        saved.append(str(feasible_path))
+    if not _draw_material_cost_scatter(panels[3], history):
+        _draw_empty_panel(panels[3], "Material Cost Scatter by Evaluation")
 
-    material_path = plot_dir / f"{result_path.stem}_material_cost_scatter.png"
-    if _plot_material_cost_scatter(history, material_path):
-        saved.append(str(material_path))
-
-    pareto_path = plot_dir / f"{result_path.stem}_pareto.png"
-    if algorithm == "nsga2" and _plot_pareto_scatter(history, pareto_path):
-        saved.append(str(pareto_path))
-
-    return saved
+    fig.suptitle(f"Optimization Summary: {result_path.stem}", fontsize=14)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    out_path = plot_dir / f"{result_path.stem}_optimization_summary.png"
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+    return [str(out_path)]
