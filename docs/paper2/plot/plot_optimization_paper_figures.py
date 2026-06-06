@@ -6,6 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.ticker import ScalarFormatter
 
 from optimization_plot_data import (
     DEFAULT_EXPERIMENTS,
@@ -215,7 +216,7 @@ def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
 
 def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str) -> None:
     selected = select_representative_cases(df, algorithm)
-    fig, axes = plt.subplots(len(selected), 3, figsize=(12.0, 3.0 * len(selected)), sharey="row")
+    fig, axes = plt.subplots(len(selected), 3, figsize=(12.0, 2.35 * len(selected)), sharey="row")
     if len(selected) == 1:
         axes = np.asarray([axes])
 
@@ -225,7 +226,7 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
             & (df["layout_id"] == case["layout_id"])
             & (df["seed"] == case["seed"])
         ]
-        ymax = collect_case_ymax(case_rows)
+        ymin, ymax = collect_case_ylim(case_rows)
         for col_i, method in enumerate(METHOD_ORDER):
             ax = axes[row_i, col_i]
             row = case_rows[case_rows["method"] == method]
@@ -238,7 +239,8 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
                 continue
             points = material_points(read_payload(path).get("history", []))
             draw_process_panel(ax, points, method)
-            ax.set_ylim(0, ymax * 1.05 if ymax > 0 else 1)
+            ax.set_ylim(ymin, ymax)
+            format_million_axis(ax)
             if row_i == 0:
                 ax.set_title(METHOD_LABELS[method])
             if col_i == 0:
@@ -249,6 +251,7 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
                 ax.set_xlabel("Evaluated candidate")
             else:
                 ax.set_xlabel("")
+                ax.tick_params(axis="x", bottom=False, labelbottom=False)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.01))
     fig.suptitle(f"Representative {algorithm} Search Trajectories", y=1.04)
@@ -311,16 +314,36 @@ def case_dict(row: pd.Series, label: str) -> dict[str, object]:
     return {"layout_id": row["layout_id"], "seed": row["seed"], "label": label}
 
 
-def collect_case_ymax(case_rows: pd.DataFrame) -> float:
-    ymax = 0.0
+def collect_case_ylim(case_rows: pd.DataFrame) -> tuple[float, float]:
+    values: list[pd.Series] = []
     for _, row in case_rows.iterrows():
         path = find_result_json(row)
         if path is None:
             continue
         points = material_points(read_payload(path).get("history", []))
         if not points.empty:
-            ymax = max(ymax, float(points["material_cost"].quantile(0.98)))
-    return ymax
+            values.append(points["material_cost"])
+    if not values:
+        return (0.0, 1.0)
+
+    all_values = pd.concat(values, ignore_index=True).dropna()
+    if all_values.empty:
+        return (0.0, 1.0)
+
+    low = float(all_values.quantile(0.02))
+    high = float(all_values.quantile(0.98))
+    if high <= low:
+        high = float(all_values.max())
+        low = float(all_values.min())
+    pad = max((high - low) * 0.10, high * 0.02, 1.0)
+    return (max(0.0, low - pad), high + pad)
+
+
+def format_million_axis(ax: plt.Axes) -> None:
+    formatter = ScalarFormatter(useMathText=False)
+    formatter.set_powerlimits((6, 6))
+    ax.yaxis.set_major_formatter(formatter)
+    ax.ticklabel_format(axis="y", style="sci", scilimits=(6, 6))
 
 
 def draw_process_panel(ax: plt.Axes, points: pd.DataFrame, method: str) -> None:
