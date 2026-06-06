@@ -6,6 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
 
 from optimization_plot_data import (
     DEFAULT_EXPERIMENTS,
@@ -48,6 +49,8 @@ def main() -> None:
 
     plot_fea_calls(df, args.out_dir)
     plot_efficiency_quality(paired, args.out_dir)
+    plot_paired_delta(paired, args.out_dir)
+    plot_tolerance_success_curve(paired, args.out_dir)
     plot_success_heatmap(df, args.out_dir)
     plot_process_examples(df, args.out_dir, args.process_algorithm)
     plot_cost_gap(paired, args.out_dir)
@@ -130,6 +133,121 @@ def plot_efficiency_quality(paired: pd.DataFrame, out_dir: str | Path) -> None:
     fig.suptitle("Efficiency-Quality Tradeoff Relative to Full FEA", y=1.02)
     fig.tight_layout()
     save_figure(fig, "main_02_efficiency_quality_pareto.png", out_dir)
+
+
+def plot_paired_delta(paired: pd.DataFrame, out_dir: str | Path) -> None:
+    fig, axes = plt.subplots(3, 2, figsize=(11.5, 9.2), sharex="col")
+    for row_i, algorithm in enumerate(ALGORITHM_ORDER):
+        sub = paired[paired["algorithm"] == algorithm].copy()
+        sub = sub[sub["full_feasible"]].copy()
+        order = case_order(sub)
+        for col_i, metric in enumerate(["fea_reduction", "cost_gap_pct"]):
+            ax = axes[row_i, col_i]
+            metric_df = sub[sub["case_id"].isin(order)]
+            for y, case_id in enumerate(order):
+                rows = metric_df[metric_df["case_id"] == case_id]
+                values = rows.set_index("method")[metric].to_dict()
+                xs = [values.get(method, np.nan) for method in SURROGATE_METHODS]
+                if all(np.isfinite(xs)):
+                    ax.plot(xs, [y, y], color="#d2d2d2", linewidth=0.8, zorder=1)
+                for method in SURROGATE_METHODS:
+                    row = rows[rows["method"] == method]
+                    if row.empty:
+                        continue
+                    x = float(row.iloc[0][metric])
+                    if not np.isfinite(x):
+                        continue
+                    marker = "o" if method == "gnn_cost" else "^"
+                    ax.scatter(
+                        x,
+                        y,
+                        s=30,
+                        marker=marker,
+                        color=METHOD_COLORS[method],
+                        edgecolor="#222222",
+                        linewidth=0.35,
+                        alpha=0.85,
+                        zorder=2,
+                    )
+            ax.set_title(f"{algorithm} - {'FEA reduction' if col_i == 0 else 'Cost gap'}")
+            ax.set_yticks([])
+            ax.set_ylim(-1, len(order))
+            ax.grid(axis="x")
+            if col_i == 0:
+                ax.set_xlim(-0.05, 1.02)
+                ax.set_xlabel("FEA reduction vs full")
+            else:
+                ax.axvline(0, color="#777777", linewidth=0.8, linestyle="--")
+                ax.set_xlim(delta_xlim(sub["cost_gap_pct"]))
+                ax.set_xlabel("Cost gap vs full (%)")
+            if col_i == 0:
+                ax.set_ylabel(f"{algorithm}\npaired cases")
+    handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="none",
+            markerfacecolor=METHOD_COLORS["gnn_cost"],
+            markeredgecolor="#222222",
+            markeredgewidth=0.35,
+            markersize=6,
+            label=METHOD_LABELS["gnn_cost"],
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="^",
+            color="none",
+            markerfacecolor=METHOD_COLORS["gnn_screen_cost"],
+            markeredgecolor="#222222",
+            markeredgewidth=0.35,
+            markersize=6,
+            label=METHOD_LABELS["gnn_screen_cost"],
+        ),
+    ]
+    fig.legend(handles=handles, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.01))
+    fig.suptitle("Paired Case-Level Changes Relative to Full FEA", y=1.035)
+    fig.tight_layout()
+    save_figure(fig, "candidate_02a_paired_delta.png", out_dir)
+
+
+def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> None:
+    thresholds = np.array([0, 1, 2, 3, 5, 8, 10, 15], dtype=float)
+    fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=True)
+    for ax, algorithm in zip(axes, ALGORITHM_ORDER):
+        sub = paired[(paired["algorithm"] == algorithm) & paired["full_feasible"]].copy()
+        for method in SURROGATE_METHODS:
+            m = sub[sub["method"] == method]
+            rates = []
+            labels = []
+            for threshold in thresholds:
+                ok = m["best_feasible"] & (m["fea_reduction"] > 0) & (m["cost_gap_pct"] <= threshold)
+                rates.append(ok.mean() if len(ok) else np.nan)
+                labels.append(int(ok.sum()) if len(ok) else 0)
+            ax.plot(
+                thresholds,
+                100 * np.asarray(rates, dtype=float),
+                marker="o" if method == "gnn_cost" else "^",
+                markersize=4.5,
+                linewidth=1.8,
+                color=METHOD_COLORS[method],
+                label=METHOD_LABELS[method],
+            )
+            for x, y, count in zip(thresholds, 100 * np.asarray(rates, dtype=float), labels):
+                if np.isfinite(y):
+                    ax.text(x, y + 1.5, str(count), ha="center", va="bottom", fontsize=6, color="#444444")
+        ax.set_title(algorithm)
+        ax.set_xlabel("Allowed cost increase vs full (%)")
+        ax.set_ylim(0, 105)
+        ax.set_xlim(thresholds.min(), thresholds.max())
+        ax.grid(True)
+        if ax is axes[0]:
+            ax.set_ylabel("Qualified case ratio (%)")
+    axes[-1].legend(loc="lower right", frameon=False)
+    fig.suptitle("Efficiency-Quality Qualification Under Cost Tolerance", y=1.02)
+    fig.tight_layout()
+    save_figure(fig, "candidate_02b_tolerance_success_curve.png", out_dir)
 
 
 def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
@@ -435,6 +553,35 @@ def empty_panel(ax: plt.Axes, title: str) -> None:
     ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center", va="center")
     ax.set_xticks([])
     ax.set_yticks([])
+
+
+def case_order(df: pd.DataFrame) -> list[str]:
+    if df.empty:
+        return []
+    stats = (
+        df.groupby("case_id")
+        .agg(
+            family=("family", "first"),
+            layout_id=("layout_id", "first"),
+            seed=("seed", "first"),
+            fea_reduction=("fea_reduction", "median"),
+            cost_gap_pct=("cost_gap_pct", "median"),
+        )
+        .reset_index()
+    )
+    stats["family_order"] = stats["family"].map({"L17": 0, "L27": 1, "L1L28": 2}).fillna(9)
+    stats["layout_num"] = stats["layout_id"].str.extract(r"_(\d+)").astype(float)
+    stats = stats.sort_values(["family_order", "layout_num", "seed"])
+    return stats["case_id"].tolist()
+
+
+def delta_xlim(values: pd.Series) -> tuple[float, float]:
+    clean = values.dropna()
+    if clean.empty:
+        return (-10.0, 10.0)
+    q = float(clean.abs().quantile(0.98))
+    lim = max(5.0, min(50.0, q * 1.25))
+    return (-lim, lim)
 
 
 if __name__ == "__main__":
