@@ -28,7 +28,6 @@ METHOD_COLORS = {
     "gnn_cost": "#efbd75",
     "gnn_screen_cost": "#e8a69d",
 }
-FAMILY_MARKERS = {"L17": "o", "L27": "s", "L1L28": "^"}
 
 
 def set_paper_style() -> None:
@@ -114,19 +113,6 @@ def draw_violin_points(
         ax.set_title(title)
     ax.grid(axis="y")
     ax.set_axisbelow(True)
-
-
-def add_panel_label(ax: plt.Axes, label: str) -> None:
-    ax.text(
-        -0.12,
-        1.06,
-        label,
-        transform=ax.transAxes,
-        ha="left",
-        va="bottom",
-        fontweight="bold",
-        fontsize=11,
-    )
 
 
 def family_of(layout_id: str) -> str:

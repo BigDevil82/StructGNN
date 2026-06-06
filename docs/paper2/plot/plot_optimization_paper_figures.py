@@ -20,14 +20,12 @@ from optimization_plot_data import (
 )
 from paper_plot_style import (
     ALGORITHM_ORDER,
-    FAMILY_MARKERS,
     METHOD_COLORS,
     METHOD_LABELS,
     METHOD_LABELS_SHORT,
     METHOD_ORDER,
     PLOT_DIR,
     SURROGATE_METHODS,
-    add_panel_label,
     draw_violin_points,
     method_colors,
     save_figure,
@@ -46,16 +44,11 @@ def main() -> None:
     df = load_all_summaries(experiments)
     paired = paired_with_full(df)
 
-    plot_fea_calls(df, args.out_dir)
     plot_combined_distribution_summary(df, paired, args.out_dir)
-    plot_efficiency_quality(paired, args.out_dir)
     plot_tolerance_success_curve(paired, args.out_dir)
     plot_success_heatmap(df, args.out_dir)
     plot_process_examples(df, args.out_dir, args.process_algorithm)
-    plot_cost_gap(paired, args.out_dir)
-    plot_first_feasible(df, args.out_dir)
     plot_screening_funnel(df, args.out_dir)
-    plot_difficulty_benefit(df, paired, args.out_dir)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -66,27 +59,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out-dir", default=str(PLOT_DIR))
     p.add_argument("--process-algorithm", choices=ALGORITHM_ORDER, default="GA")
     return p
-
-
-def plot_fea_calls(df: pd.DataFrame, out_dir: str | Path) -> None:
-    fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=True)
-    ymax = float(df["fea_calls"].max())
-    for ax, algorithm in zip(axes, ALGORITHM_ORDER):
-        sub = df[df["algorithm"] == algorithm]
-        data = [sub.loc[sub["method"] == method, "fea_calls"].dropna().to_numpy() for method in METHOD_ORDER]
-        draw_violin_points(
-            ax,
-            data,
-            [METHOD_LABELS_SHORT[m] for m in METHOD_ORDER],
-            method_colors(METHOD_ORDER),
-            ylabel="FEA calls" if ax is axes[0] else None,
-            title=algorithm,
-            point_size=5,
-        )
-        ax.set_ylim(0, ymax * 1.08)
-    fig.suptitle("FEA Calls by Optimization Algorithm and Surrogate Strategy", y=1.02)
-    fig.tight_layout()
-    save_figure(fig, "main_01_fea_calls_violin.png", out_dir)
 
 
 def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, out_dir: str | Path) -> None:
@@ -165,51 +137,6 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
     save_figure(fig, "main_01_distribution_summary_3x3.png", out_dir)
 
 
-def plot_efficiency_quality(paired: pd.DataFrame, out_dir: str | Path) -> None:
-    fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=True)
-    valid = paired[paired["both_feasible"] & paired["cost_ratio"].notna()]
-    ymax = max(1.25, float(valid["cost_ratio"].quantile(0.98)) * 1.05) if not valid.empty else 1.25
-    for ax, algorithm in zip(axes, ALGORITHM_ORDER):
-        sub = paired[paired["algorithm"] == algorithm]
-        for method in SURROGATE_METHODS:
-            m = sub[sub["method"] == method]
-            ok = m[m["both_feasible"] & m["cost_ratio"].notna()]
-            ax.scatter(
-                ok["fea_ratio"],
-                ok["cost_ratio"],
-                s=26,
-                color=METHOD_COLORS[method],
-                edgecolor="#222222",
-                linewidth=0.35,
-                alpha=0.72,
-                label=METHOD_LABELS[method],
-            )
-            failed = m[m["full_feasible"] & ~m["best_feasible"]]
-            if not failed.empty:
-                ax.scatter(
-                    failed["fea_ratio"],
-                    np.full(len(failed), ymax),
-                    marker="x",
-                    s=24,
-                    color=METHOD_COLORS[method],
-                    linewidth=0.9,
-                    alpha=0.9,
-                )
-        ax.axhline(1.0, color="#777777", linewidth=0.8, linestyle="--")
-        ax.axvline(1.0, color="#777777", linewidth=0.8, linestyle="--")
-        ax.set_title(algorithm)
-        ax.set_xlabel("FEA ratio to full")
-        ax.set_xlim(0, 1.08)
-        ax.set_ylim(0.75, ymax * 1.02)
-        ax.grid(True)
-        if ax is axes[0]:
-            ax.set_ylabel("Cost ratio to full")
-    axes[-1].legend(loc="upper right", frameon=False)
-    fig.suptitle("Efficiency-Quality Tradeoff Relative to Full FEA", y=1.02)
-    fig.tight_layout()
-    save_figure(fig, "main_02_efficiency_quality_pareto.png", out_dir)
-
-
 def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> None:
     thresholds = np.array([0, 1, 2, 3, 5, 8, 10, 15], dtype=float)
     fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=True)
@@ -245,7 +172,7 @@ def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> N
     axes[-1].legend(loc="lower right", frameon=False)
     fig.suptitle("Efficiency-Quality Qualification Under Cost Tolerance", y=1.02)
     fig.tight_layout()
-    save_figure(fig, "candidate_02b_tolerance_success_curve.png", out_dir)
+    save_figure(fig, "main_02_tolerance_success_curve.png", out_dir)
 
 
 def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
@@ -329,58 +256,6 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
     save_figure(fig, "main_04_process_scatter_examples.png", out_dir)
 
 
-def plot_cost_gap(paired: pd.DataFrame, out_dir: str | Path) -> None:
-    fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=True)
-    valid = paired[paired["both_feasible"] & paired["cost_gap_pct"].notna()]
-    q = valid["cost_gap_pct"].abs().quantile(0.98) if not valid.empty else 10
-    lim = max(5.0, min(80.0, float(q) * 1.2))
-    for ax, algorithm in zip(axes, ALGORITHM_ORDER):
-        sub = paired[paired["algorithm"] == algorithm]
-        data = [
-            sub.loc[(sub["method"] == method) & sub["both_feasible"], "cost_gap_pct"].dropna().to_numpy()
-            for method in SURROGATE_METHODS
-        ]
-        draw_violin_points(
-            ax,
-            data,
-            [METHOD_LABELS_SHORT[m] for m in SURROGATE_METHODS],
-            method_colors(SURROGATE_METHODS),
-            ylabel="Cost gap to full (%)" if ax is axes[0] else None,
-            title=algorithm,
-            point_size=9,
-        )
-        ax.axhline(0, color="#777777", linewidth=0.8, linestyle="--")
-        ax.set_ylim(-lim, lim)
-    fig.suptitle("Final Cost Gap Relative to Full FEA", y=1.02)
-    fig.tight_layout()
-    save_figure(fig, "supp_01_cost_gap_violin.png", out_dir)
-
-
-def plot_first_feasible(df: pd.DataFrame, out_dir: str | Path) -> None:
-    fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=True)
-    ymax = float(df["first_feasible_fea_calls"].max(skipna=True))
-    for ax, algorithm in zip(axes, ALGORITHM_ORDER):
-        sub = df[df["algorithm"] == algorithm]
-        data = [sub.loc[sub["method"] == method, "first_feasible_fea_calls"].dropna().to_numpy() for method in METHOD_ORDER]
-        labels = []
-        for method in METHOD_ORDER:
-            m = sub[sub["method"] == method]
-            labels.append(f"{METHOD_LABELS_SHORT[method]}\nfail={int((~m['best_feasible']).sum())}")
-        draw_violin_points(
-            ax,
-            data,
-            labels,
-            method_colors(METHOD_ORDER),
-            ylabel="FEA calls to first feasible" if ax is axes[0] else None,
-            title=algorithm,
-            point_size=8,
-        )
-        ax.set_ylim(0, ymax * 1.08)
-    fig.suptitle("Search Effort Before the First Feasible Design", y=1.02)
-    fig.tight_layout()
-    save_figure(fig, "supp_02_first_feasible_violin.png", out_dir)
-
-
 def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:
     fig, axes = plt.subplots(1, 3, figsize=(11.4, 3.8), sharey=True)
     flow_colors = ["#e8a69d", "#efbd75", "#8fb6d6"]
@@ -412,52 +287,6 @@ def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:
     fig.suptitle("Candidate Flow in the Screening + Cost Surrogate Strategy", y=1.02)
     fig.tight_layout()
     save_figure(fig, "supp_03_screening_funnel.png", out_dir)
-
-
-def plot_difficulty_benefit(df: pd.DataFrame, paired: pd.DataFrame, out_dir: str | Path) -> None:
-    fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.8), sharey=True)
-    for ax, algorithm in zip(axes, ALGORITHM_ORDER):
-        full = (
-            df[(df["algorithm"] == algorithm) & (df["method"] == "full")]
-            .groupby(["layout_id", "family"])["best_feasible"]
-            .mean()
-            .reset_index(name="full_success_rate")
-        )
-        benefit = (
-            paired[paired["algorithm"] == algorithm]
-            .groupby(["layout_id", "family", "method"])["fea_reduction"]
-            .median()
-            .reset_index()
-        )
-        merged = benefit.merge(full, on=["layout_id", "family"], how="left")
-        for method in SURROGATE_METHODS:
-            for family, marker in FAMILY_MARKERS.items():
-                sub = merged[(merged["method"] == method) & (merged["family"] == family)]
-                if sub.empty:
-                    continue
-                ax.scatter(
-                    sub["full_success_rate"],
-                    100 * sub["fea_reduction"],
-                    s=36,
-                    marker=marker,
-                    color=METHOD_COLORS[method],
-                    edgecolor="#222222",
-                    linewidth=0.35,
-                    alpha=0.78,
-                    label=f"{METHOD_LABELS_SHORT[method]} / {family}",
-                )
-        ax.set_title(algorithm)
-        ax.set_xlabel("Full FEA success rate by layout")
-        ax.set_xlim(-0.05, 1.05)
-        ax.set_ylim(0, 105)
-        ax.grid(True)
-        if ax is axes[0]:
-            ax.set_ylabel("Median FEA reduction (%)")
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.02))
-    fig.suptitle("Layout Difficulty and Surrogate Evaluation Savings", y=1.11)
-    fig.tight_layout()
-    save_figure(fig, "supp_04_difficulty_vs_benefit.png", out_dir)
 
 
 def select_representative_cases(df: pd.DataFrame, algorithm: str) -> list[dict[str, object]]:
