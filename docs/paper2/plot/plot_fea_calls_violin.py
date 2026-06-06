@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 
@@ -58,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ga-dir", default=str(DEFAULT_EXPERIMENTS["GA"]))
     p.add_argument("--pso-dir", default=str(DEFAULT_EXPERIMENTS["PSO"]))
     p.add_argument("--random-dir", default=str(DEFAULT_EXPERIMENTS["Random Search"]))
-    p.add_argument("--out-dir", default=str(Path(__file__).resolve().parent / "plots"))
+    p.add_argument("--out-dir", default=str(ROOT / "outputs/result/optimization/plots"))
     p.add_argument("--filename", default="fea_calls_violin.png")
     p.add_argument("--dpi", type=int, default=300)
     return p
@@ -97,22 +98,21 @@ def plot_algorithm(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
         parts[key].set_color("#555555")
         parts[key].set_linewidth(0.8)
 
-    bp = ax.boxplot(
-        data,
-        positions=list(positions),
-        widths=0.18,
-        patch_artist=True,
-        showfliers=False,
-        medianprops={"color": "#111111", "linewidth": 1.2},
-        boxprops={"facecolor": "white", "edgecolor": "#333333", "linewidth": 0.8},
-        whiskerprops={"color": "#333333", "linewidth": 0.8},
-        capprops={"color": "#333333", "linewidth": 0.8},
-    )
-    for patch in bp["boxes"]:
-        patch.set_alpha(0.9)
-
+    rng = np.random.default_rng(20260606)
     medians = [pd.Series(values).median() for values in data]
-    for x, med in zip(positions, medians):
+    for x, values, color, med in zip(positions, data, COLORS, medians):
+        jitter = rng.uniform(-0.085, 0.085, size=len(values))
+        ax.scatter(
+            x + jitter,
+            values,
+            s=15,
+            facecolor=color,
+            edgecolor="#222222",
+            linewidth=0.35,
+            alpha=0.62,
+            zorder=3,
+        )
+        ax.hlines(med, x - 0.18, x + 0.18, color="#111111", linewidth=1.3, zorder=4)
         ax.text(x, med, f"{med:.0f}", ha="center", va="bottom", fontsize=8, color="#111111")
 
     ax.set_title(title, fontsize=12)
