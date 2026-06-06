@@ -111,6 +111,8 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
             point_size=4,
         )
         ax.set_ylim(0, fea_ymax)
+        ax.tick_params(axis="x", labelbottom=False)
+        ax.set_xlabel("")
 
         ax = axes[1, col_i]
         psub = paired[paired["algorithm"] == algorithm]
@@ -128,20 +130,18 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
         )
         ax.axhline(0, color="#777777", linewidth=0.8, linestyle="--")
         ax.set_ylim(-gap_lim, gap_lim)
+        ax.tick_params(axis="x", labelbottom=False)
+        ax.set_xlabel("")
 
         ax = axes[2, col_i]
         data = [
             sub.loc[sub["method"] == method, "first_feasible_fea_calls"].dropna().to_numpy()
             for method in METHOD_ORDER
         ]
-        labels = []
-        for method in METHOD_ORDER:
-            m = sub[sub["method"] == method]
-            labels.append(f"{METHOD_LABELS_SHORT[method]}\nfail={int((~m['best_feasible']).sum())}")
         draw_violin_points(
             ax,
             data,
-            labels,
+            [METHOD_LABELS_SHORT[m] for m in METHOD_ORDER],
             method_colors(METHOD_ORDER),
             ylabel="First feasible\nFEA calls" if col_i == 0 else None,
             point_size=5,
