@@ -111,7 +111,7 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
             point_size=4,
         )
         ax.set_ylim(0, fea_ymax)
-        ax.tick_params(axis="x", labelbottom=False)
+        ax.tick_params(axis="x", bottom=False, labelbottom=False)
         ax.set_xlabel("")
 
         ax = axes[1, col_i]
@@ -130,7 +130,7 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
         )
         ax.axhline(0, color="#777777", linewidth=0.8, linestyle="--")
         ax.set_ylim(-gap_lim, gap_lim)
-        ax.tick_params(axis="x", labelbottom=False)
+        ax.tick_params(axis="x", bottom=False, labelbottom=False)
         ax.set_xlabel("")
 
         ax = axes[2, col_i]
