@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
 ROOT = Path(__file__).resolve().parents[3]
 
 DEFAULT_EXPERIMENTS = {
@@ -55,7 +54,9 @@ def main() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Plot violin distributions of FEA calls for optimization experiments.")
+    p = argparse.ArgumentParser(
+        description="Plot violin distributions of FEA calls for optimization experiments."
+    )
     p.add_argument("--ga-dir", default=str(DEFAULT_EXPERIMENTS["GA"]))
     p.add_argument("--pso-dir", default=str(DEFAULT_EXPERIMENTS["PSO"]))
     p.add_argument("--random-dir", default=str(DEFAULT_EXPERIMENTS["Random Search"]))
@@ -105,11 +106,11 @@ def plot_algorithm(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
         ax.scatter(
             x + jitter,
             values,
-            s=15,
+            s=5,
             facecolor=color,
             edgecolor="#222222",
             linewidth=0.35,
-            alpha=0.62,
+            alpha=0.3,
             zorder=3,
         )
         ax.hlines(med, x - 0.18, x + 0.18, color="#111111", linewidth=1.3, zorder=4)
