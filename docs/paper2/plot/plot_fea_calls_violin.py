@@ -20,7 +20,8 @@ METHOD_LABELS = {
     "gnn_cost": "Cost\nsurrogate",
     "gnn_screen_cost": "Screen + cost\nsurrogate",
 }
-COLORS = ["#7f8c8d", "#4c78a8", "#f58518"]
+COLORS = ["#8fb6d6", "#efbd75", "#e8a69d"]
+EDGE_COLORS = ["#5f88aa", "#d99b4a", "#cf7f76"]
 
 
 def main() -> None:
@@ -43,7 +44,6 @@ def main() -> None:
     axes[0].set_ylabel("FEA calls")
     for ax in axes:
         ax.set_ylim(0, y_max * 1.08)
-        ax.grid(axis="y", color="#d9d9d9", linewidth=0.8, alpha=0.8)
         ax.set_axisbelow(True)
 
     fig.suptitle("FEA Calls by Optimization Algorithm and Surrogate Strategy", y=1.02, fontsize=13)
@@ -87,34 +87,61 @@ def load_summary(exp_dir: Path) -> pd.DataFrame:
 
 def plot_algorithm(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
     data = [df.loc[df["method"] == method, "fea_calls"].to_numpy() for method in METHOD_ORDER]
-    positions = range(1, len(METHOD_ORDER) + 1)
-    parts = ax.violinplot(data, positions=positions, widths=0.78, showmeans=False, showmedians=False)
+    positions = np.arange(1, len(METHOD_ORDER) + 1, dtype=float)
+    box_positions = positions - 0.18
+    violin_positions = positions + 0.08
+    parts = ax.violinplot(
+        data,
+        positions=violin_positions,
+        widths=0.55,
+        showmeans=False,
+        showmedians=False,
+        showextrema=False,
+    )
 
-    for body, color in zip(parts["bodies"], COLORS):
+    for body, color, edge, center in zip(parts["bodies"], COLORS, EDGE_COLORS, violin_positions):
+        vertices = body.get_paths()[0].vertices
+        vertices[:, 0] = np.maximum(vertices[:, 0], center)
         body.set_facecolor(color)
-        body.set_edgecolor("#333333")
-        body.set_alpha(0.72)
+        body.set_edgecolor(edge)
+        body.set_alpha(0.35)
         body.set_linewidth(0.8)
-    for key in ["cbars", "cmins", "cmaxes"]:
-        parts[key].set_color("#555555")
-        parts[key].set_linewidth(0.8)
+
+    bp = ax.boxplot(
+        data,
+        positions=box_positions,
+        widths=0.22,
+        patch_artist=True,
+        showfliers=False,
+        medianprops={"color": "#ffffff", "linewidth": 1.4},
+        boxprops={"linewidth": 0.9},
+        whiskerprops={"linewidth": 0.9},
+        capprops={"linewidth": 0.9},
+    )
+    for i, box in enumerate(bp["boxes"]):
+        box.set_facecolor(COLORS[i])
+        box.set_edgecolor(EDGE_COLORS[i])
+        box.set_alpha(0.95)
+    for key in ["whiskers", "caps"]:
+        for i, artist in enumerate(bp[key]):
+            artist.set_color(EDGE_COLORS[i // 2])
+    for i, artist in enumerate(bp["medians"]):
+        artist.set_color("#ffffff")
+        artist.set_linewidth(1.5)
 
     rng = np.random.default_rng(20260606)
-    medians = [pd.Series(values).median() for values in data]
-    for x, values, color, med in zip(positions, data, COLORS, medians):
-        jitter = rng.uniform(-0.085, 0.085, size=len(values))
+    for x, values, color, edge in zip(violin_positions, data, COLORS, EDGE_COLORS):
+        jitter = rng.uniform(0.03, 0.25, size=len(values))
         ax.scatter(
             x + jitter,
             values,
-            s=5,
+            s=13,
             facecolor=color,
-            edgecolor="#222222",
-            linewidth=0.35,
-            alpha=0.3,
+            edgecolor=edge,
+            linewidth=0.25,
+            alpha=0.72,
             zorder=3,
         )
-        ax.hlines(med, x - 0.18, x + 0.18, color="#111111", linewidth=1.3, zorder=4)
-        ax.text(x, med, f"{med:.0f}", ha="center", va="bottom", fontsize=8, color="#111111")
 
     ax.set_title(title, fontsize=12)
     ax.set_xticks(list(positions))
