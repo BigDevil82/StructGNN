@@ -88,20 +88,23 @@ def load_summary(exp_dir: Path) -> pd.DataFrame:
 def plot_algorithm(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
     data = [df.loc[df["method"] == method, "fea_calls"].to_numpy() for method in METHOD_ORDER]
     positions = range(1, len(METHOD_ORDER) + 1)
-    parts = ax.violinplot(data, positions=positions, widths=0.78, showmeans=False, showmedians=False)
+    parts = ax.violinplot(
+        data,
+        positions=positions,
+        widths=0.78,
+        showmeans=False,
+        showmedians=False,
+        showextrema=False,
+    )
 
     for body, color in zip(parts["bodies"], COLORS):
         body.set_facecolor(color)
         body.set_edgecolor("#333333")
         body.set_alpha(0.72)
         body.set_linewidth(0.8)
-    for key in ["cbars", "cmins", "cmaxes"]:
-        parts[key].set_color("#555555")
-        parts[key].set_linewidth(0.8)
 
     rng = np.random.default_rng(20260606)
-    medians = [pd.Series(values).median() for values in data]
-    for x, values, color, med in zip(positions, data, COLORS, medians):
+    for x, values, color in zip(positions, data, COLORS):
         jitter = rng.uniform(-0.085, 0.085, size=len(values))
         ax.scatter(
             x + jitter,
@@ -113,8 +116,6 @@ def plot_algorithm(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
             alpha=0.3,
             zorder=3,
         )
-        ax.hlines(med, x - 0.18, x + 0.18, color="#111111", linewidth=1.3, zorder=4)
-        ax.text(x, med, f"{med:.0f}", ha="center", va="bottom", fontsize=8, color="#111111")
 
     ax.set_title(title, fontsize=12)
     ax.set_xticks(list(positions))
