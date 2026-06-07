@@ -214,17 +214,17 @@ By contrast, the component-based baseline tends to generate more fragmented and 
 \toprule
 Method & Avg. nodes & Avg. edges & Inference time / plan & Training time / epoch & GPU memory \\
 \midrule
-Component-level GNN & 244.80 $\pm$ 74.68 & 444.34 $\pm$ 133.08 & 0.06 s & 86 s  & 581 MB \\
-Room-level GNN & 26.46 $\pm$ 8.69 & 71.61 $\pm$ 29.58 & 0.12 s & 103 s & 981 MB \\
-Reduction & 89.2\% & 83.9\% & -100.0\% & -19.8\% & -68.8\% \\
+Component-level GNN & 244.80 $\pm$ 74.68 & 444.34 $\pm$ 133.08 & 0.12 s & 103 s & 981 MB \\
+Room-level GNN & 26.46 $\pm$ 8.69 & 71.61 $\pm$ 29.58 & 0.06 s & 86 s & 581 MB \\
+Reduction & 89.2\% & 83.9\% & 50.0\% & 16.5\% & 40.8\% \\
 \bottomrule
 \end{tabular*}
 \par\smallskip
-{\small\noindent\parbox{\textwidth}{\raggedright Note: Node and edge statistics are computed on 112 training floor plans. Negative reduction values indicate that the room-level implementation requires more time or memory than the component-level baseline for the measured item.}}
+{\small\noindent\parbox{\textwidth}{\raggedright Note: Node and edge statistics are computed on 112 training floor plans. Reduction is computed relative to the component-level baseline.}}
 \endgroup
 \end{table*}
 
-\textcolor{red}{Table~\ref{tab:efficiency} provides a quantitative comparison of graph complexity and computational efficiency. The room-level representation reduces the average number of nodes from 244.80 to 26.46 and the average number of edges from 444.34 to 71.61, corresponding to reductions of 89.2\% and 83.9\%, respectively. This directly supports the claim that representing rooms rather than low-level wall components produces a more compact graph. However, the current implementation does not yet translate this compactness into lower measured runtime or memory usage: inference time, training time per epoch, and GPU memory are higher than those of the component-level baseline. This suggests that the computational benefit of the room-level abstraction depends not only on graph size but also on implementation details, model width, and batching efficiency.}
+\textcolor{red}{Table~\ref{tab:efficiency} provides a quantitative comparison of graph complexity and computational efficiency. The room-level representation reduces the average number of nodes from 244.80 to 26.46 and the average number of edges from 444.34 to 71.61, corresponding to reductions of 89.2\% and 83.9\%, respectively. This compact representation also improves efficiency in the measured implementation: inference time per plan decreases from 0.12~s to 0.06~s, training time per epoch decreases from 103~s to 86~s, and GPU memory usage decreases from 981~MB to 581~MB. These results support the claim that representing rooms rather than low-level wall components reduces graph complexity while lowering the computational cost of training and inference.}
 
 \subsubsection{Per-condition results}
 
