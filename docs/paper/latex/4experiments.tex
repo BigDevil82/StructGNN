@@ -37,7 +37,6 @@ Samples after augmentation (train) & 678 \\
 
 \begin{tabularx}{\textwidth}{l*{7}{C}}   % 第一列左对齐，后面7列居中对齐并自动撑满
 \toprule
-\scriptsize
 \textbf{Method} & 
 \textbf{Image IoU}$\uparrow$ & 
 \textbf{Precision}$\uparrow$ & 
@@ -209,24 +208,23 @@ By contrast, the component-based baseline tends to generate more fragmented and 
 \begin{table*}[t]
 \centering
 \begingroup\color{red}
-\caption{Graph complexity comparison between the component-level and room-level representations}
+\caption{Graph complexity and computational efficiency comparison between the component-level and room-level representations}
 \label{tab:efficiency}
-\scriptsize
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc@{}}
 \toprule
 Method & Avg. nodes & Avg. edges & Inference time / plan & Training time / epoch & GPU memory \\
 \midrule
-Component-level GNN & 244.80 $\pm$ 74.68 & 444.34 $\pm$ 133.08 & -- & -- & -- \\
-Room-level GNN & 26.46 $\pm$ 8.69 & 71.61 $\pm$ 29.58 & -- & -- & -- \\
-Reduction & 89.2\% & 83.9\% & -- & -- & -- \\
+Component-level GNN & 244.80 $\pm$ 74.68 & 444.34 $\pm$ 133.08 & 0.06 s & 86 s  & 581 MB \\
+Room-level GNN & 26.46 $\pm$ 8.69 & 71.61 $\pm$ 29.58 & 0.12 s & 103 s & 981 MB \\
+Reduction & 89.2\% & 83.9\% & -100.0\% & -19.8\% & -68.8\% \\
 \bottomrule
 \end{tabular*}
 \par\smallskip
-{\small\noindent\parbox{\textwidth}{\raggedright Note: Node and edge statistics are computed on 112 training floor plans.}}
+{\small\noindent\parbox{\textwidth}{\raggedright Note: Node and edge statistics are computed on 112 training floor plans. Negative reduction values indicate that the room-level implementation requires more time or memory than the component-level baseline for the measured item.}}
 \endgroup
 \end{table*}
 
-\textcolor{red}{Table~\ref{tab:efficiency} provides a quantitative comparison of graph complexity. The room-level representation reduces the average number of nodes from 244.80 to 26.46 and the average number of edges from 444.34 to 71.61, corresponding to reductions of 89.2\% and 83.9\%, respectively. This directly supports the claim that representing rooms rather than low-level wall components produces a more compact graph.}
+\textcolor{red}{Table~\ref{tab:efficiency} provides a quantitative comparison of graph complexity and computational efficiency. The room-level representation reduces the average number of nodes from 244.80 to 26.46 and the average number of edges from 444.34 to 71.61, corresponding to reductions of 89.2\% and 83.9\%, respectively. This directly supports the claim that representing rooms rather than low-level wall components produces a more compact graph. However, the current implementation does not yet translate this compactness into lower measured runtime or memory usage: inference time, training time per epoch, and GPU memory are higher than those of the component-level baseline. This suggests that the computational benefit of the room-level abstraction depends not only on graph size but also on implementation details, model width, and batching efficiency.}
 
 \subsubsection{Per-condition results}
 
@@ -292,7 +290,6 @@ The conditioning module accounts for the largest change in controllability-relat
 \begingroup\color{red}
 \caption{Sensitivity of CGS to alternative component weights}
 \label{tab:cgs_sensitivity}
-\scriptsize
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
 \toprule
 Weight setting & Full model & w/o FiLM & w/o dual-stream & w/o density loss \\
