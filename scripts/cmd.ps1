@@ -289,3 +289,11 @@
 #   --eval-ratio 0.4 `
 #   --min-eval 8 `
 #   --local-calibration
+
+
+# plot results from the above batch experiment
+ python docs\paper2\plot\plot_optimization_paper_figures.py `
+   --ga-dir outputs\result\optimization\ga_primary_selected15 `
+    --pso-dir outputs\result\optimization\pso_primary_selected15 `
+    --random-dir outputs\result\optimization\random_primary_selected15 `
+    --out-dir outputs\result\optimization\plots2
