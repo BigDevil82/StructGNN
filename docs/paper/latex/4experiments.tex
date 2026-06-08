@@ -27,6 +27,42 @@ Samples after augmentation (train) & 678 \\
 \end{tabularx}
 \end{table}
 
+
+\begin{table*}[t]
+\centering
+\begingroup\color{red}
+\caption{Sensitivity of CGS to alternative component weights}
+\label{tab:cgs_sensitivity}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
+\toprule
+Weight setting & Full model & w/o FiLM & w/o dual-stream & w/o density loss \\
+\midrule
+Equal weights $(1/3,1/3,1/3)$ & 0.701 & 0.700 & 0.692 & 0.651 \\
+Density-oriented $(0.5,0.25,0.25)$ & 0.713 & 0.713 & 0.702 & 0.640 \\
+Geometry-oriented $(0.25,0.5,0.25)$ & 0.661 & 0.652 & 0.650 & 0.624 \\
+Uniformity-oriented $(0.25,0.25,0.5)$ & 0.729 & 0.735 & 0.725 & 0.690 \\
+\bottomrule
+\end{tabular*}
+\endgroup
+\end{table*}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{qual_comparison.png}
+\caption{Comparison of qualitative prediction results.}
+\label{fig:qual_comparison}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{boxplot.png}
+\caption{Boxplot of CGS across 5-fold cross-validation for the full model and ablation variants, sorted by mean CGS.}
+\label{fig:ablation_boxplot}
+\end{figure*}
+
+
+
 \begin{table*}[t]
 \caption{Performance comparison between room-based GNN (ours) and component-based GNN (Baseline) across metrics}
 \label{tab:main_results}
@@ -78,21 +114,6 @@ Reduction & 89.3\% & 84.0\% & 50.0\% & 16.5\% & 39.9\% \\
 \end{table*}
 
 
-
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.9\textwidth]{qual_comparison.png}
-\caption{Comparison of qualitative prediction results.}
-\label{fig:qual_comparison}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.92\textwidth]{boxplot.png}
-\caption{Boxplot of CGS across 5-fold cross-validation for the full model and ablation variants, sorted by mean CGS.}
-\label{fig:ablation_boxplot}
-\end{figure*}
 
 \begin{figure*}[t]
 \centering
@@ -180,24 +201,6 @@ S_{\text{uni}}=\alpha_1(1-c_v)+\alpha_2 s+\alpha_3(1-o).
 \end{equation}
 Here, $c_v$ is the coefficient of variation, $s$ is the local smoothness score, and $o$ is the outlier ratio. \textcolor{red}{In the main ablation analysis, the CGS weights are set to $(w_1,w_2,w_3)=(0.4,0.4,0.2)$. This setting gives comparable emphasis to density compliance and matched-condition geometric agreement, while assigning a smaller but non-negligible weight to spatial uniformity. The rationale is that the first two terms directly measure whether the generated layout follows the specified design condition and matches the engineer-designed layout under the true condition, whereas $S_{\text{uni}}$ acts mainly as a regularity check that penalizes highly uneven or locally erratic distributions. CGS is therefore used as a descriptive composite score rather than as a code-prescribed engineering index. To check that the ablation conclusions are not overly dependent on this particular choice, Table~\ref{tab:cgs_sensitivity} reports CGS values under several alternative component weights. The relative trends remain largely stable: the full model stays among the strongest variants, and it consistently outperforms the variants without dual-stream training and without density loss.} The coefficients in $S_{\text{uni}}$ are set to $(\alpha_1,\alpha_2,\alpha_3)=(0.4,0.4,0.2)$ to place comparable emphasis on global variation and local smoothness, while assigning a smaller but non-negligible weight to the outlier penalty.
 
-
-\begin{table*}[t]
-\centering
-\begingroup\color{red}
-\caption{Sensitivity of CGS to alternative component weights}
-\label{tab:cgs_sensitivity}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
-\toprule
-Weight setting & Full model & w/o FiLM & w/o dual-stream & w/o density loss \\
-\midrule
-Equal weights $(1/3,1/3,1/3)$ & 0.701 & 0.700 & 0.692 & 0.651 \\
-Density-oriented $(0.5,0.25,0.25)$ & 0.713 & 0.713 & 0.702 & 0.640 \\
-Geometry-oriented $(0.25,0.5,0.25)$ & 0.661 & 0.652 & 0.650 & 0.624 \\
-Uniformity-oriented $(0.25,0.25,0.5)$ & 0.729 & 0.735 & 0.725 & 0.690 \\
-\bottomrule
-\end{tabular*}
-\endgroup
-\end{table*}
 
 As a complementary metric, the $Score_{\text{DC}}$ indicator proposed by Zhao et al. \cite{zhaoDesignconditioninformedShearWall2023d} is additionally reported. Score$_{\text{DC}}$ evaluates both layout overlap similarity and shear wall ratio similarity by weighting IoU$_{\text{SW}}$ with directional density-consistency terms:
 \begin{equation}
