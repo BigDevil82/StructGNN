@@ -60,20 +60,23 @@ Samples after augmentation (train) & 678 \\
 
 \begin{table*}[t]
 \centering
-\caption{Image IoU performance comparison by category}
-\label{tab:per_condition}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr @{}}
+\begingroup\color{red}
+\caption{Graph complexity and computational efficiency comparison between the component-level and room-level representations}
+\label{tab:efficiency}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc@{}}
 \toprule
-Category & \multicolumn{1}{c}{Ours Mean} & \multicolumn{1}{c}{Ours Std} & \multicolumn{1}{c}{Baseline Mean} & \multicolumn{1}{c}{Baseline Std} & \multicolumn{1}{r}{Improvement} \\
+Method & Avg. nodes & Avg. edges & Inference time / plan & Training time / epoch & GPU memory \\
 \midrule
-Group7-H1 (Low)      & 0.5103 & 0.1120 & 0.3804 & 0.1001 & +34.14\% \\
-Group7-H2 (Medium)   & 0.5975 & 0.0511 & 0.5168 & 0.0548 & +15.62\% \\
-Group8 (High)   & 0.6473 & 0.0812 & 0.5523 & 0.0516 & +17.20\% \\
-\midrule
-Overall Average & 0.5850 & 0.0814 & 0.4832 & 0.0688 & +21.08\% \\
+Component-level GNN & 244 $\pm$ 14 & 444 $\pm$ 32 & 0.12 s & 103 s & 981 MB \\
+Room-level GNN & 26 $\pm$ 4 & 71 $\pm$ 17 & 0.06 s & 86 s & 589 MB \\
+Reduction & 89.3\% & 84.0\% & 50.0\% & 16.5\% & 39.9\% \\
 \bottomrule
 \end{tabular*}
+\par\smallskip
+{\small\noindent\parbox{\textwidth}{\raggedright Note: Node and edge statistics are computed on 112 training floor plans. Reduction is computed relative to the component-level baseline.}}
+\endgroup
 \end{table*}
+
 
 
 
@@ -135,11 +138,9 @@ To isolate the effect of representation, the modeling and training configuration
 
 The proposed room-based model uses a hidden dimension of 256 and a 32-dimensional condition embedding. The GNN encoder contains three GATv2 layers with four attention heads per layer and a dropout rate of 0.2. Models are trained with AdamW for 100 epochs using a cosine-annealing learning-rate schedule with a 20-epoch warmup; the batch size is one graph per iteration. The main optimization hyperparameters are selected by validation-set performance within each fold. In particular, the learning rate is chosen from $\{1\times10^{-4}, 5\times10^{-4}, 1\times10^{-3}\}$ and the weight decay from $\{0, 1\times10^{-5}, 1\times10^{-4}\}$; the final setting of learning rate $1\times10^{-3}$ and weight decay $1\times10^{-4}$ gives the most stable convergence and the best validation IoU in our pilot runs. At inference time, a classification threshold of 0.5 is used for wall existence prediction, and a ratio threshold of 0.1 is applied when converting regressed segment ratios into final layout elements.
 
-To improve generalization under limited data, standard geometric augmentations are applied to each training sample, including horizontal/vertical flips and rotations by 90$^{\circ}$, 180$^{\circ}$, and 270$^{\circ}$, with output labels transformed accordingly. To mitigate the imbalance among design conditions (Low:Medium:High = 33:52:58), weighted random sampling is adopted so that each epoch observes a more balanced mixture of conditions, following common practices for imbalanced deep learning problems.
+To improve generalization under limited data, standard geometric augmentations are applied to each training sample, including horizontal/vertical flips and rotations by 90$^{\circ}$, 180$^{\circ}$, and 270$^{\circ}$, with output labels transformed accordingly. \textcolor{red}{To avoid data leakage, the dataset split was performed at the original floor-plan level before data augmentation. All augmented variants of the same original floor plan were kept within the same subset. In each subset, geometric augmentation was applied only to the training portion, while validation and test layouts were never included in the training set in either original or augmented form.} And to mitigate the imbalance among design conditions (Low:Medium:High = 33:52:58), weighted random sampling is adopted so that each epoch observes a more balanced mixture of conditions, following common practices for imbalanced deep learning problems.
 
-\textcolor{red}{To avoid data leakage, the cross-validation split was performed at the original floor-plan level before data augmentation. All augmented variants of the same original floor plan were kept within the same fold. In each fold, geometric augmentation was applied only to the training portion, while validation and test layouts were never included in the training set in either original or augmented form.}
-
-For robust reporting, 5-fold cross-validation is employed. In each fold, 80\% of the data are used for model development and 20\% for testing; within the development split, 10\% of the training portion is held out for validation, and early stopping is applied with a patience of 20 epochs based on validation IoU \cite{Berrar_2019}. All experiments use a consistent preprocessing pipeline and the same split protocol across compared methods.
+For generalization and robust reporting, 5-fold cross-validation is employed. In each fold, 80\% of the data are used for model development and 20\% for testing; within the development split, 10\% of the training portion is held out for validation, and early stopping is applied with a patience of 20 epochs based on validation IoU \cite{Berrar_2019}. All experiments use a consistent preprocessing pipeline and the same split protocol across compared methods.
 
 All experiments are conducted on a workstation equipped with an Intel Core i7-12700F CPU, 32\,GB RAM, and an NVIDIA RTX 3060 GPU (12\,GB). The implementation is based on Python 3.12, PyTorch 2.5.1.
 
@@ -177,8 +178,26 @@ $S_{\text{IoU}}$ corresponds to Image IoU when the generated condition matches t
 \begin{equation}
 S_{\text{uni}}=\alpha_1(1-c_v)+\alpha_2 s+\alpha_3(1-o).
 \end{equation}
-Here, $c_v$ is the coefficient of variation, $s$ is the local smoothness score, and $o$ is the outlier ratio. \textcolor{red}{In the main ablation analysis, the CGS weights are set to $(w_1,w_2,w_3)=(0.4,0.4,0.2)$. This setting gives comparable emphasis to density compliance and matched-condition geometric agreement, while assigning a smaller but non-negligible weight to spatial uniformity. The rationale is that the first two terms directly measure whether the generated layout follows the specified design condition and matches the engineer-designed layout under the true condition, whereas $S_{\text{uni}}$ acts mainly as a regularity check that penalizes highly uneven or locally erratic distributions. CGS is therefore used as a descriptive composite score rather than as a code-prescribed engineering index.} The coefficients in $S_{\text{uni}}$ are set to $(\alpha_1,\alpha_2,\alpha_3)=(0.4,0.4,0.2)$ to place comparable emphasis on global variation and local smoothness, while assigning a smaller but non-negligible weight to the outlier penalty.
+Here, $c_v$ is the coefficient of variation, $s$ is the local smoothness score, and $o$ is the outlier ratio. \textcolor{red}{In the main ablation analysis, the CGS weights are set to $(w_1,w_2,w_3)=(0.4,0.4,0.2)$. This setting gives comparable emphasis to density compliance and matched-condition geometric agreement, while assigning a smaller but non-negligible weight to spatial uniformity. The rationale is that the first two terms directly measure whether the generated layout follows the specified design condition and matches the engineer-designed layout under the true condition, whereas $S_{\text{uni}}$ acts mainly as a regularity check that penalizes highly uneven or locally erratic distributions. CGS is therefore used as a descriptive composite score rather than as a code-prescribed engineering index. To check that the ablation conclusions are not overly dependent on this particular choice, Table~\ref{tab:cgs_sensitivity} reports CGS values under several alternative component weights. The relative trends remain largely stable: the full model stays among the strongest variants, and it consistently outperforms the variants without dual-stream training and without density loss.} The coefficients in $S_{\text{uni}}$ are set to $(\alpha_1,\alpha_2,\alpha_3)=(0.4,0.4,0.2)$ to place comparable emphasis on global variation and local smoothness, while assigning a smaller but non-negligible weight to the outlier penalty.
 
+
+\begin{table*}[t]
+\centering
+\begingroup\color{red}
+\caption{Sensitivity of CGS to alternative component weights}
+\label{tab:cgs_sensitivity}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
+\toprule
+Weight setting & Full model & w/o FiLM & w/o dual-stream & w/o density loss \\
+\midrule
+Equal weights $(1/3,1/3,1/3)$ & 0.701 & 0.700 & 0.692 & 0.651 \\
+Density-oriented $(0.5,0.25,0.25)$ & 0.713 & 0.713 & 0.702 & 0.640 \\
+Geometry-oriented $(0.25,0.5,0.25)$ & 0.661 & 0.652 & 0.650 & 0.624 \\
+Uniformity-oriented $(0.25,0.25,0.5)$ & 0.729 & 0.735 & 0.725 & 0.690 \\
+\bottomrule
+\end{tabular*}
+\endgroup
+\end{table*}
 
 As a complementary metric, the $Score_{\text{DC}}$ indicator proposed by Zhao et al. \cite{zhaoDesignconditioninformedShearWall2023d} is additionally reported. Score$_{\text{DC}}$ evaluates both layout overlap similarity and shear wall ratio similarity by weighting IoU$_{\text{SW}}$ with directional density-consistency terms:
 \begin{equation}
@@ -199,32 +218,30 @@ Table~\ref{tab:main_results} reports the quantitative comparison between the pro
 
 \textcolor{red}{The proposed room-based representation yields higher fold-averaged Image IoU and F1 than the component-based baseline under the same backbone family and training protocol. Across the five fold checkpoints, the room-level model achieves an Image IoU of 0.565 $\pm$ 0.005 and an F1 score of 0.765 $\pm$ 0.001, compared with 0.454 $\pm$ 0.021 and 0.630 $\pm$ 0.012 for the component-level baseline. The smaller cross-fold variation of the proposed method suggests that the improvement is not dominated by a single favorable split. The ensemble result remains higher (Image IoU = 0.597), but Table~\ref{tab:main_results} reports fold-level statistics to make model stability explicit. The improvement is not only a numerical advantage but also a direct consequence of the representation level. In the component-based baseline, each wall segment is predicted largely as an individual unit, so locally plausible but globally inconsistent wall fragments can survive if nearby context is not aggregated effectively. In the room-based graph, by contrast, message passing occurs over room adjacencies and all candidate walls are attached to room boundaries from the outset. The model is therefore biased toward boundary-consistent predictions and is less likely to place isolated wall fragments in regions that do not correspond to valid room interfaces. This is important in engineering practice because fewer false positives mean lower unnecessary construction cost and fewer conflicts with architectural constraints. In addition, the lower MAE/RMSE indicates more accurate wall-length ratios for correctly identified segments, which is consistent with a representation that reasons over complete room boundaries rather than isolated wall segments.}
 
-\textcolor{red}{Compared with pixel-based generation methods, the proposed graph-based formulation directly predicts vectorized wall-boundary parameters and therefore avoids the additional raster-to-vector conversion step. This is useful for downstream structural modeling, where wall locations and lengths must be represented as geometric entities rather than image pixels. The room-level graph also explicitly encodes adjacency and boundary feasibility, whereas such topological relations are only implicit in image-based representations. These differences explain why the present comparison is centered on graph-based baselines rather than on image-to-image generative models.}
-
 The qualitative comparisons in Fig.~\ref{fig:qual_comparison} provide visual evidence consistent with the quantitative results. Across different floor-plan cases, the room-based GNN generally produces wall layouts that are closer to the engineer-designed reference, with more coherent boundary-aligned wall placement and fewer spurious predictions. Correspondingly, the predicted layouts from the proposed method exhibit larger overlap with the ground truth, which is reflected in the higher Image IoU reported in Table~\ref{tab:main_results}.
 
 By contrast, the component-based baseline tends to generate more fragmented and isolated wall segments. These scattered predictions are especially visible in cases with complex room adjacencies, where local segment-level decisions do not fully capture the higher-level spatial organization of the floor plan. This qualitative failure mode is consistent with the lower representational level of the component-based graph. Because the model operates on individual wall components rather than room-level spatial units, it is more prone to producing locally plausible but globally incoherent wall fragments.
 
+
 \begin{table*}[t]
 \centering
-\begingroup\color{red}
-\caption{Graph complexity and computational efficiency comparison between the component-level and room-level representations}
-\label{tab:efficiency}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc@{}}
+\caption{Image IoU performance comparison by category}
+\label{tab:per_condition}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr @{}}
 \toprule
-Method & Avg. nodes & Avg. edges & Inference time / plan & Training time / epoch & GPU memory \\
+Category & \multicolumn{1}{c}{Ours Mean} & \multicolumn{1}{c}{Ours Std} & \multicolumn{1}{c}{Baseline Mean} & \multicolumn{1}{c}{Baseline Std} & \multicolumn{1}{r}{Improvement} \\
 \midrule
-Component-level GNN & 244.80 $\pm$ 74.68 & 444.34 $\pm$ 133.08 & 0.12 s & 103 s & 981 MB \\
-Room-level GNN & 26.46 $\pm$ 8.69 & 71.61 $\pm$ 29.58 & 0.06 s & 86 s & 581 MB \\
-Reduction & 89.2\% & 83.9\% & 50.0\% & 16.5\% & 40.8\% \\
+Group7-H1 (Low)      & 0.5103 & 0.1120 & 0.3804 & 0.1001 & +34.14\% \\
+Group7-H2 (Medium)   & 0.5975 & 0.0511 & 0.5168 & 0.0548 & +15.62\% \\
+Group8 (High)   & 0.6473 & 0.0812 & 0.5523 & 0.0516 & +17.20\% \\
+\midrule
+Overall Average & 0.5850 & 0.0814 & 0.4832 & 0.0688 & +21.08\% \\
 \bottomrule
 \end{tabular*}
-\par\smallskip
-{\small\noindent\parbox{\textwidth}{\raggedright Note: Node and edge statistics are computed on 112 training floor plans. Reduction is computed relative to the component-level baseline.}}
-\endgroup
 \end{table*}
 
-\textcolor{red}{Table~\ref{tab:efficiency} provides a quantitative comparison of graph complexity and computational efficiency. The room-level representation reduces the average number of nodes from 244.80 to 26.46 and the average number of edges from 444.34 to 71.61, corresponding to reductions of 89.2\% and 83.9\%, respectively. This compact representation also improves efficiency in the measured implementation: inference time per plan decreases from 0.12~s to 0.06~s, training time per epoch decreases from 103~s to 86~s, and GPU memory usage decreases from 981~MB to 581~MB. These results support the claim that representing rooms rather than low-level wall components reduces graph complexity while lowering the computational cost of training and inference.}
+
+\textcolor{red}{Table~\ref{tab:efficiency} provides a quantitative comparison of graph complexity and computational efficiency. The room-level representation reduces the average number of nodes from 244 to 26 and the average number of edges from 444 to 71, corresponding to reductions of 89.3\% and 84.0\%, respectively. This compact representation also improves efficiency in the measured implementation: inference time per plan decreases from 0.12~s to 0.06~s, training time per epoch decreases from 103~s to 86~s, and GPU memory usage decreases from 981~MB to 589~MB. These results support the claim that representing rooms rather than low-level wall components reduces graph complexity while lowering the computational cost of training and inference.}
 
 \subsubsection{Per-condition results}
 
@@ -283,27 +300,7 @@ Fig.~\ref{fig:ablation_boxplot} provides a complementary view of the same ablati
 
 The conditioning module accounts for the largest change in controllability-related performance. Removing conditioning reduces CGS by 0.148, driven primarily by a sharp drop in density consistency ($S_{den}$: 0.750 $\rightarrow$ 0.384), which indicates that outputs become less responsive to the specified design condition. This result follows the learning setup of the task. Geometry already explains much of the wall-layout pattern for a given floor plan, so when the condition input is removed, the network can still produce plausible layouts but loses a mechanism for systematically shifting wall quantity across density regimes. Among alternative injection strategies, FiLM yields small but consistent gains over early and late feature concatenation. This comparison is important because the baseline concatenation variants isolate the benefit of modulation-based condition injection from the effect of using condition inputs at all. The gain of FiLM suggests that repeatedly modulating intermediate features helps preserve the condition signal during deep propagation, whereas one-shot concatenation allows geometric features to dominate more easily.
 
-\textcolor{red}{The loss-function ablations in Table~\ref{tab:ablation} and Fig.~\ref{fig:ablation_boxplot} demonstrate the roles of the density and consistency losses. Removing the density loss reduces CGS from 0.679 to 0.621, mainly because $S_{den}$ decreases from 0.750 to 0.607, indicating weaker compliance with the specified density condition. Removing the consistency loss reduces CGS from 0.679 to 0.664 and lowers the matched-condition IoU from 0.541 to 0.513, suggesting reduced coherence on shared room boundaries. The IoU loss contributes to geometric fidelity ($S_{IoU}$: 0.541 $\rightarrow$ 0.366 when removed) while increasing uniformity ($S_{uni}$: 0.812 $\rightarrow$ 0.945), suggesting a trade-off between boundary accuracy and distribution smoothness under the current metric definition. The larger degradation observed when all auxiliary losses are removed further confirms that these losses provide complementary supervision for condition compliance and boundary consistency. The fact that the ranking trends remain consistent across CGS, its sub-scores, and Score$_{\text{DC}}$ supports the use of CGS as a summary indicator for conditional behavior in this study.}
-
-\begin{table*}[t]
-\centering
-\begingroup\color{red}
-\caption{Sensitivity of CGS to alternative component weights}
-\label{tab:cgs_sensitivity}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
-\toprule
-Weight setting & Full model & w/o FiLM & w/o dual-stream & w/o density loss \\
-\midrule
-Equal weights $(1/3,1/3,1/3)$ & 0.701 & 0.700 & 0.692 & 0.651 \\
-Density-oriented $(0.5,0.25,0.25)$ & 0.713 & 0.713 & 0.702 & 0.640 \\
-Geometry-oriented $(0.25,0.5,0.25)$ & 0.661 & 0.652 & 0.650 & 0.624 \\
-Uniformity-oriented $(0.25,0.25,0.5)$ & 0.729 & 0.735 & 0.725 & 0.690 \\
-\bottomrule
-\end{tabular*}
-\endgroup
-\end{table*}
-
-\textcolor{red}{A CGS weight-sensitivity analysis is reported in Table~\ref{tab:cgs_sensitivity}. Under equal weights and geometry-oriented weights, the full model obtains the highest CGS among the selected variants; under density-oriented weights, it remains nearly tied with the highest selected variant. When uniformity is assigned the largest weight, the early-concatenation variant obtains a slightly higher CGS because it produces smoother but less geometrically accurate layouts. This result indicates that CGS rankings can be affected when the uniformity term is over-emphasized, but the full model remains the most balanced setting across condition compliance, matched-condition geometry, and spatial regularity. In particular, the full model consistently outperforms the variants without dual-stream training and without density loss under all tested weight settings.}
+\textcolor{red}{The loss-function ablations in Table~\ref{tab:ablation} and Fig.~\ref{fig:ablation_boxplot} demonstrate the roles of the density and consistency losses. Removing the density loss reduces CGS from 0.679 to 0.621, mainly because $S_{den}$ decreases from 0.750 to 0.607, indicating weaker compliance with the specified density condition. Removing the consistency loss reduces CGS from 0.679 to 0.664 and lowers the matched-condition IoU from 0.541 to 0.513, suggesting reduced coherence on shared room boundaries. Removing the IoU loss leads to a smaller CGS decrease (0.679 $\rightarrow$ 0.666), with $S_{IoU}$ decreasing from 0.541 to 0.523 and $S_{uni}$ increasing slightly from 0.812 to 0.825. However, its Score$_{\text{DC}}$ drops more noticeably from 0.413 to 0.276, indicating that the IoU term remains important for overlap-oriented layout quality even when the composite CGS changes modestly. The larger degradation observed when all auxiliary losses are removed further confirms that these losses provide complementary supervision for condition compliance and boundary consistency. The fact that the ranking trends remain consistent across CGS, its sub-scores, and Score$_{\text{DC}}$ supports the use of CGS as a summary indicator for conditional behavior in this study.}
 
 Training-related components have moderate but non-negligible impacts. Eliminating the dual-stream strategy decreases CGS by 0.035, with the main change in $S_{IoU}$, consistent with improved condition sensitivity. Warmup contributes to optimization stability (CGS -0.043 without warmup). Data augmentation primarily benefits IoU (0.541 $\rightarrow$ 0.462 without augmentation). From the boxplot, both the "w/o augmentation" and "w/o warmup" variants exhibit visibly larger spread and more unstable fold-wise behavior than the full model, indicating that these components mainly improve robustness and consistency rather than only the best-case score.
 
