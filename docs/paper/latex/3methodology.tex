@@ -412,7 +412,7 @@ This estimated density is compared against the condition-dependent target $\rho(
 \mathcal{L}_{density} = \left(\bar{\rho}_{\text{pred}} - \rho(c)\right)^2,
 \label{eq:loss_density}
 \end{equation}
-where $m_{ij}$ is the $(i,j)$-th entry of $\mathbf{M}$, and $\rho(c)$ denotes the target average graph-level density score for condition $c$. In the experiments reported in Section~\ref{subsec:conditional_analysis}, the fold-averaged target densities are 3.62, 4.89, and 8.71 for the low-, medium-, and high-density groups, respectively. These values are estimated from the training split and then fixed during the corresponding training and evaluation runs.
+where $m_{ij}$ is the $(i,j)$-th entry of $\mathbf{M}$, and $\rho(c)$ denotes the target average graph-level density score for condition $c$. In the experiments reported in Section~\ref{subsec:conditional_analysis}, the target densities are 3.62, 4.89, and 8.71 for the low-, medium-, and high-density groups, respectively. \textcolor{red}{These values are computed as fixed group-level averages from the available layouts after condition grouping and are used consistently for the corresponding training losses and controllability evaluation.}
 
 (4) Loss weights. The complete training objective is:
 \begin{multline}
