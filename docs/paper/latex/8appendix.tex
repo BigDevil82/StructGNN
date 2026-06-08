@@ -2,17 +2,15 @@
 \appendix
 \setcounter{figure}{0}
 \renewcommand{\thefigure}{\Alph{section}.\arabic{figure}}
-\begin{strip}
-\vspace{-1.2\baselineskip}
+\par\vspace{1.2\baselineskip}
 \section{Additional qualitative results on test cases}
 \label{app:additional_qualitative}
 
 {\color{red}This appendix presents additional qualitative comparisons on test cases. In each row, the engineer-designed reference, the room-based prediction, and the edge-based baseline are shown from left to right. The six rows include two cases from each condition group, covering low-, medium-, and high-density layouts. These additional cases further show that the proposed room-based method generally produces more coherent and boundary-aligned shear wall layouts than the edge-based baseline. They also reveal remaining local errors in some predictions, such as overly short shear wall segments or missing walls in detailed regions, indicating that fine-grained local refinement remains a direction for future improvement.\par}
-\end{strip}
 
-\begin{figure*}[!t]
+\begin{figure}[!t]
 \centering
 \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{supp_case.png}
 \caption{\textcolor{red}{Additional qualitative comparisons on test cases.}}
 \label{fig:supp_case}
-\end{figure*}
+\end{figure}
