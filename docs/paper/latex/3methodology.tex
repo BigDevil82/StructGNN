@@ -71,26 +71,9 @@ It should be noted that the current formulation assumes rectangular room geometr
 \subsubsection{Graph construction from floor plans}
 \label{subsubsec:graph_construction}
 
-Given an architectural floor plan $\mathcal{P}$ in CAD format, the room adjacency graph $G = (\mathcal{V}, \mathcal{E}, \mathbf{X}, \mathbf{A})$ is constructed through the following procedure. \textcolor{red}{The preprocessing stage converts CAD primitives into room polygons, opening-aware boundary constraints, and graph connectivity, as summarized in Algorithm~\ref{alg:cad_preprocessing}.}
+Given an architectural floor plan $\mathcal{P}$ in CAD format, the room adjacency graph $G = (\mathcal{V}, \mathcal{E}, \mathbf{X}, \mathbf{A})$ is constructed through the following procedure. \textcolor{red}{The preprocessing stage converts CAD primitives into room polygons, opening-aware boundary constraints, and graph connectivity.}
 
-\begin{algorithm}[t]
-\begingroup\color{red}
-\caption{CAD preprocessing and room-graph construction}
-\label{alg:cad_preprocessing}
-\begin{algorithmic}[1]
-\REQUIRE CAD layers for walls, doors, windows, and beams in floor plan $\mathcal{P}$
-\ENSURE Room nodes $\mathcal{V}$, adjacency edges $\mathcal{E}$, and buildable mask $\mathbf{M}$
-\STATE Parse wall, door, window, and beam entities from CAD layers.
-\STATE Reconstruct wall regions, extract wall centerlines, and calibrate them into a connected boundary network.
-\STATE Insert door and window segments into the network as openings.
-\STATE Polygonize the calibrated network to obtain room regions; decompose non-rectangular regions into rectilinear sub-regions when needed.
-\STATE Register valid regions as room nodes and connect adjacent rooms by shared physical boundaries.
-\STATE Build the feasible-boundary mask by excluding openings and virtual decomposition boundaries from wall placement.
-\end{algorithmic}
-\endgroup
-\end{algorithm}
-
-\textbf{Step 1: Space Partitioning.} \textcolor{red}{Wall, door, window, and beam entities are first parsed from the CAD drawing according to their layer types. Wall segments are converted into a calibrated boundary network, while doors and windows are retained as openings on the corresponding boundaries. Polygonizing this network yields closed spatial regions.} To process complex architectural layouts, a rectilinear decomposition algorithm is applied to partition any non-rectangular regions (e.g., L-shaped or T-shaped spaces) into a set of axis-aligned rectangular sub-regions.
+\textbf{Step 1: Space Partitioning.} \textcolor{red}{Wall, door and window entities are first parsed from the CAD drawing according to their layer types. Wall segments are converted into a calibrated boundary network, while doors and windows are retained as openings on the corresponding boundaries. Polygonizing this network yields closed spatial regions.} To process complex architectural layouts, a rectilinear decomposition algorithm is applied to partition any non-rectangular regions (e.g., L-shaped or T-shaped spaces) into a set of axis-aligned rectangular sub-regions.
 
 \textbf{Step 2: Room Node Registration.} Each resulting rectangular sub-region with an area exceeding a minimum threshold is registered as a room node $v_i$. \textcolor{red}{Openings are associated with the corresponding room-boundary segments according to geometric overlap, so that wall placement is prohibited where doors or windows interrupt a boundary.} Partition boundaries introduced during the decomposition step are treated as virtual edges that carry no structural meaning; consequently, their corresponding entries in the constraint mask $\mathbf{M}$ are set to zero to strictly prohibit shear wall placement along these artificial lines.
 
