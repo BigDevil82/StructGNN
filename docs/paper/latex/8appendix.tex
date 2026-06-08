@@ -2,19 +2,13 @@
 \appendix
 \setcounter{figure}{0}
 \renewcommand{\thefigure}{\Alph{section}.\arabic{figure}}
-\makeatletter
-\if@firstcolumn\else\newpage\fi
-\makeatother
-\par\vspace{1.2\baselineskip}
-\noindent\makebox[0pt][l]{%
-\begin{minipage}{\textwidth}
-\setlength{\parindent}{1.5em}
+\begin{strip}
+\vspace{-1.2\baselineskip}
 \section{Additional qualitative results on test cases}
 \label{app:additional_qualitative}
 
-{\color{red}\indent This appendix presents additional qualitative comparisons on test cases. In each row, the engineer-designed reference, the room-based prediction, and the edge-based baseline are shown from left to right. The six rows include two cases from each condition group, covering low-, medium-, and high-density layouts. These additional cases further show that the proposed room-based method generally produces more coherent and boundary-aligned shear wall layouts than the edge-based baseline. They also reveal remaining local errors in some predictions, such as overly short shear wall segments or missing walls in detailed regions, indicating that fine-grained local refinement remains a direction for future improvement.\par}
-\end{minipage}}
-\par\smallskip
+{\color{red}This appendix presents additional qualitative comparisons on test cases. In each row, the engineer-designed reference, the room-based prediction, and the edge-based baseline are shown from left to right. The six rows include two cases from each condition group, covering low-, medium-, and high-density layouts. These additional cases further show that the proposed room-based method generally produces more coherent and boundary-aligned shear wall layouts than the edge-based baseline. They also reveal remaining local errors in some predictions, such as overly short shear wall segments or missing walls in detailed regions, indicating that fine-grained local refinement remains a direction for future improvement.\par}
+\end{strip}
 
 \begin{figure*}[!t]
 \centering
