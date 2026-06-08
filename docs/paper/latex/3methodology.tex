@@ -71,15 +71,40 @@ It should be noted that the current formulation assumes rectangular room geometr
 \subsubsection{Graph construction from floor plans}
 \label{subsubsec:graph_construction}
 
-Given an architectural floor plan $\mathcal{P}$ in CAD format, the room adjacency graph $G = (\mathcal{V}, \mathcal{E}, \mathbf{X}, \mathbf{A})$ is constructed through the following procedure:
+Given an architectural floor plan $\mathcal{P}$ in CAD format, the room adjacency graph $G = (\mathcal{V}, \mathcal{E}, \mathbf{X}, \mathbf{A})$ is constructed through the following procedure. \textcolor{red}{The preprocessing stage first converts low-level CAD primitives into a calibrated semantic line network, from which room polygons, openings, feasible wall boundaries, and virtual decomposition boundaries are derived. The main steps are summarized in Algorithm~\ref{alg:cad_preprocessing}.}
 
-\textbf{Step 1: Space Partitioning.} Closed polygonal regions are first identified from the CAD drawing through layer-based filtering and contour detection. To process complex architectural layouts, a rectilinear decomposition algorithm is applied to partition any non-rectangular regions (e.g., L-shaped or T-shaped spaces) into a set of axis-aligned rectangular sub-regions.
+\begin{algorithm}[t]
+\begingroup\color{red}
+\caption{CAD preprocessing and room-graph construction}
+\label{alg:cad_preprocessing}
+\begin{algorithmic}[1]
+\REQUIRE CAD layers for walls, doors, windows, and beams in floor plan $\mathcal{P}$
+\ENSURE Room nodes $\mathcal{V}$, adjacency edges $\mathcal{E}$, and buildable mask $\mathbf{M}$
+\STATE Convert CAD line entities into geometric line segments by layer type.
+\STATE Polygonize wall segments to reconstruct wall regions, and extract wall centerlines with estimated wall thickness.
+\STATE Convert doors and windows into opening segments and beams into auxiliary line segments.
+\STATE Build a structural grid from reliable wall centerlines; snap all wall, door, and window segments to this grid and extend short gaps to obtain a connected semantic line network.
+\STATE Polygonize the calibrated network to obtain closed spatial regions.
+\FOR{each spatial region}
+    \IF{the region is non-rectangular}
+        \STATE Decompose it into rectilinear rectangular sub-regions by recursively cutting from reflex vertices.
+        \STATE Mark newly introduced decomposition boundaries as virtual boundaries.
+    \ENDIF
+    \STATE Register each valid rectangular sub-region as a room node.
+\ENDFOR
+\STATE Add an adjacency edge between two room nodes if their shared physical boundary length exceeds $\tau_{adj}$.
+\STATE Construct the buildable mask by marking physical room-boundary segments as buildable, and marking door/window openings and virtual decomposition boundaries as non-buildable.
+\end{algorithmic}
+\endgroup
+\end{algorithm}
 
-\textbf{Step 2: Room Node Registration.} Each resulting rectangular sub-region with an area exceeding a minimum threshold is registered as a room node $v_i$. Partition boundaries introduced during the decomposition step are treated as virtual edges that carry no structural meaning; consequently, their corresponding entries in the constraint mask $\mathbf{M}$ are set to zero to strictly prohibit shear wall placement along these artificial lines.
+\textbf{Step 1: Space Partitioning.} \textcolor{red}{Wall, door, window, and beam entities are first parsed from the CAD drawing according to their layer types. Wall line segments are polygonized to reconstruct wall regions, from which wall centerlines and approximate wall thicknesses are extracted. Door and window entities are retained as opening segments rather than room boundaries. All segments are then calibrated into a unified semantic line network: reliable structural wall centerlines define the dominant orthogonal grid, while wall, door, and window segments are snapped to this grid and locally extended to close small topological gaps. Polygonizing this calibrated network yields closed spatial regions.} To process complex architectural layouts, a rectilinear decomposition algorithm is applied to partition any non-rectangular regions (e.g., L-shaped or T-shaped spaces) into a set of axis-aligned rectangular sub-regions.
+
+\textbf{Step 2: Room Node Registration.} Each resulting rectangular sub-region with an area exceeding a minimum threshold is registered as a room node $v_i$. \textcolor{red}{Openings are associated with the corresponding room-boundary segments according to geometric overlap, so that wall placement is prohibited where doors or windows interrupt a boundary.} Partition boundaries introduced during the decomposition step are treated as virtual edges that carry no structural meaning; consequently, their corresponding entries in the constraint mask $\mathbf{M}$ are set to zero to strictly prohibit shear wall placement along these artificial lines.
 
 \textbf{Step 3: Adjacency Edge Construction.} For each pair of rooms, the shared physical boundary length $l_{ij}$ is computed. An adjacency edge $e_{ij}$ is added to $\mathcal{E}$ only if $l_{ij}$ exceeds a physical threshold $\tau_{adj}$ (set to 400 mm), which filters out minor or accidental structural contacts.
 
-\textbf{Step 4: Attribute \& Label Mapping.} Finally, node features $\mathbf{X}$ and edge attributes $\mathbf{A}$ are computed based on the geometry and spatial relationships (detailed in Sections~\ref{subsubsec:node_features} and~\ref{subsubsec:edge_features}). For the training data, ground-truth shear wall locations are extracted from structural engineering drawings and precisely mapped to the 16-dimensional output representation (Section~\ref{subsubsec:output_param}).
+\textbf{Step 4: Attribute \& Label Mapping.} Finally, node features $\mathbf{X}$ and edge attributes $\mathbf{A}$ are computed based on the geometry and spatial relationships (detailed in Sections~\ref{subsubsec:node_features} and~\ref{subsubsec:edge_features}). \textcolor{red}{The feasible wall-boundary mask $\mathbf{M}$ is built at this stage by distinguishing physical room boundaries from openings and virtual decomposition boundaries. A segment is marked as buildable only if it lies on a physical room boundary and is not occupied by a door, window, or artificial partition.} For the training data, ground-truth shear wall locations are extracted from structural engineering drawings and precisely mapped to the 16-dimensional output representation (Section~\ref{subsubsec:output_param}).
 
 \subsubsection{Node feature design}
 \label{subsubsec:node_features}
