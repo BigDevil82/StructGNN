@@ -75,21 +75,21 @@ Given an architectural floor plan $\mathcal{P}$ in CAD format, the room adjacenc
 
 \textbf{Step 1: Space Partitioning.} \textcolor{red}{Wall, door and window entities are first parsed from the CAD drawing according to their layer types. Double-line wall boundaries are converted into wall centerlines, and door/window embedded segments are projected onto their host walls as openings. The wall centerlines are then calibrated by closing small drafting gaps, merging nearly collinear segments, and adjusting intersections within a geometric tolerance, producing a connected floor-plan skeleton. Polygonizing this calibrated skeleton yields closed spatial regions.} To process complex architectural layouts, a rectilinear decomposition algorithm is applied to partition any non-rectangular regions (e.g., L-shaped or T-shaped spaces) into a set of axis-aligned rectangular sub-regions. \textcolor{red}{Corridors and circulation spaces follow the same rule: rectangular regions remain unchanged, whereas irregular connected regions are decomposed into rectangular sub-regions so that the fixed boundary-slot representation introduced in Section~\ref{subsubsec:output_param} remains applicable.}
 
-\textbf{Step 2: Room Node Registration.} Each resulting rectangular sub-region with an area exceeding a minimum threshold is registered as a room node $v_i$. \textcolor{red}{Openings are associated with the corresponding room-boundary segments according to geometric overlap, so that wall placement is prohibited where doors or windows interrupt a boundary. During dataset preparation, room partitions were manually checked; visually enclosed regions that were already covered by surrounding room partitions and did not introduce an independent room or additional physical boundary were not registered as separate nodes, as shown in the white regions in Fig.~\ref{fig:graph_comparison}b.} Partition boundaries introduced during the decomposition step are treated as virtual edges that carry no structural meaning and are therefore excluded from feasible wall placement.
+\textbf{Step 2: Room Node Registration.} Each resulting rectangular sub-region with an area exceeding a minimum threshold is registered as a room node $v_i$. \textcolor{red}{Openings are associated with the corresponding room-boundary segments according to geometric overlap, so that wall placement is prohibited where doors or windows interrupt a boundary. During dataset preparation, room partitions were manually annotated; visually enclosed regions that were already covered by surrounding room partitions and did not introduce an independent room or additional physical boundary were not registered as separate nodes, as shown in the white regions in Fig.~\ref{fig:graph_comparison}b.} Partition boundaries introduced during the decomposition step are treated as virtual edges that carry no structural meaning and are therefore excluded from feasible wall placement.
 
 \textbf{Step 3: Adjacency Edge Construction.} For each pair of rooms, the shared physical boundary length $l_{ij}$ is computed. An adjacency edge $e_{ij}$ is added to $\mathcal{E}$ only if $l_{ij}$ exceeds a physical threshold $\tau_{adj}$ (set to 400 mm), which filters out minor or accidental structural contacts.
 
 \textbf{Step 4: Attribute \& Label Mapping.} Finally, the room-boundary slots, node features $\mathbf{X}$, and edge attributes $\mathbf{A}$ are computed from room geometry and spatial relationships. Ground-truth shear wall locations are extracted from structural engineering drawings and mapped to the same boundary-slot representation. \textcolor{red}{During this mapping, the effective length of a shear wall is defined as the projected overlap length between an extracted structural wall segment and a feasible room-boundary slot. Multiple wall intervals on the same slot are merged before the final coverage ratio is computed. The detailed output representation, feasibility mask, node features, and edge attributes are described in Sections~\ref{subsubsec:output_param}--\ref{subsubsec:edge_features}.}
 
-\subsubsection{Output parameterization}
+\subsubsection{Room-boundary representation and feasibility mask}
 \label{subsubsec:output_param}
 
 The shear wall layout for each room $v_i$ is parameterized as a continuous vector $\mathbf{y}_i \in [0,1]^{16}$.
 This parameterization captures wall placement along all four room boundaries with segment-level precision.
 An 8-dimensional alternative would regress two coverage ratios for each of the four boundaries (e.g., measured from the two endpoints of each boundary).
-However, this representation fails when a wall segment lies in the interior of a boundary without touching either endpoint, as both endpoint-based ratios would be close to zero and the wall could be incorrectly treated as absent.
+However, this representation fails when a wall segment lies in the interior of a boundary without touching either endpoint, as both endpoint-based ratios would be close to zero and the wall could be incorrectly treated as absent, as shown in Fig.~\ref{fig:output_param}a.
 To avoid this ambiguity, each boundary (top, right, bottom, left) is split at its midpoint into two half-segments, yielding 8 half-segments in total.
-Each half-segment is then described by two ratios, which together provide sufficient flexibility to represent walls attached to an endpoint as well as walls located away from endpoints (Fig.~\ref{fig:output_param}a,b).
+Each half-segment is then described by two ratios, which together provide sufficient flexibility to represent walls attached to an endpoint as well as walls located away from endpoints (Fig.~\ref{fig:output_param}b).
 For each half-segment $k \in \{1, \ldots, 8\}$, two values encode the wall coverage:
 
 $r_k^{start}$ denotes the fraction of the half-segment covered by wall starting from the segment's origin.
@@ -120,7 +120,7 @@ The topological consistency loss $\mathcal{L}_{cons}$ (Section~\ref{subsec:train
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.85\textwidth]{output_param_and_mask.png}
-\caption{Illustration of the 16-dimensional room-level output parameterization and the corresponding constraint mask.}
+\caption{Illustration of the 16-dimensional room-boundary representation and the corresponding feasibility mask.}
 \label{fig:output_param}
 \end{figure*}
 

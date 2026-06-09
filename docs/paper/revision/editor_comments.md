@@ -1,0 +1,12 @@
+Associate Editor: Thank you for choosing Automation in Construction to publish your work. The reviewers have evaluated your work and, while they see value in the submitted work, they also have major concerns and remarks that need to be addressed. A significant revision of the article is required to be able to proceed. Please look into the comments provided by the reviewers and prepare a revised version to resubmit. The authors are asked to prepare a review response letter that lists all comments one by one, in a table-like manner, and respond to each comment individually to indicate how the paper has been modified in response to the comment. Keep the review response letter sufficiently concise and focus on improving the paper. Please submit a manuscript with changes marked, as well as an unmarked version of the manuscript.
+
+In addition to the reviewer comments, the authors are requested to address also these editorial comments:
+- 5 highlights are allowed, yet each highlight can only count 85 characters, white spaces included. Please revise.
+
+- Avoid orphan headings without context: these are headers that are immediately followed by the next header, without any text in between (e.g. line 89-90, 601-603). At least add a brief introduction to explain what will be covered in the section.
+
+- It is strongly supported and actively requested to share data as part of the article publication process. Links to available data sets and/or code can be supplied in the Data Availability Statement. Even if not all data can be provided, publication of a limited dataset in support of the work done is strongly encouraged, as it allows proving the claims made in the article, and it supports replicability of research results. Recommendations on the sharing of research data can be found here: https://www.sciencedirect.com/journal/automation-in-construction/publish/guide-for-authors#writing-and-formatting-research-data
+
+- Limitations need to be included inside the Conclusion section. They are an important part of the critical reflection that is expected in the conclusion.
+
+- Check the references for completeness in details. For example, reference [1] and [2] lack an ISBN number and publisher information, [16] and [22] lacks article number, [18], [44] and [33] lack DOI. Consider replacing ref [28], [40-41] with a peer-reviewed and published version, instead of the un-peer-reviewed arXiv version. Ref [31] and [48] are incomplete.
