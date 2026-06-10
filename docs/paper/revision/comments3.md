@@ -19,7 +19,7 @@ In Section 3.1.1:
 Corridors and circulation spaces follow the same rule: rectangular regions remain unchanged, whereas irregular connected regions are decomposed into rectangular sub-regions so that the fixed boundary-slot representation introduced in Section 3.1.2 remains applicable.
 
 In Section 3.1.2:
-Each mask component m_ij corresponds one-to-one to the output component y_ij: m_ij=1 indicates that the slot is a feasible physical boundary for shear wall placement, while m_ij=0 indicates that the slot is blocked by an opening or corresponds to a virtual decomposition boundary. During training and inference, the mask excludes infeasible slots from loss computation, density calculation, and final wall placement.
+Each mask component $m_ij$ corresponds one-to-one to the output component $y_ij$: $m_ij=1$ indicates that the slot is a feasible physical boundary for shear wall placement, while $m_ij=0$ indicates that the slot is blocked by an opening or corresponds to a virtual decomposition boundary. During training and inference, the mask excludes infeasible slots from loss computation, density calculation, and final wall placement.
 
 3. The criterion used to define or select the effective length of the shear walls should be better explained.
 
@@ -36,11 +36,14 @@ For each boundary slot, the ground-truth coverage ratio is obtained by dividing 
 4. The 16-dimensional constraint mask should be described more explicitly, including the meaning of each component.
 
 Response:
-Thank you for this suggestion. We revised both the text and the illustration to make the constraint mask more explicit. The revised manuscript now states that the mask has the same ordering and dimension as the 16-dimensional output vector, and that each mask entry determines whether the corresponding boundary slot is buildable during loss computation, density calculation, and final wall placement.
+Thank you for this suggestion. We revised both the text and the illustration to make the constraint mask more explicit. The revised manuscript now states that the mask has the same ordering and dimension as the 16-dimensional output vector, and that each mask entry determines whether the corresponding boundary slot is buildable during loss computation, density calculation, and final wall placement. In particular, Fig. 3c was added to visually distinguish buildable physical boundaries from door/window openings and virtual decomposition boundaries.
 
 Revision:
 In Section 3.1.2:
-The same boundary-slot ordering is used to define a 16-dimensional buildable mask m_i for each room. Each mask component m_ij corresponds one-to-one to the output component y_ij: m_ij=1 indicates that the slot is a feasible physical boundary for shear wall placement, while m_ij=0 indicates that the slot is blocked by an opening or corresponds to a virtual decomposition boundary. Fig. 3c visualizes this correspondence between output slots and buildable-mask entries. During training and inference, the mask excludes infeasible slots from loss computation, density calculation, and final wall placement.
+The same boundary-slot ordering is used to define a 16-dimensional buildable mask $m_i$ for each room. Each mask component $m_ij$ corresponds one-to-one to the output component $y_ij$: $m_ij=1$ indicates that the slot is a feasible physical boundary for shear wall placement, while $m_ij=0$ indicates that the slot is blocked by an opening or corresponds to a virtual decomposition boundary. Fig. 3c visualizes this correspondence between output slots and buildable-mask entries. During training and inference, the mask excludes infeasible slots from loss computation, density calculation, and final wall placement.
+
+In Fig. 3c:
+The orange boundary segments indicate buildable room-boundary slots with mask value 1, whereas slots interrupted by doors/windows or introduced as virtual decomposition boundaries are assigned mask value 0 and excluded from shear-wall prediction.
 
 5. In some cases, such as Figure 2, some rooms do not seem to form edges with all surrounding walls or boundaries, particularly where doors are present. This should be clarified.
 
@@ -58,7 +61,7 @@ Thank you for this comment. We agree that the role of the cross-condition stream
 
 Revision:
 In Section 3.4.1:
-The cross-condition stream is introduced to compensate for the absence of multi-condition paired labels. During training, the same floor-plan graph is also evaluated under a randomly sampled mismatched condition c_fake, which asks the model how the wall quantity should change for the same geometry under another seismic or height-related demand. Because this synthetic plan-condition pair has no paired engineering layout, it is not supervised by reconstruction loss; instead, it is constrained by the density-alignment loss associated with c_fake. This creates a missing gradient signal that couples the output distribution to the condition input, discouraging the model from collapsing to condition-invariant predictions.
+The cross-condition stream is introduced to compensate for the absence of multi-condition paired labels. During training, the same floor-plan graph is also evaluated under a randomly sampled mismatched condition $c_fake$, which asks the model how the wall quantity should change for the same geometry under another seismic or height-related demand. Because this synthetic plan-condition pair has no paired engineering layout, it is not supervised by reconstruction loss; instead, it is constrained by the density-alignment loss associated with $c_fake$. This creates a missing gradient signal that couples the output distribution to the condition input, discouraging the model from collapsing to condition-invariant predictions.
 
 7. The authors should discuss whether vertical continuity of shear walls along the building height is considered or enforced.
 

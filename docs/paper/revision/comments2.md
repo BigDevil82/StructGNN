@@ -108,7 +108,7 @@ Thank you for the suggestion. We agree that additional visual cases help readers
 
 Revision:
 In Section 4.2:
-The qualitative comparisons in Fig. 5 provide visual evidence consistent with the quantitative results. More illustrative examples can be seen in Fig. A.1.
+The qualitative comparisons in Fig. 5 provide visual evidence consistent with the quantitative results. Further illustrative examples are shown in Fig. A.1.
 
 In Appendix A:
 Fig. A.1 presents additional qualitative comparisons on test cases. These additional cases further show that the proposed room-based method generally produces more coherent and boundary-aligned shear wall layouts than the edge-based baseline. They also reveal remaining local errors in some predictions, such as overly short shear wall segments or missing walls in detailed regions, indicating that fine-grained local refinement remains a direction for future improvement.

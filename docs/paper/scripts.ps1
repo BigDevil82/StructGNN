@@ -1,0 +1,1 @@
+latexmk -pdf -jobname=main_unmarked -interaction=nonstopmode -halt-on-error -pdflatex='pdflatex %O "\def\makeunmarked{}\input{%S}"' main.tex
