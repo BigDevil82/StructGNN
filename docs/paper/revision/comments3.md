@@ -3,7 +3,7 @@ Reviewer #3: The manuscript presents an interesting and timely contribution to t
 1. The filtering and contour detection procedure from CAD drawings should be explained more clearly.
 
 Response:
-Thank you for this comment. We revised Section 3.1.1 to clarify how CAD entities are filtered, simplified, and converted into closed spatial regions for graph construction.
+Thank you for this comment. We agree that the original manuscript did not describe the CAD-to-graph preprocessing in sufficient detail. We revised Section 3.1.1 to clarify how CAD entities are filtered by layer, simplified into a wall skeleton, calibrated geometrically, and converted into closed spatial regions for room-level graph construction.
 
 Revision:
 In Section 3.1.1:
@@ -12,7 +12,7 @@ Wall, door and window entities are first parsed from the CAD drawing according t
 2. The authors should clarify how corridors and circulation spaces between rooms are considered in the room-level graph.
 
 Response:
-Thank you for this comment. We clarified that corridors and circulation spaces are processed using the same rectilinear decomposition rule, while virtual boundaries are excluded from wall placement through the feasibility mask.
+Thank you for this comment. We have clarified how corridors and circulation spaces are represented in the proposed room-level graph. In the current fixed boundary-slot formulation, rectangular circulation regions are kept as room nodes, while irregular connected regions are decomposed into rectangular sub-regions. The virtual boundaries introduced by this decomposition are not treated as feasible shear-wall locations and are excluded through the feasibility mask.
 
 Revision:
 In Section 3.1.1:
@@ -24,7 +24,7 @@ Each mask component m_ij corresponds one-to-one to the output component y_ij: m_
 3. The criterion used to define or select the effective length of the shear walls should be better explained.
 
 Response:
-Thank you for this comment. We added an explicit description of how shear wall segments are mapped to room-boundary slots and how effective length is converted into coverage ratios.
+Thank you for this comment. We agree that the definition of effective wall length is important for understanding the label construction and density calculation. We added an explicit description of how structural wall segments are projected onto feasible room-boundary slots, how multiple intervals on the same slot are merged, and how the resulting effective length is converted into the 16-dimensional coverage-ratio label.
 
 Revision:
 In Section 3.1.1:
@@ -36,7 +36,7 @@ For each boundary slot, the ground-truth coverage ratio is obtained by dividing 
 4. The 16-dimensional constraint mask should be described more explicitly, including the meaning of each component.
 
 Response:
-Thank you for this suggestion. We revised Section 3.1.2 and Fig. 3 to make the one-to-one correspondence between the 16 output components and the feasibility mask explicit.
+Thank you for this suggestion. We revised both the text and the illustration to make the constraint mask more explicit. The revised manuscript now states that the mask has the same ordering and dimension as the 16-dimensional output vector, and that each mask entry determines whether the corresponding boundary slot is buildable during loss computation, density calculation, and final wall placement.
 
 Revision:
 In Section 3.1.2:
@@ -45,7 +45,7 @@ The same boundary-slot ordering is used to define a 16-dimensional buildable mas
 5. In some cases, such as Figure 2, some rooms do not seem to form edges with all surrounding walls or boundaries, particularly where doors are present. This should be clarified.
 
 Response:
-Thank you for pointing this out. We clarified the room-node registration rule to explain why some visually enclosed background regions are not treated as independent nodes.
+Thank you for pointing this out. We clarified the room-node registration rule to avoid ambiguity in Fig. 2. Some visually enclosed background regions do not correspond to independent rooms or additional physical wall boundaries after manual room-partition annotation; registering them as separate nodes would duplicate boundaries and could introduce inconsistent labels. We therefore added an explanation of why these regions are not included as graph nodes.
 
 Revision:
 In Section 3.1.1:
@@ -54,7 +54,7 @@ During dataset preparation, room partitions were manually annotated; visually en
 6. The cross-condition stream shown in Figure 1 should be explained more clearly, especially its role during training.
 
 Response:
-Thank you for this comment. We revised Section 3.4.1 to explain why the cross-condition stream is introduced and how it provides condition-related supervision when multi-condition paired labels are unavailable.
+Thank you for this comment. We agree that the role of the cross-condition stream is central to the proposed training strategy and should be explained more clearly. We revised Section 3.4.1 to state that the stream compensates for the lack of multi-condition paired labels by applying a mismatched condition to the same floor-plan graph and supervising the result with density alignment rather than reconstruction loss.
 
 Revision:
 In Section 3.4.1:
@@ -63,7 +63,7 @@ The cross-condition stream is introduced to compensate for the absence of multi-
 7. The authors should discuss whether vertical continuity of shear walls along the building height is considered or enforced.
 
 Response:
-Thank you for this comment. We clarified the assumption used in the FE case studies and added vertical layout variation as a limitation and future extension.
+Thank you for this comment. We clarified how vertical continuity is handled in the current FE validation. Since one generated standard-floor layout is repeated along the building height, vertical continuity is naturally maintained in the analyzed cases. We also added a limitation explaining that buildings with multiple standard floors or changing layouts would require additional inter-story constraints.
 
 Revision:
 In Section 4.5:

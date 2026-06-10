@@ -3,7 +3,7 @@ Reviewer #1: The manuscript proposes a room-level conditional graph neural netwo
 1. Since the proposed method relies on room-level graph construction, please provide more details on how rooms, openings, feasible wall boundaries, and irregular spatial regions are extracted from the original floor plans. A brief algorithmic description or additional explanation in the methodology section would be helpful.
 
 Response:
-Thank you for this suggestion. We revised Section 3.1.1 to explain the CAD preprocessing and graph construction steps more explicitly, including room extraction, opening mapping, feasible-boundary identification, and the treatment of irregular regions.
+Thank you for this helpful suggestion. We agree that the reliability of the room-level graph depends on how the original CAD floor plans are converted into rooms, openings, and feasible wall boundaries. Therefore, we expanded Section 3.1.1 to describe the preprocessing workflow more clearly, including layer-based entity extraction, room-contour generation, opening mapping, feasible-boundary identification, and rectilinear decomposition of irregular regions.
 
 Revision:
 In Section 3.1.1:
@@ -16,7 +16,7 @@ Step 2: Room Node Registration. Openings are associated with the corresponding r
 2. Please clarify whether the main results are averaged over all folds or obtained from a representative split. If possible, please report mean and standard deviation for the main evaluation metrics to better support the robustness of the comparison.
 
 Response:
-Thank you for this comment. We clarified that the main results are based on 5-fold cross-validation and revised the main comparison table to report mean and standard deviation.
+Thank you for this comment. We agree that reporting only a single value could make the robustness of the comparison unclear. We have clarified that the main quantitative results are obtained from 5-fold cross-validation and revised the main comparison table to include both mean and standard deviation for the major metrics.
 
 Revision:
 In Section 4.2:
@@ -33,7 +33,7 @@ RMSE: 0.193 +/- 0.003 (ours) vs. 0.353 +/- 0.008 (baseline).
 3. Please explain how the low-, medium-, and high-density groups are determined, and whether the density targets used for training and evaluation are computed independently within each training split. This would help readers better understand the controllability evaluation.
 
 Response:
-Thank you for this comment. We clarified the definition of the three condition groups and stated how the density targets are computed and used in training and evaluation.
+Thank you for this comment. We have clarified that the three density groups follow the seismic-intensity and building-height grouping used in prior shear wall studies. We also explained how the group-level density targets are computed and used consistently in both training and controllability evaluation, so that readers can better interpret the conditional-generation results.
 
 Revision:
 In Section 4.1.1:
@@ -45,7 +45,7 @@ In our implementation, the target densities used in both the density loss and CG
 4. Please consider adding a small table comparing the generated and engineer-designed schemes in terms of key indicators, such as maximum inter-story drift ratio, code limit, vertical displacement, and wall density.
 
 Response:
-Thank you for this suggestion. The requested indicators are reported in the finite-element validation figures, and we revised Section 4.5 to make this explicit and summarize their implications.
+Thank you for this suggestion. The requested structural indicators are already included in the finite-element validation figures, but we agree that the original text did not point this out clearly enough. We revised Section 4.5 to explicitly state which indicators are compared and to summarize what these comparisons imply for the generated schemes.
 
 Revision:
 In Section 4.5:
@@ -56,7 +56,7 @@ As shown in Fig. 8, the predicted schemes in both cases exhibit drift-ratio prof
 5. Please briefly discuss the limitations of the proposed method, such as the limited dataset size, dependence on preprocessing quality, use of discrete density conditions, and the need for subsequent structural analysis and engineering verification before practical application.
 
 Response:
-Thank you for this comment. We expanded the limitations in Section 5.3 and added a concise limitation statement in Section 6 to clarify the current scope of the method.
+Thank you for this comment. We agree that the practical scope of the method should be stated more explicitly. We expanded Section 5.3 to discuss the main limitations in terms of dataset scale and typology, preprocessing dependence, discrete condition control, and the need for structural analysis and engineering review. We also added a concise limitations statement in the Conclusion.
 
 Revision:
 In Section 5.3:

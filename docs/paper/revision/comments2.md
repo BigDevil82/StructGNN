@@ -3,7 +3,7 @@ Reviewer #2: The manuscript proposes a room-level conditional graph neural netwo
 1. The motivation for using room-level graphs is clear, but the manuscript should discuss the possible information loss caused by this abstraction. Compared with component-level graphs, room-level graphs may weaken the representation of local wall-segment details, small openings, and fine-grained alignment constraints. The authors should clarify under what types of floor plans the proposed representation may become less effective, especially for irregular rooms, complex internal partitions, or cases where local geometric details strongly affect shear wall placement.
 
 Response:
-Thank you for this comment. We clarified the trade-off of the room-level abstraction in Section 3.1 and expanded the limitations in Section 5.3 to state when component-level or hybrid representations may be preferable.
+Thank you for this important comment. We agree that the room-level abstraction improves semantic alignment and computational compactness, but may also weaken fine-grained local geometric information. We therefore revised Section 3.1 to clarify the intended application scope and representation trade-off, and expanded Section 5.3 to discuss cases where component-level or hybrid representations may be more appropriate.
 
 Revision:
 In Section 3.1:
@@ -15,7 +15,7 @@ Broader deployment would therefore require additional validation on more diverse
 2. The dataset contains 143 floor plans, and data augmentation increases the number of training samples to 678. The manuscript should clearly state how augmented samples are handled in the cross-validation process. All augmented versions of the same original floor plan should be kept within the same fold to avoid data leakage between training, validation, and test sets.
 
 Response:
-Thank you for pointing this out. We clarified that fold assignment is performed before data augmentation and that augmented variants remain within the corresponding subset.
+Thank you for pointing this out. We agree that augmentation must be handled carefully to avoid data leakage. We have clarified that cross-validation splitting is performed at the original floor-plan level before augmentation, and that all augmented variants of the same plan remain within the corresponding subset.
 
 Revision:
 In Section 4.1.3:
@@ -24,7 +24,7 @@ To avoid data leakage, the dataset split was performed at the original floor-pla
 3. The comparison with the component-based GNN baseline is useful, but the experimental positioning should be clarified. Since the paper also discusses pixel-based GAN and diffusion methods in the related work, the authors should explain why the experimental comparison focuses only on graph-based methods. A brief discussion comparing the proposed method with representative image-based methods in terms of representation, inference efficiency, vectorization requirements, and engineering applicability would make the positioning clearer.
 
 Response:
-Thank you for this suggestion. We clarified that the main experimental comparison is designed to isolate the effect of graph representation, and added discussion on how graph-based vector prediction differs from pixel-based generation.
+Thank you for this suggestion. We agree that the experimental positioning should be made clearer, especially because image-based methods are discussed in the related work. We clarified that the main comparison is designed to isolate the effect of graph representation under a controlled graph-learning setting, and we added discussion on the differences between graph-based vector prediction and pixel-based generation in terms of representation, post-processing, and engineering usability.
 
 Revision:
 In Section 4.1.2:
@@ -36,7 +36,7 @@ In the room-based graph, message passing occurs over room adjacencies and all ca
 4. Table 6 reports the main performance comparison, but only mean values are provided. Since the experiments are based on 5-fold cross-validation, the authors should report standard deviations or confidence intervals for the main metrics, including Image IoU, precision, recall, F1, MAE, and RMSE. This would help readers evaluate the stability of the reported improvements across different data splits.
 
 Response:
-Thank you for the comment. We updated the main comparison table to report mean and standard deviation across the 5-fold cross-validation and revised the accompanying discussion.
+Thank you for the comment. We agree that cross-fold variation is important for evaluating the stability of the reported improvements. We therefore updated the main comparison table to report mean and standard deviation across the 5-fold cross-validation and revised the accompanying discussion to interpret the stability of the results.
 
 Revision:
 In Section 4.2:
@@ -53,7 +53,7 @@ RMSE: 0.193 +/- 0.003 (ours) vs. 0.353 +/- 0.008 (baseline).
 5. The Conditional Generation Score is useful for evaluating conditional behavior, but its definition contains several manually selected weights. The manuscript should better justify the weighting strategy in CGS, especially the equal weights assigned to density agreement, matched-condition IoU, and spatial uniformity. A brief sensitivity analysis or additional explanation is needed to show that the conclusions are not overly dependent on these selected weights.
 
 Response:
-Thank you for this comment. We clarified the rationale of the CGS weights and added a sensitivity analysis to show that the main ablation trends are stable under alternative weight settings.
+Thank you for this comment. We agree that the manually selected CGS weights should be justified more clearly. We revised the metric description to explain the role of each component and added a sensitivity analysis with alternative weight settings. The added results show that the main ablation trends are not overly dependent on the specific weighting choice.
 
 Revision:
 In Section 4.1.4:
@@ -68,7 +68,7 @@ Uniformity-oriented (0.25,0.25,0.5): 0.729, 0.715, 0.725, 0.690.
 6. The dual-stream training strategy is an important part of the proposed method, but the contribution of individual loss terms is not fully demonstrated. The authors should provide more evidence for the effects of the density loss and the topological consistency loss. For example, an ablation setting without the consistency loss, or a quantitative indicator measuring inconsistency on shared room boundaries, would make the role of this term clearer.
 
 Response:
-Thank you for this comment. We revised the ablation discussion to explicitly interpret the existing variants without density loss and without consistency loss.
+Thank you for this comment. We agree that the roles of the density loss and consistency loss should be stated more explicitly. The revised ablation discussion now directly interprets the variants without density loss and without consistency loss, and explains how their changes in CGS and sub-metrics reflect condition compliance and shared-boundary coherence.
 
 Revision:
 In Section 4.3:
@@ -77,7 +77,7 @@ The loss-function ablations in Table 9 and Fig. 6 demonstrate the roles of the d
 7. The paper claims that the room-level representation reduces graph complexity and improves efficiency, but the experimental section mainly reports accuracy metrics. The authors should add a quantitative efficiency comparison between the proposed method and the component-level baseline, such as average node/edge numbers, inference time per floor plan, training time per epoch, or GPU memory consumption. This would directly support the claimed computational advantage.
 
 Response:
-Thank you for this comment. We added a quantitative efficiency comparison covering graph size, inference time, training time, and GPU memory.
+Thank you for this comment. We agree that the claimed computational advantage should be supported quantitatively rather than only by accuracy results. We added an efficiency comparison between the room-level and component-level graphs, covering graph size, inference time per plan, training time per epoch, and GPU memory usage.
 
 Revision:
 In Section 4.2:
@@ -86,7 +86,7 @@ Table 8 provides a quantitative comparison of graph complexity and computational
 8. The current design condition is represented by three discrete density groups related to seismic intensity and building height. This setting is reasonable for the available dataset, but the manuscript should avoid overstating the level of engineering controllability. The current model mainly controls shear wall density categories rather than continuous engineering parameters such as PGA, structural height, period, or drift demand. This distinction should be stated more clearly in the abstract, experimental discussion, and conclusion.
 
 Response:
-Thank you for the comment. We revised the abstract, experiment section, discussion, and conclusion to clarify that the current model performs discrete density-controlled generation rather than continuous engineering-parameter control.
+Thank you for the comment. We agree that the controllability demonstrated in this study should not be overstated. We revised the abstract, experimental setup, discussion, and conclusion to clarify that the current model controls discrete density categories derived from available labels, rather than continuous engineering parameters such as PGA, structural height, period, or drift demand.
 
 Revision:
 In the Abstract:
@@ -104,7 +104,7 @@ Future work should focus on three directions that follow directly from the curre
 9. The qualitative results in the main text are helpful, but the number of visualized test cases is limited. The authors should provide more visual comparison results in the appendix, covering different density groups and floor plan types. Additional examples, including successful cases and less satisfactory cases, would help readers better understand the model's actual generation quality, robustness, and typical failure modes.
 
 Response:
-Thank you for the suggestion. We added Appendix A with additional qualitative comparisons and referenced it in the main results section.
+Thank you for the suggestion. We agree that additional visual cases help readers assess the actual generation quality and typical failure modes. We added Appendix A with more test-set qualitative comparisons across density groups, and referenced these additional examples in the main results section.
 
 Revision:
 In Section 4.2:
