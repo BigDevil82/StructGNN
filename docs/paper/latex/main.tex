@@ -67,7 +67,13 @@
      citecolor    = blue
 }
 \setlength{\mathindent}{0pt}
-\RenewDocumentCommand{\textcolor}{O{} m m}{#3}
+\newenvironment{revblock}
+  {\begingroup\ifdefined\unmarked\else\color{red}\fi}
+  {\endgroup}
+
+\ifdefined\unmarked
+  \RenewDocumentCommand{\textcolor}{O{} m m}{#3}
+\fi
 
 \captionsetup[table]{
   labelfont=bf,             % "Table n" 加粗
