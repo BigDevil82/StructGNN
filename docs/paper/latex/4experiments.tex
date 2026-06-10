@@ -33,7 +33,7 @@ Samples after augmentation (train) & 678 \\
 
 \begin{table*}[t]
 \centering
-\begingroup\textcolor{red}
+\begingroup\color{red}
 \caption{Sensitivity of CGS to alternative component weights}
 \label{tab:cgs_sensitivity}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
@@ -99,7 +99,7 @@ Uniformity-oriented $(0.25,0.25,0.5)$ & 0.729 & 0.715 & 0.725 & 0.690 \\
 
 \begin{table*}[t]
 \centering
-\begingroup\textcolor{red}
+\begingroup\color{red}
 \caption{Graph complexity and computational efficiency comparison between the component-level and room-level representations}
 \label{tab:efficiency}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc@{}}
@@ -224,7 +224,7 @@ Table~\ref{tab:main_results} reports the quantitative comparison between the pro
 
 \textcolor{red}{The proposed room-based representation yields higher fold-averaged Image IoU and F1 than the component-based baseline under the same backbone family and training protocol. Across the five fold checkpoints, the room-level model achieves an Image IoU of 0.565 $\pm$ 0.005 and an F1 score of 0.765 $\pm$ 0.001, compared with 0.454 $\pm$ 0.021 and 0.630 $\pm$ 0.012 for the component-level baseline. The smaller cross-fold variation of the proposed method suggests that the improvement is not dominated by a single favorable split. The ensemble result remains higher (Image IoU = 0.597), but Table~\ref{tab:main_results} reports fold-level statistics to make model stability explicit. The improvement is not only a numerical advantage but also a direct consequence of the representation level. In the component-based baseline, each wall segment is predicted largely as an individual unit, so locally plausible but globally inconsistent wall fragments can survive if nearby context is not aggregated effectively. In the room-based graph, by contrast, message passing occurs over room adjacencies and all candidate walls are attached to room boundaries from the outset. The model is therefore biased toward boundary-consistent predictions and is less likely to place isolated wall fragments in regions that do not correspond to valid room interfaces. This is important in engineering practice because fewer false positives mean lower unnecessary construction cost and fewer conflicts with architectural constraints. In addition, the lower MAE/RMSE indicates more accurate wall-length ratios for correctly identified segments, which is consistent with a representation that reasons over complete room boundaries rather than isolated wall segments.}
 
-The qualitative comparisons in Fig.~\ref{fig:qual_comparison} provide visual evidence consistent with the quantitative results. \textcolor{red}{More illustrative examples can be seen in Fig.~\ref{fig:supp_case}.} Across different floor-plan cases, the room-based GNN generally produces wall layouts that are closer to the engineer-designed reference, with more coherent boundary-aligned wall placement and fewer spurious predictions. Correspondingly, the predicted layouts from the proposed method exhibit larger overlap with the ground truth, which is reflected in the higher Image IoU reported in Table~\ref{tab:main_results}. 
+The qualitative comparisons in Fig.~\ref{fig:qual_comparison} provide visual evidence consistent with the quantitative results. \textcolor{red}{Further illustrative examples are shown in Fig.~\ref{fig:supp_case}.} Across different floor-plan cases, the room-based GNN generally produces wall layouts that are closer to the engineer-designed reference, with more coherent boundary-aligned wall placement and fewer spurious predictions. Correspondingly, the predicted layouts from the proposed method exhibit larger overlap with the ground truth, which is reflected in the higher Image IoU reported in Table~\ref{tab:main_results}. 
 
 By contrast, the component-based baseline tends to generate more fragmented and isolated wall segments. These scattered predictions are especially visible in cases with complex room adjacencies, where local segment-level decisions do not fully capture the higher-level spatial organization of the floor plan. This qualitative failure mode is consistent with the lower representational level of the component-based graph. Because the model operates on individual wall components rather than room-level spatial units, it is more prone to producing locally plausible but globally incoherent wall fragments.
 
