@@ -68,10 +68,10 @@
 }
 \setlength{\mathindent}{0pt}
 \newenvironment{revblock}
-  {\begingroup\ifdefined\unmarked\else\color{red}\fi}
+  {\begingroup\ifdefined\makeunmarked\else\color{red}\fi}
   {\endgroup}
 
-\ifdefined\unmarked
+\ifdefined\makeunmarked
   \RenewDocumentCommand{\textcolor}{O{} m m}{#3}
 \fi
 
