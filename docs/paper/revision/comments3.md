@@ -1,37 +1,73 @@
 Reviewer #3: The manuscript presents an interesting and timely contribution to the automation of preliminary shear wall layout design using room-level conditional graph neural networks. The paper is well written, clearly organized, and addresses a relevant problem for structural design automation. In my opinion, the manuscript deserves publication after the authors address the following minor comments.
+
 1. The filtering and contour detection procedure from CAD drawings should be explained more clearly.
-1. Response:
-Thank you for this comment. We have revised the methodology section to describe the CAD preprocessing procedure more clearly. In the revised manuscript, we clarify that the floor-plan preprocessing is based on CAD layer information and geometric rules. Wall, door, and window entities are first extracted from the corresponding layers. The wall lines are then simplified from double-line representations into a floor-plan skeleton, and door/window locations are mapped to the corresponding wall boundaries to identify non-buildable segments. The skeleton is further checked and calibrated to form closed spatial regions, from which room contours are identified using geometric processing algorithms. Irregular regions are decomposed into rectangular sub-regions to match the fixed room-boundary representation used in this study.
+
+Response:
+Thank you for this comment. We revised Section 3.1.1 to clarify how CAD entities are filtered, simplified, and converted into closed spatial regions for graph construction.
+
 Revision:
-We revised Section 3.1.1 by adding a clearer description of the CAD preprocessing workflow, including layer-based extraction of walls, doors, and windows, simplified wall-skeleton construction, opening mapping, room-contour extraction, and rectangular decomposition of irregular regions. The revision is intended to clarify how the room-level graph input is obtained from CAD drawings. (Line 273)
+In Section 3.1.1:
+Wall, door and window entities are first parsed from the CAD drawing according to their layer types. Double-line wall boundaries are converted into wall centerlines, and door/window embedded segments are projected onto their host walls as openings. The wall centerlines are then calibrated by closing small drafting gaps, merging nearly collinear segments, and adjusting intersections within a geometric tolerance, producing a connected floor-plan skeleton. Polygonizing this calibrated skeleton yields closed spatial regions.
+
 2. The authors should clarify how corridors and circulation spaces between rooms are considered in the room-level graph.
+
 Response:
-Thank you for this comment. Since the proposed output representation uses a fixed 16-dimensional boundary parameterization, each spatial region needs to be represented as a rectangular or rectilinearly decomposed room node. Therefore, irregular corridors and connected circulation spaces are decomposed into a minimum set of rectangular sub-regions. Virtual boundaries introduced by this decomposition are marked in the constraint mask and are excluded from both loss computation and final wall placement. We have also added a discussion that this strategy works for layouts with limited irregular regions, but more general representations are needed when irregular corridors or circulation spaces dominate the floor plan.
+Thank you for this comment. We clarified that corridors and circulation spaces are processed using the same rectilinear decomposition rule, while virtual boundaries are excluded from wall placement through the feasibility mask.
+
 Revision:
-We revised Section 3.1.1 (Line 285) and Section 5.3 (Line 1158) to explain the treatment of corridors and circulation spaces. The revised text clarifies that irregular circulation areas are decomposed into rectangular sub-regions, while virtual boundaries are masked out during both training and inference.
+In Section 3.1.1:
+Corridors and circulation spaces follow the same rule: rectangular regions remain unchanged, whereas irregular connected regions are decomposed into rectangular sub-regions so that the fixed boundary-slot representation introduced in Section 3.1.2 remains applicable.
+
+In Section 3.1.2:
+Each mask component m_ij corresponds one-to-one to the output component y_ij: m_ij=1 indicates that the slot is a feasible physical boundary for shear wall placement, while m_ij=0 indicates that the slot is blocked by an opening or corresponds to a virtual decomposition boundary. During training and inference, the mask excludes infeasible slots from loss computation, density calculation, and final wall placement.
+
 3. The criterion used to define or select the effective length of the shear walls should be better explained.
+
 Response:
-Thank you for this comment. We have clarified the criterion used to define the effective length of shear walls during label construction and density calculation. In the revised manuscript, the effective length is defined as the projected overlap length between an extracted structural wall segment and a feasible room-boundary slot. Wall segments located on openings or virtual decomposition boundaries are excluded by the constraint mask, and very short overlaps caused by drafting or mapping noise are discarded using a geometric tolerance. When multiple wall segments correspond to the same boundary slot, their projected lengths are merged before computing the coverage ratio. This clarification has been added to the output-parameterization and label-mapping descriptions.
+Thank you for this comment. We added an explicit description of how shear wall segments are mapped to room-boundary slots and how effective length is converted into coverage ratios.
+
 Revision:
-We revised Section 3.1.1 to explain how shear wall segments from structural drawings are mapped to room-boundary slots, and how the resulting length ratios are used for the 16-dimensional ground-truth label and density score. (Line 315)
+In Section 3.1.1:
+Ground-truth shear wall locations are extracted from structural engineering drawings and mapped to the same boundary-slot representation. During this mapping, the effective length of a shear wall is defined as the projected overlap length between an extracted structural wall segment and a feasible room-boundary slot. Multiple wall intervals on the same slot are merged before the final coverage ratio is computed.
+
+In Section 3.1.2:
+For each boundary slot, the ground-truth coverage ratio is obtained by dividing the effective shear wall length within that slot by the slot length; therefore, a value of 1.0 indicates full coverage and an intermediate value indicates partial coverage. These ratios form the ground-truth vector and are also used in density-related losses and scores.
+
 4. The 16-dimensional constraint mask should be described more explicitly, including the meaning of each component.
+
 Response:
-Thank you for this suggestion. We have revised the manuscript to describe the 16-dimensional constraint mask more explicitly. The constraint mask has the same dimension and ordering as the 16-dimensional output vector. Each component indicates whether the corresponding room-boundary slot is feasible for shear wall placement. A value of 1 means that the slot is a physical, buildable boundary, while a value of 0 indicates that the slot is occupied by an opening, belongs to a virtual decomposition boundary, or is otherwise infeasible for shear wall placement. We have also revised the illustration of the room-boundary representation to show the correspondence between the output vector and the feasibility mask vector.
+Thank you for this suggestion. We revised Section 3.1.2 and Fig. 3 to make the one-to-one correspondence between the 16 output components and the feasibility mask explicit.
+
 Revision:
-(1)	We revised Section 3.1.2 to explicitly define each component of the 16-dimensional mask. (Line 361)
-(2)	We also updated the illustration of the room-boundary representation to include the mask-vector correspondence. (Fig. 3c)
+In Section 3.1.2:
+The same boundary-slot ordering is used to define a 16-dimensional buildable mask m_i for each room. Each mask component m_ij corresponds one-to-one to the output component y_ij: m_ij=1 indicates that the slot is a feasible physical boundary for shear wall placement, while m_ij=0 indicates that the slot is blocked by an opening or corresponds to a virtual decomposition boundary. Fig. 3c visualizes this correspondence between output slots and buildable-mask entries. During training and inference, the mask excludes infeasible slots from loss computation, density calculation, and final wall placement.
+
 5. In some cases, such as Figure 2, some rooms do not seem to form edges with all surrounding walls or boundaries, particularly where doors are present. This should be clarified.
+
 Response:
-Thank you for pointing this out. We have clarified the graph-construction rule used in Fig. 2. In the dataset preprocessing, room partitions were manually annotated to ensure the quality of training labels. When a region enclosed by surrounding rectangles did not correspond to an independent room or did not introduce additional physical wall boundaries, it was not registered as an additional room node. This avoids repeatedly representing the same physical wall boundary through multiple overlapping rectangles, which could otherwise introduce inconsistent labels and unstable training. We have added this explanation to the  methodology description.
+Thank you for pointing this out. We clarified the room-node registration rule to explain why some visually enclosed background regions are not treated as independent nodes.
+
 Revision:
-We added an explanatory note in Section 3.1.1. The revised text clarifies that not every visually enclosed background region is necessarily registered as a room node; only valid room or decomposed spatial regions that contribute meaningful physical boundaries are used for graph construction. (Line 297)
+In Section 3.1.1:
+During dataset preparation, room partitions were manually annotated; visually enclosed regions that were already covered by surrounding room partitions and did not introduce an independent room or additional physical boundary were not registered as separate nodes, as shown in the white regions in Fig. 2b. Partition boundaries introduced during the decomposition step are treated as virtual edges that carry no structural meaning and are therefore excluded from feasible wall placement.
+
 6. The cross-condition stream shown in Figure 1 should be explained more clearly, especially its role during training.
+
 Response:
-Thank you for this comment. We have revised the explanation of the cross-condition stream. In practical engineering datasets, each floor plan is usually associated with only one design condition and one finalized shear wall layout. This makes it difficult for a conditional model to learn how the same layout should change under different conditions. The cross-condition stream addresses this issue by feeding the same floor-plan graph with a randomly sampled mismatched condition during training. Since no ground-truth layout is available for this synthetic pairing, the model is supervised by a density-alignment loss with the target density of the sampled condition. This provides condition-related gradients and encourages the model to generate different wall densities for the same layout under different conditions.
+Thank you for this comment. We revised Section 3.4.1 to explain why the cross-condition stream is introduced and how it provides condition-related supervision when multi-condition paired labels are unavailable.
+
 Revision:
-We revised Section 3.4.1 to more clearly explain the role of the cross-condition stream, the reason for using fake conditions, and how density regularization enables conditional generation under sparse paired supervision. (Line 561)
+In Section 3.4.1:
+The cross-condition stream is introduced to compensate for the absence of multi-condition paired labels. During training, the same floor-plan graph is also evaluated under a randomly sampled mismatched condition c_fake, which asks the model how the wall quantity should change for the same geometry under another seismic or height-related demand. Because this synthetic plan-condition pair has no paired engineering layout, it is not supervised by reconstruction loss; instead, it is constrained by the density-alignment loss associated with c_fake. This creates a missing gradient signal that couples the output distribution to the condition input, discouraging the model from collapsing to condition-invariant predictions.
+
 7. The authors should discuss whether vertical continuity of shear walls along the building height is considered or enforced.
+
 Response:
-Thank you for this comment. We have added a discussion on vertical continuity. In the current study, the model is applied to a typical standard floor plan. After the shear wall layout is generated for the standard floor, the same layout is used for all stories in the structural model. Therefore, vertical continuity of shear walls is naturally maintained in the finite-element case studies. For buildings with multiple standard floors or changing layouts along the height, additional constraints are needed. A practical strategy is to enforce the upper-floor shear wall layout as a subset of the lower-floor layout, so that upper-story walls do not become discontinuous or unsupported. This issue has now been discussed as a limitation and future extension.
+Thank you for this comment. We clarified the assumption used in the FE case studies and added vertical layout variation as a limitation and future extension.
+
 Revision:
-We revised Section 4.5 (Line 1074) and Section 5.3 (Line 1212) to clarify that the current FE validation uses one standard-floor layout repeated along the building height. We also added a discussion on how vertical continuity could be enforced for buildings with multiple standard floors.
+In Section 4.5:
+The generated layout corresponds to one standard floor plan, and the same shear wall layout is assigned to all stories in each FE model. Therefore, vertical continuity is maintained in the analyzed cases, and no upper-story wall is suspended without a corresponding wall below.
+
+In Section 5.3:
+The fourth limitation concerns vertical layout variation. The current FE validation uses one generated standard-floor layout repeated along the building height, so vertical continuity is naturally satisfied in the tested models. Buildings with multiple standard floors or changing architectural layouts would require additional inter-story constraints, such as enforcing upper-story shear walls to be supported by corresponding lower-story walls or treating the multi-story layout as a coupled generation problem.

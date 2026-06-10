@@ -1,49 +1,114 @@
 Reviewer #2: The manuscript proposes a room-level conditional graph neural network for shear wall layout generation in high-rise residential buildings. The topic is relevant to Automation in Construction, and the room-level graph formulation is a meaningful improvement over component-level representations. The proposed FiLM-based conditioning and dual-stream training strategy also address the practical issue that most engineering datasets provide only one finalized layout for each architectural plan. The experimental results show clear improvements over the component-based GNN baseline, and the finite-element case studies further support the practical potential of the method. The manuscript is generally well organized and technically sound, but several issues should be addressed before publication.
+
 1. The motivation for using room-level graphs is clear, but the manuscript should discuss the possible information loss caused by this abstraction. Compared with component-level graphs, room-level graphs may weaken the representation of local wall-segment details, small openings, and fine-grained alignment constraints. The authors should clarify under what types of floor plans the proposed representation may become less effective, especially for irregular rooms, complex internal partitions, or cases where local geometric details strongly affect shear wall placement.
+
 Response:
-Thank you for this comment. We agree that the room-level abstraction improves semantic alignment and computational compactness, but it may also lose some fine-grained local geometric information. We have revised the manuscript to clarify the representation trade-off and the applicable scope of the proposed method. In particular, we now state that the current formulation is mainly suitable for regular high-rise residential, hotel, and apartment-type plans with predominantly orthogonal and rectangular rooms. We also discuss cases where component-level graph representations may be more advantageous, such as highly irregular layouts, plans with many narrow corridors or fragmented spaces, and cases where shear wall placement depends strongly on local segment-level details.
+Thank you for this comment. We clarified the trade-off of the room-level abstraction in Section 3.1 and expanded the limitations in Section 5.3 to state when component-level or hybrid representations may be preferable.
+
 Revision:
-(1)	We revised Section 3.1 to clarify the assumptions and trade-off of the room-level representation. (Line 251)
-(2)	We also expanded Section 5.3 to discuss the limitations of applying the method to irregular floor plans and to explain when component-level graphs may be preferable. (Line 1158)
+In Section 3.1:
+The proposed room-level formulation is therefore designed primarily for regular high-rise residential, apartment, hotel, and dormitory-type buildings, where rooms are mostly orthogonal and can be represented by rectangular or rectilinearly decomposed regions. In such cases, shear wall candidates are usually constrained by room boundaries, and room-level nodes provide a compact representation that is aligned with engineering practice. However, this abstraction may lose fine-grained local geometric details compared with component-level graphs. For floor plans with highly irregular spaces, long and narrow corridors, fragmented public areas, or many small local wall segments, rectilinear decomposition may introduce virtual partitions that do not correspond to actual structural decisions. Although these virtual boundaries can be excluded from feasible wall placement, they may still affect feature aggregation and model learning.
+
+In Section 5.3:
+Broader deployment would therefore require additional validation on more diverse typologies and, where necessary, hybrid or polygon-based representations that combine room-level semantics with selected component-level details.
+
 2. The dataset contains 143 floor plans, and data augmentation increases the number of training samples to 678. The manuscript should clearly state how augmented samples are handled in the cross-validation process. All augmented versions of the same original floor plan should be kept within the same fold to avoid data leakage between training, validation, and test sets.
+
 Response:
-Thank you for pointing this out. We have clarified the data splitting and augmentation protocol. The cross-validation split was performed at the original floor-plan level before data augmentation. All augmented variants generated from the same original floor plan were kept within the same fold. Therefore, no augmented version of a validation or test layout appeared in the training set.
+Thank you for pointing this out. We clarified that fold assignment is performed before data augmentation and that augmented variants remain within the corresponding subset.
+
 Revision:
-We added a statement in Section 4.1.3 to clarify that data augmentation was performed after fold assignment and only within the corresponding training set, ensuring that no layout-level leakage occurred across training, validation, and test sets. (Line 762)
+In Section 4.1.3:
+To avoid data leakage, the dataset split was performed at the original floor-plan level before data augmentation. All augmented variants of the same original floor plan were kept within the same subset. In each subset, geometric augmentation was applied only to the training portion, while validation and test layouts were never included in the training set in either original or augmented form.
+
 3. The comparison with the component-based GNN baseline is useful, but the experimental positioning should be clarified. Since the paper also discusses pixel-based GAN and diffusion methods in the related work, the authors should explain why the experimental comparison focuses only on graph-based methods. A brief discussion comparing the proposed method with representative image-based methods in terms of representation, inference efficiency, vectorization requirements, and engineering applicability would make the positioning clearer.
+
 Response:
-Thank you for this suggestion. We have clarified the experimental positioning of this study. The main objective of this paper is not to benchmark all possible shear wall generation methods, but to investigate whether changing the graph representation from component level to room level improves graph-based structural layout prediction. Therefore, the primary baseline is a component-level GNN under a comparable graph-learning setting. Pixel-based GAN or diffusion methods use different input/output representations, training objectives, and post-processing procedures, especially because their raster outputs require vectorization before engineering analysis. Direct comparison with them would introduce additional differences beyond the representation level. We have added a discussion to explain this choice and to clarify the advantages of graph-based vectorized prediction over pixel-based generation.
+Thank you for this suggestion. We clarified that the main experimental comparison is designed to isolate the effect of graph representation, and added discussion on how graph-based vector prediction differs from pixel-based generation.
+
 Revision:
-(1)	We revised Section 4.1.2 to explain why the experimental comparison focuses on graph-based methods. (Line 728)
-(2)	We also added discussion in Section 4.2 comparing graph-based and pixel-based methods in terms of topology, vectorization, engineering usability, and inference workflow. (Line 871)
+In Section 4.1.2:
+The experimental comparison focuses on graph-based methods because the central question of this study is whether a room-level graph representation can improve graph-based shear wall layout prediction compared with the commonly used component-level graph representation. Pixel-based GAN or diffusion models follow a substantially different formulation, where both inputs and outputs are raster images and predicted wall layouts require additional vectorization before engineering analysis. A direct comparison with such models would involve differences in representation, post-processing, resolution, and evaluation pipeline, making it difficult to isolate the effect of graph representation. Therefore, the component-level GNN is selected as the primary baseline to provide a controlled comparison at the representation level.
+
+In Section 4.2:
+In the room-based graph, message passing occurs over room adjacencies and all candidate walls are attached to room boundaries from the outset. The model is therefore biased toward boundary-consistent predictions and is less likely to place isolated wall fragments in regions that do not correspond to valid room interfaces. This is important in engineering practice because fewer false positives mean lower unnecessary construction cost and fewer conflicts with architectural constraints.
+
 4. Table 6 reports the main performance comparison, but only mean values are provided. Since the experiments are based on 5-fold cross-validation, the authors should report standard deviations or confidence intervals for the main metrics, including Image IoU, precision, recall, F1, MAE, and RMSE. This would help readers evaluate the stability of the reported improvements across different data splits.
+
 Response:
-Thank you for the comment. We have revised Table 6 to report the standard deviation of the main metrics across the 5-fold cross-validation. This allows the stability of the improvements to be assessed more clearly across different data splits.
+Thank you for the comment. We updated the main comparison table to report mean and standard deviation across the 5-fold cross-validation and revised the accompanying discussion.
+
 Revision:
-In revised version, Table 7 (the original Table 6) has been updated to include mean and standard deviation values for Image IoU, precision, recall, F1, accuracy, MAE, and RMSE. The corresponding text in Section 4.2 has also been revised to discuss the stability of the results. (Line 871)
+In Section 4.2:
+Across the five fold checkpoints, the room-level model achieves an Image IoU of 0.565 +/- 0.005 and an F1 score of 0.765 +/- 0.001, compared with 0.454 +/- 0.021 and 0.630 +/- 0.012 for the component-level baseline. The smaller cross-fold variation of the proposed method suggests that the improvement is not dominated by a single favorable split.
+
+In Table 7:
+Image IoU: 0.565 +/- 0.005 (ours) vs. 0.454 +/- 0.021 (baseline).
+Precision: 0.798 +/- 0.001 (ours) vs. 0.677 +/- 0.013 (baseline).
+Recall: 0.746 +/- 0.001 (ours) vs. 0.598 +/- 0.011 (baseline).
+F1: 0.765 +/- 0.001 (ours) vs. 0.630 +/- 0.012 (baseline).
+MAE: 0.093 +/- 0.003 (ours) vs. 0.182 +/- 0.013 (baseline).
+RMSE: 0.193 +/- 0.003 (ours) vs. 0.353 +/- 0.008 (baseline).
+
 5. The Conditional Generation Score is useful for evaluating conditional behavior, but its definition contains several manually selected weights. The manuscript should better justify the weighting strategy in CGS, especially the equal weights assigned to density agreement, matched-condition IoU, and spatial uniformity. A brief sensitivity analysis or additional explanation is needed to show that the conclusions are not overly dependent on these selected weights.
+
 Response:
-Thank you for this comment. We have revised the description of CGS to better justify the weighting strategy. CGS is intended as a descriptive metric for conditional generation rather than a code-based engineering index. The three components evaluate complementary aspects: density compliance, geometric agreement, and spatial rationality. Equal weights are used because no single component should dominate the evaluation. We have also added a short sensitivity analysis to show that the relative comparison between the full model and ablation variants remains stable under moderate changes of the weights.
+Thank you for this comment. We clarified the rationale of the CGS weights and added a sensitivity analysis to show that the main ablation trends are stable under alternative weight settings.
+
 Revision:
-(1)	We revised Section 4.1.4 to clarify the rationale of the CGS weights. (Line 821)
-(2)	We also added a sensitivity analysis in Section 4.4 to examine whether the conclusions are affected by alternative weight settings. (Table 6, Line 832)
+In Section 4.1.4:
+In the main ablation analysis, the CGS weights are set to (w1,w2,w3)=(0.4,0.4,0.2). This setting gives comparable emphasis to density compliance and matched-condition geometric agreement, while assigning a smaller but non-negligible weight to spatial uniformity. The rationale is that the first two terms directly measure whether the generated layout follows the specified design condition and matches the engineer-designed layout under the true condition, whereas S_uni acts mainly as a regularity check that penalizes highly uneven or locally erratic distributions. CGS is therefore used as a descriptive composite score rather than as a code-prescribed engineering index.
+
+In Table 6:
+Equal weights (1/3,1/3,1/3): 0.708 (full model), 0.700 (w/o FiLM), 0.692 (w/o dual-stream), 0.651 (w/o density loss).
+Density-oriented (0.5,0.25,0.25): 0.713, 0.713, 0.702, 0.640.
+Geometry-oriented (0.25,0.5,0.25): 0.661, 0.652, 0.650, 0.624.
+Uniformity-oriented (0.25,0.25,0.5): 0.729, 0.715, 0.725, 0.690.
+
 6. The dual-stream training strategy is an important part of the proposed method, but the contribution of individual loss terms is not fully demonstrated. The authors should provide more evidence for the effects of the density loss and the topological consistency loss. For example, an ablation setting without the consistency loss, or a quantitative indicator measuring inconsistency on shared room boundaries, would make the role of this term clearer.
+
 Response:
-Thank you for this comment. The effects of the density loss and the topological consistency loss have been examined in the ablation study of the original manuscript. Specifically, Fig. 6 and Table 8 report the test-set CGS results of different loss-function variants, including the model without density loss and the model without consistency loss. The results show that removing the density loss leads to a clear decrease in CGS, mainly due to reduced density agreement, while removing the consistency loss also degrades the overall conditional generation performance. To make this point clearer, we have revised the discussion of the ablation study and explicitly highlighted the contribution of these two loss terms.
+Thank you for this comment. We revised the ablation discussion to explicitly interpret the existing variants without density loss and without consistency loss.
+
 Revision:
-We revised Section 4.3 to make the existing loss-function ablation results more explicit. In particular, we now emphasize that the variants “w/o density loss” and “w/o consistency loss” in Table 8 directly evaluate the roles of the two corresponding loss terms, and we added a clearer explanation of their influence on CGS and its sub-metrics. (Line 1006)
+In Section 4.3:
+The loss-function ablations in Table 9 and Fig. 6 demonstrate the roles of the density and consistency losses. Removing the density loss reduces CGS from 0.679 to 0.621, mainly because S_den decreases from 0.750 to 0.607, indicating weaker compliance with the specified density condition. Removing the consistency loss reduces CGS from 0.679 to 0.664 and lowers the matched-condition IoU from 0.541 to 0.513, suggesting reduced coherence on shared room boundaries. The larger degradation observed when all auxiliary losses are removed further confirms that these losses provide complementary supervision for condition compliance and boundary consistency.
+
 7. The paper claims that the room-level representation reduces graph complexity and improves efficiency, but the experimental section mainly reports accuracy metrics. The authors should add a quantitative efficiency comparison between the proposed method and the component-level baseline, such as average node/edge numbers, inference time per floor plan, training time per epoch, or GPU memory consumption. This would directly support the claimed computational advantage.
+
 Response:
-Thank you for this comment. We have added a quantitative efficiency comparison between the proposed room-level GNN and the component-level GNN baseline. The comparison includes average graph size, inference time per floor plan, training time per epoch, and GPU memory usage. The results show that the room-level representation reduces graph scale and improves computational efficiency while achieving better prediction accuracy.
+Thank you for this comment. We added a quantitative efficiency comparison covering graph size, inference time, training time, and GPU memory.
+
 Revision:
-We added an efficiency comparison table in Section 4.2 and revised the discussion to connect the reduced graph size with actual runtime and memory advantages. (Line 919, Table 8)
+In Section 4.2:
+Table 8 provides a quantitative comparison of graph complexity and computational efficiency. The room-level representation reduces the average number of nodes from 244 to 26 and the average number of edges from 444 to 71, corresponding to reductions of 89.3% and 84.0%, respectively. This compact representation also improves efficiency in the measured implementation: inference time per plan decreases from 0.12 s to 0.06 s, training time per epoch decreases from 103 s to 86 s, and GPU memory usage decreases from 981 MB to 589 MB. These results support the claim that representing rooms rather than low-level wall components reduces graph complexity while lowering the computational cost of training and inference.
+
 8. The current design condition is represented by three discrete density groups related to seismic intensity and building height. This setting is reasonable for the available dataset, but the manuscript should avoid overstating the level of engineering controllability. The current model mainly controls shear wall density categories rather than continuous engineering parameters such as PGA, structural height, period, or drift demand. This distinction should be stated more clearly in the abstract, experimental discussion, and conclusion.
+
 Response:
-Thank you for the comment. We have revised the manuscript to clarify the scope of conditional control in the current model. The present framework controls three discrete shear wall density categories derived from seismic intensity and building height groups. It does not yet perform continuous conditioning on engineering parameters such as PGA, structural height, period, drift ratio, or torsional response. We have made this distinction clearer in the abstract, experimental discussion, and conclusion.
+Thank you for the comment. We revised the abstract, experiment section, discussion, and conclusion to clarify that the current model performs discrete density-controlled generation rather than continuous engineering-parameter control.
+
 Revision:
-We revised the abstract, Section 4.1.1, Section 5.2 discussion, and Section 6 to state that the current method demonstrates discrete density-controlled preliminary generation, while continuous engineering-condition control remains future work. (Line 695, 1197, 1250)
+In the Abstract:
+Conditional modulation and a dual-stream training strategy are further introduced to support discrete density-controlled generation under limited paired engineering data.
+
+In Section 4.1.1:
+It should be noted that the condition label used in this study is a discrete density category rather than a continuous engineering descriptor. Therefore, the model learns to respond to low-, medium-, and high-density regimes, but it does not directly condition on continuous parameters such as PGA, structural height, fundamental period, inter-story drift demand, or torsional response.
+
+In Section 5.3:
+As a result, the condition input should be interpreted as a coarse design intent rather than a continuous engineering command.
+
+In Section 6:
+Future work should focus on three directions that follow directly from the current limits of the framework: supporting irregular polygonal rooms without decomposition, replacing discrete density categories with continuous engineering descriptors, and coupling generation more tightly with structural-performance objectives during training.
+
 9. The qualitative results in the main text are helpful, but the number of visualized test cases is limited. The authors should provide more visual comparison results in the appendix, covering different density groups and floor plan types. Additional examples, including successful cases and less satisfactory cases, would help readers better understand the model's actual generation quality, robustness, and typical failure modes.
+
 Response:
-Thank you for the suggestion. We have added more qualitative results in the Appendix to provide a broader visual evaluation of the proposed method. The added cases cover different density groups and different floor-plan configurations. Both representative successful cases and less satisfactory cases are included to better show the model’s generation quality, robustness, and typical failure modes.
+Thank you for the suggestion. We added Appendix A with additional qualitative comparisons and referenced it in the main results section.
+
 Revision:
-We added Appendix A with additional test-set visualizations. We also added a short description in Section 4.2 referring readers to the appendix for more qualitative comparisons. (Line 900)
+In Section 4.2:
+The qualitative comparisons in Fig. 5 provide visual evidence consistent with the quantitative results. More illustrative examples can be seen in Fig. A.1.
+
+In Appendix A:
+Fig. A.1 presents additional qualitative comparisons on test cases. These additional cases further show that the proposed room-based method generally produces more coherent and boundary-aligned shear wall layouts than the edge-based baseline. They also reveal remaining local errors in some predictions, such as overly short shear wall segments or missing walls in detailed regions, indicating that fine-grained local refinement remains a direction for future improvement.
