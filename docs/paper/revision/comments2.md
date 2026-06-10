@@ -1,67 +1,49 @@
-
-3. Please explain how the low-, medium-, and high-density groups are determined, and whether the density targets used for training and evaluation are computed independently within each training split. This would help readers better understand the controllability evaluation.
-
-4. Please consider adding a small table comparing the generated and engineer-designed schemes in terms of key indicators, such as maximum inter-story drift ratio, code limit, vertical displacement, and wall density.
-
-5. Please briefly discuss the limitations of the proposed method, such as the limited dataset size, dependence on preprocessing quality, use of discrete density conditions, and the need for subsequent structural analysis and engineering verification before practical application.
-
-
-## 3. 关于低、中、高密度组及 density targets 的确定方式
-
-**3. Response**
-
-Thank you for this comment. We have clarified how the low-, medium-, and high-density groups are defined and how the corresponding density targets are computed. The three groups are determined according to seismic intensity and building height following the grouping strategy used in prior shear wall studies. After grouping the layouts, the density target of each group is computed from the shear wall ratio encoded by the room-boundary representation. Specifically, for each room, the shear wall coverage ratios along the four boundaries are summed over the 16 output entries, and the graph-level density is obtained by averaging over all rooms. Since the maximum value depends on the number of active boundary slots, this density score is not normalized to [0,1] and can theoretically approach 16. In the revised manuscript, we also clarify that the three density targets are precomputed from all available layouts and then fixed during training and evaluation, rather than being recomputed independently within each fold.
-
-**Revised:**
-We revised Section 4.1.1 and Section 3.4.2 to clarify the definition of density groups and density targets. We now explicitly state that the condition groups are determined by seismic intensity and building height, while the density targets are calculated from the average room-level shear wall coverage of all layouts in each group and fixed throughout the experiments.
-
-**具体修改：**
-
-**位置 1：Section 4.1.1 Dataset，原文已有 Group7-H1、Group7-H2、Group8 定义，可在该段之后补充。**
-
-新增内容：
-
-> The three condition groups are therefore defined before model training according to seismic intensity and building height: Group7-H1 is treated as the low-density group, Group7-H2 as the medium-density group, and Group8 as the high-density group. These labels are used as discrete condition inputs for conditional generation.
-
-
-**位置 3：Section 4.1.4 Evaluation metrics，CGS 中 $S_{den}$ 解释后补充。**
-
-新增内容：
-
-> In all experiments, the density targets used in both the density loss and CGS evaluation are the fixed group-level averages computed from the complete set of available layouts after condition grouping. They are not recomputed separately for each fold.
-
----
-
-## 4. 关于是否增加 FE 关键指标对比表
-
-**4. Response**
-
-Thank you for this suggestion. The requested structural indicators have already been reported and visually compared in the finite-element validation section. In Fig. 8 and Fig. 9, we compare the generated and engineer-designed schemes in terms of maximum inter-story drift ratio, code limit, vertical displacement, and shear wall density. To avoid duplicating the same information in both figures and tables, we did not add an additional table. Instead, we revised the text to explicitly point out that these key indicators are included in Fig. 8 and Fig. 9 and to summarize their main implications.
-
-**Revised:**
-We revised Section 4.5 to more clearly describe the structural indicators shown in Fig. 8 and Fig. 9, including maximum inter-story drift ratio, code limit, vertical displacement, and wall density. We also added a short summary explaining that the generated schemes remain close to the engineer-designed schemes in these indicators.
-
-**具体修改：**
-
-**位置：Section 4.5 Finite-element case studies，Fig. 8 和 Fig. 9 前后补充说明。**
-
-新增内容：
-
-> The FE validation compares the generated and engineer-designed schemes using several key structural indicators, including maximum inter-story drift ratio, the corresponding code limit, vertical displacement, and shear wall density. These indicators are visualized in Fig. 8 and Fig. 9 for the two case-study buildings. The results show that the generated schemes remain close to the engineer-designed layouts in terms of global lateral deformation and vertical displacement, while maintaining comparable wall density. Therefore, the FE case studies provide case-based evidence that the generated layouts are structurally plausible for preliminary design, although final engineering verification is still required before practical application.
-
----
-
-## 5. 关于方法局限性的补充讨论
-
-**5. Response**
-
-Thank you for this comment. We have expanded the limitations section to more explicitly discuss the limited dataset size, dependence on preprocessing quality, use of discrete density conditions, and the need for subsequent structural analysis and engineering verification. These revisions clarify the current scope of the method and avoid overstating its readiness for direct engineering application.
-
-**Revised:**
-We revised Section 5.3 by expanding the discussion of limitations. The revised text now covers four aspects: dataset size and diversity, preprocessing dependence, discrete density-based conditioning, and the requirement of structural analysis and engineer review before practical use.
-
-**具体修改：**
-
-**位置：Section 5.3 Limitations。原文已有 geometric abstraction、optimization target mismatch、available data 三方面限制，可在此基础上整合扩展。**
-
-因为limitation已经改了很多了，可以简单补充一两句或基本不修改。
+Reviewer #2: The manuscript proposes a room-level conditional graph neural network for shear wall layout generation in high-rise residential buildings. The topic is relevant to Automation in Construction, and the room-level graph formulation is a meaningful improvement over component-level representations. The proposed FiLM-based conditioning and dual-stream training strategy also address the practical issue that most engineering datasets provide only one finalized layout for each architectural plan. The experimental results show clear improvements over the component-based GNN baseline, and the finite-element case studies further support the practical potential of the method. The manuscript is generally well organized and technically sound, but several issues should be addressed before publication.
+1. The motivation for using room-level graphs is clear, but the manuscript should discuss the possible information loss caused by this abstraction. Compared with component-level graphs, room-level graphs may weaken the representation of local wall-segment details, small openings, and fine-grained alignment constraints. The authors should clarify under what types of floor plans the proposed representation may become less effective, especially for irregular rooms, complex internal partitions, or cases where local geometric details strongly affect shear wall placement.
+Response:
+Thank you for this comment. We agree that the room-level abstraction improves semantic alignment and computational compactness, but it may also lose some fine-grained local geometric information. We have revised the manuscript to clarify the representation trade-off and the applicable scope of the proposed method. In particular, we now state that the current formulation is mainly suitable for regular high-rise residential, hotel, and apartment-type plans with predominantly orthogonal and rectangular rooms. We also discuss cases where component-level graph representations may be more advantageous, such as highly irregular layouts, plans with many narrow corridors or fragmented spaces, and cases where shear wall placement depends strongly on local segment-level details.
+Revision:
+(1)	We revised Section 3.1 to clarify the assumptions and trade-off of the room-level representation. (Line 251)
+(2)	We also expanded Section 5.3 to discuss the limitations of applying the method to irregular floor plans and to explain when component-level graphs may be preferable. (Line 1158)
+2. The dataset contains 143 floor plans, and data augmentation increases the number of training samples to 678. The manuscript should clearly state how augmented samples are handled in the cross-validation process. All augmented versions of the same original floor plan should be kept within the same fold to avoid data leakage between training, validation, and test sets.
+Response:
+Thank you for pointing this out. We have clarified the data splitting and augmentation protocol. The cross-validation split was performed at the original floor-plan level before data augmentation. All augmented variants generated from the same original floor plan were kept within the same fold. Therefore, no augmented version of a validation or test layout appeared in the training set.
+Revision:
+We added a statement in Section 4.1.3 to clarify that data augmentation was performed after fold assignment and only within the corresponding training set, ensuring that no layout-level leakage occurred across training, validation, and test sets. (Line 762)
+3. The comparison with the component-based GNN baseline is useful, but the experimental positioning should be clarified. Since the paper also discusses pixel-based GAN and diffusion methods in the related work, the authors should explain why the experimental comparison focuses only on graph-based methods. A brief discussion comparing the proposed method with representative image-based methods in terms of representation, inference efficiency, vectorization requirements, and engineering applicability would make the positioning clearer.
+Response:
+Thank you for this suggestion. We have clarified the experimental positioning of this study. The main objective of this paper is not to benchmark all possible shear wall generation methods, but to investigate whether changing the graph representation from component level to room level improves graph-based structural layout prediction. Therefore, the primary baseline is a component-level GNN under a comparable graph-learning setting. Pixel-based GAN or diffusion methods use different input/output representations, training objectives, and post-processing procedures, especially because their raster outputs require vectorization before engineering analysis. Direct comparison with them would introduce additional differences beyond the representation level. We have added a discussion to explain this choice and to clarify the advantages of graph-based vectorized prediction over pixel-based generation.
+Revision:
+(1)	We revised Section 4.1.2 to explain why the experimental comparison focuses on graph-based methods. (Line 728)
+(2)	We also added discussion in Section 4.2 comparing graph-based and pixel-based methods in terms of topology, vectorization, engineering usability, and inference workflow. (Line 871)
+4. Table 6 reports the main performance comparison, but only mean values are provided. Since the experiments are based on 5-fold cross-validation, the authors should report standard deviations or confidence intervals for the main metrics, including Image IoU, precision, recall, F1, MAE, and RMSE. This would help readers evaluate the stability of the reported improvements across different data splits.
+Response:
+Thank you for the comment. We have revised Table 6 to report the standard deviation of the main metrics across the 5-fold cross-validation. This allows the stability of the improvements to be assessed more clearly across different data splits.
+Revision:
+In revised version, Table 7 (the original Table 6) has been updated to include mean and standard deviation values for Image IoU, precision, recall, F1, accuracy, MAE, and RMSE. The corresponding text in Section 4.2 has also been revised to discuss the stability of the results. (Line 871)
+5. The Conditional Generation Score is useful for evaluating conditional behavior, but its definition contains several manually selected weights. The manuscript should better justify the weighting strategy in CGS, especially the equal weights assigned to density agreement, matched-condition IoU, and spatial uniformity. A brief sensitivity analysis or additional explanation is needed to show that the conclusions are not overly dependent on these selected weights.
+Response:
+Thank you for this comment. We have revised the description of CGS to better justify the weighting strategy. CGS is intended as a descriptive metric for conditional generation rather than a code-based engineering index. The three components evaluate complementary aspects: density compliance, geometric agreement, and spatial rationality. Equal weights are used because no single component should dominate the evaluation. We have also added a short sensitivity analysis to show that the relative comparison between the full model and ablation variants remains stable under moderate changes of the weights.
+Revision:
+(1)	We revised Section 4.1.4 to clarify the rationale of the CGS weights. (Line 821)
+(2)	We also added a sensitivity analysis in Section 4.4 to examine whether the conclusions are affected by alternative weight settings. (Table 6, Line 832)
+6. The dual-stream training strategy is an important part of the proposed method, but the contribution of individual loss terms is not fully demonstrated. The authors should provide more evidence for the effects of the density loss and the topological consistency loss. For example, an ablation setting without the consistency loss, or a quantitative indicator measuring inconsistency on shared room boundaries, would make the role of this term clearer.
+Response:
+Thank you for this comment. The effects of the density loss and the topological consistency loss have been examined in the ablation study of the original manuscript. Specifically, Fig. 6 and Table 8 report the test-set CGS results of different loss-function variants, including the model without density loss and the model without consistency loss. The results show that removing the density loss leads to a clear decrease in CGS, mainly due to reduced density agreement, while removing the consistency loss also degrades the overall conditional generation performance. To make this point clearer, we have revised the discussion of the ablation study and explicitly highlighted the contribution of these two loss terms.
+Revision:
+We revised Section 4.3 to make the existing loss-function ablation results more explicit. In particular, we now emphasize that the variants “w/o density loss” and “w/o consistency loss” in Table 8 directly evaluate the roles of the two corresponding loss terms, and we added a clearer explanation of their influence on CGS and its sub-metrics. (Line 1006)
+7. The paper claims that the room-level representation reduces graph complexity and improves efficiency, but the experimental section mainly reports accuracy metrics. The authors should add a quantitative efficiency comparison between the proposed method and the component-level baseline, such as average node/edge numbers, inference time per floor plan, training time per epoch, or GPU memory consumption. This would directly support the claimed computational advantage.
+Response:
+Thank you for this comment. We have added a quantitative efficiency comparison between the proposed room-level GNN and the component-level GNN baseline. The comparison includes average graph size, inference time per floor plan, training time per epoch, and GPU memory usage. The results show that the room-level representation reduces graph scale and improves computational efficiency while achieving better prediction accuracy.
+Revision:
+We added an efficiency comparison table in Section 4.2 and revised the discussion to connect the reduced graph size with actual runtime and memory advantages. (Line 919, Table 8)
+8. The current design condition is represented by three discrete density groups related to seismic intensity and building height. This setting is reasonable for the available dataset, but the manuscript should avoid overstating the level of engineering controllability. The current model mainly controls shear wall density categories rather than continuous engineering parameters such as PGA, structural height, period, or drift demand. This distinction should be stated more clearly in the abstract, experimental discussion, and conclusion.
+Response:
+Thank you for the comment. We have revised the manuscript to clarify the scope of conditional control in the current model. The present framework controls three discrete shear wall density categories derived from seismic intensity and building height groups. It does not yet perform continuous conditioning on engineering parameters such as PGA, structural height, period, drift ratio, or torsional response. We have made this distinction clearer in the abstract, experimental discussion, and conclusion.
+Revision:
+We revised the abstract, Section 4.1.1, Section 5.2 discussion, and Section 6 to state that the current method demonstrates discrete density-controlled preliminary generation, while continuous engineering-condition control remains future work. (Line 695, 1197, 1250)
+9. The qualitative results in the main text are helpful, but the number of visualized test cases is limited. The authors should provide more visual comparison results in the appendix, covering different density groups and floor plan types. Additional examples, including successful cases and less satisfactory cases, would help readers better understand the model's actual generation quality, robustness, and typical failure modes.
+Response:
+Thank you for the suggestion. We have added more qualitative results in the Appendix to provide a broader visual evaluation of the proposed method. The added cases cover different density groups and different floor-plan configurations. Both representative successful cases and less satisfactory cases are included to better show the model’s generation quality, robustness, and typical failure modes.
+Revision:
+We added Appendix A with additional test-set visualizations. We also added a short description in Section 4.2 referring readers to the appendix for more qualitative comparisons. (Line 900)
