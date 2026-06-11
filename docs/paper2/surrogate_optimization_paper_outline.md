@@ -1,36 +1,60 @@
-# Surrogate-Assisted Shear Wall Section Optimization Paper Outline
+# Surrogate-Assisted Shear Wall Design Optimization Paper Outline
 
 本文档用于梳理论文中 **Methodology** 与 **Experiments** 两部分的章节结构。目标不是写正文，而是明确论文叙事顺序、每节应回答的问题、应放入的关键内容和图表。
 
-## 1. Methodology Section Title
+## 1. Paper and Methodology Section Titles
 
-这一节需要在标题中体现三个核心亮点：
+标题需要体现三个核心亮点：
 
-- layout-parameter surrogate：代理模型同时利用布局图信息和设计参数；
 - calibration：不是静态代理，而是利用在线 FEA 样本进行局部校准；
 - FEA-efficient optimization：方法目的在于减少高保真有限元分析调用。
+- surrogate-assisted design optimization：重点是结构设计优化流程，而不是单个预测模型。
 
-可选标题：
+### 1.1 Paper title candidates
 
-1. **Calibrated Layout-Parameter Surrogate Optimization Framework**
-2. **FEA-Efficient Shear Wall Section Optimization via Calibrated Layout-Parameter Surrogates**
-3. **Adaptive Layout-Parameter Surrogate Framework for Shear Wall Section Optimization**
-4. **Calibrated Surrogate-Assisted Framework for FEA-Efficient Shear Wall Section Optimization**
+可选文章标题：
 
-推荐使用：
+1. **CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Shear Wall Design Optimization**
+2. **FEA-Efficient Shear Wall Design Optimization via Calibrated Surrogate-Assisted Candidate Screening**
+3. **Calibrated Surrogate-Assisted Design Optimization for Shear Wall Structures with Reduced FEA Calls**
+4. **Adaptive Surrogate Screening and Calibration for FEA-Efficient Shear Wall Design Optimization**
+
+推荐优先考虑：
 
 ```text
-Calibrated Layout-Parameter Surrogate Optimization Framework
+CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Shear Wall Design Optimization
 ```
 
 理由：
 
+- "CASCADE" 有一个相对自然的 acronym，含义上也符合候选方案逐级筛选、排序、进入 FEA 的流程；
 - "Calibrated" 体现在线局部校准；
-- "Layout-Parameter" 体现统一代理模型输入；
-- "Surrogate Optimization Framework" 体现这不是单个预测模型，而是嵌入优化过程的系统方法；
-- 标题相对简洁，适合作为 methodology 大节标题。
+- "Surrogate Candidate Assessment" 体现代理模型用于候选评估和 FEA 预算分配；
+- "FEA-Efficient" 直接指向工程收益；
+- "Shear Wall Design Optimization" 比 "section optimization" 更宽，不把文章限制在截面尺寸这一单点上。
 
-如果想更工程化、更直接，也可以使用第 2 个标题；但作为章节标题，第 1 个更凝练。
+如果觉得 acronym 略显刻意，则第 2 个标题更稳妥：
+
+```text
+FEA-Efficient Shear Wall Design Optimization via Calibrated Surrogate-Assisted Candidate Screening
+```
+
+### 1.2 Methodology section title
+
+methodology 大节标题建议短一些，不必把所有输入信息都写进去。
+
+推荐：
+
+```text
+Calibrated Surrogate-Assisted Optimization Framework
+```
+
+这个标题聚焦于方法本身的两个核心：
+
+- surrogate-assisted optimization；
+- online/local calibration。
+
+`Layout-Parameter` 不建议放在大标题里。代理模型接收布局和设计参数是自然需求，不是最需要抢占读者注意力的亮点；它可以在模型小节中说明。
 
 ## 2. Methodology
 
@@ -114,23 +138,59 @@ H(x; L, q) -> {feasible, material_cost, steel_kg, constraint_metrics}
 - 代理模型只减少高保真评价器 `H` 的调用次数；
 - 被推荐为最优的方案必须经过真实 FEA 验证。
 
-### 2.2 High-Fidelity Evaluation and Layout-Parameter Data Representation
+### 2.2 Data Formulation for Surrogate Learning
 
-这个标题用于融合“参数化建模分析”和“数据表征方法”，避免写成两个割裂的小节。
+这一节用于解释代理模型的训练样本如何定义：输入是什么、监督标签如何得到、为什么这些数据能支撑后面的两个代理任务。
 
 建议标题可选：
 
-1. **High-Fidelity Evaluation and Layout-Parameter Data Representation**
-2. **Physics-Based Evaluation and Surrogate Input Representation**
-3. **OpenSees-Based Evaluation and Layout-Parameter Encoding**
+1. **Data Formulation for Surrogate Learning**
+2. **Surrogate Learning Data Formulation**
+3. **Design Candidate Representation and Labels**
 
 推荐使用：
 
 ```text
-High-Fidelity Evaluation and Layout-Parameter Data Representation
+Data Formulation for Surrogate Learning
 ```
 
-这一节的作用是承接 problem formulation 和代理模型：先说明标签从哪里来，再说明这些样本如何进入代理模型。
+理由：
+
+- 标题不强行把“参数化建模”和“数据表征”用 `and` 拼接；
+- 共同主题是“代理学习所需的数据如何形成”；
+- 可以自然承接 problem formulation，并引出后续 surrogate model。
+
+建议这一节按以下逻辑写：
+
+1. 一个候选设计样本可以表示为：
+
+```text
+s = (L, x, q)
+```
+
+其中 `L` 是剪力墙布局，`x` 是设计变量，`q` 是设计条件。
+
+2. 对每个样本运行参数化建模、OpenSees 分析和规范校核，得到监督信号：
+
+```text
+y_f = final_pass
+y_s = material_steel_kg
+```
+
+3. 将同一个样本整理成代理模型输入：
+
+```text
+layout graph + graph-level features + design parameters + design conditions
+```
+
+这样本节的逻辑是：
+
+```text
+candidate design -> physics-based evaluation -> surrogate labels
+candidate design -> graph/parameter encoding -> surrogate inputs
+```
+
+而不是把“建模分析”和“数据表征”作为两个并列内容硬放在一起。
 
 应包含内容：
 
@@ -161,9 +221,9 @@ High-Fidelity Evaluation and Layout-Parameter Data Representation
 
 - 不需要在 methodology 详细展开数据集规模和 train/val/test split；
 - 这些放在 `Experimental setup`；
-- 这里只说明高保真评价流程与代理模型输入如何定义。
+- 这里只说明代理模型的输入与标签如何形成。
 
-### 2.3 Unified Layout-Parameter Surrogate Model
+### 2.3 Unified Surrogate Model
 
 这一节是方法部分的核心模型小节。重点是两个代理模型共享统一架构，而不是分别孤立介绍。
 
@@ -349,7 +409,7 @@ steel_calibrated = steel_global + r_hat
 
 建议包含四部分。
 
-#### Dataset and High-Fidelity Evaluation
+#### Dataset Construction and Labels
 
 - 143 个剪力墙布局；
 - 参数化采样截面、材料和设计条件；
@@ -600,20 +660,6 @@ supp_03_screening_funnel.png
 
 建议包含：
 
-#### Screening and cost preselection contribution
-
-对比：
-
-- Full FEA；
-- Cost surrogate；
-- Screen + cost surrogate。
-
-说明：
-
-- cost surrogate 减少一部分 FEA；
-- screen + cost surrogate 进一步跳过明显不可行候选；
-- 组合方法在 FEA 节省和解质量之间更平衡。
-
 #### Online calibration contribution
 
 如果已有或后续补充实验，建议对比：
@@ -664,4 +710,3 @@ supp_03_screening_funnel.png
 2. reliability diagram；
 3. steel prediction residual plot；
 4. calibration before/after layout-level improvement。
-
