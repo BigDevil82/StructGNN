@@ -48,3 +48,48 @@ To compare another model artifact, pass model specs as `label=artifact_dir`:
     "Param + layout stats=data\parametric\ckpt\steel_ablation_param_graph_feat" `
     "LayoutParamGNN=data\parametric\ckpt\steel_gnn_room_lr5e4_b512"
 ```
+
+## Section 3.3 Online Local Calibration
+
+Generate the standard local-calibration data:
+
+```powershell
+.\.venv\Scripts\python.exe docs\paper2\experiment\run_local_calibration_paper_experiment.py
+```
+
+Default outputs:
+
+- `outputs\result\paper2\local_calibration\feasibility\results.csv`
+- `outputs\result\paper2\local_calibration\feasibility\summary.csv`
+- `outputs\result\paper2\local_calibration\steel\results.csv`
+- `outputs\result\paper2\local_calibration\steel\summary.csv`
+- `outputs\result\paper2\local_calibration\commands.json`
+
+The script reuses the existing calibration implementations in `scripts\local_calibration`:
+
+- feasibility probability calibration: Platt, isotonic, logistic, and LightGBM residual calibration;
+- steel residual calibration: Ridge, Gaussian process, LightGBM, and KNN.
+
+For a quick smoke run:
+
+```powershell
+.\.venv\Scripts\python.exe docs\paper2\experiment\run_local_calibration_paper_experiment.py `
+  --out-root outputs\result\paper2\local_calibration_smoke `
+  --max-layouts 3 `
+  --calib-sizes 25,50 `
+  --repeats 1
+```
+
+Plot the paper figures:
+
+```powershell
+.\.venv\Scripts\python.exe docs\paper2\plot\plot_local_calibration_paper_figures.py `
+  --result-root outputs\result\paper2\local_calibration `
+  --out-dir outputs\result\paper2\local_calibration\plots `
+  --calib-n 100
+```
+
+Generated figures:
+
+- `main_3_3_local_calibration_sample_efficiency.png`
+- `main_3_3_local_calibration_layout_improvement.png`
