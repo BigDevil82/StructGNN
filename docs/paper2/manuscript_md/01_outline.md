@@ -2,7 +2,7 @@
 
 ## Title
 
-CASCADE: Calibrated Surrogate-Assisted Design Optimization for FEA-Efficient Shear Wall Structures
+CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Shear Wall Design Optimization
 
 ## Abstract
 
@@ -10,15 +10,31 @@ CASCADE: Calibrated Surrogate-Assisted Design Optimization for FEA-Efficient She
 
 ## 2. Calibrated Surrogate-Assisted Optimization Framework
 
+### Opening Framework Overview
+
 ### 2.1 Problem Formulation
 
-### 2.2 Parametric Evaluation and Surrogate Learning Data
+### 2.2 Data Formulation for Surrogate Learning
+
+#### 2.2.1 Parametric Structural Evaluation and Design Labels
+
+#### 2.2.2 Layout Graph and Design Parameter Representation
 
 ### 2.3 Global Surrogate Models
 
+#### 2.3.1 Unified LayoutParamGNN Architecture
+
+#### 2.3.2 Feasibility Screening Surrogate
+
+#### 2.3.3 Steel Usage Surrogate and Cost Score
+
 ### 2.4 Online Local Calibration
 
-### 2.5 Surrogate-Assisted Optimization Procedure
+#### 2.4.1 Feasibility Probability Calibration
+
+#### 2.4.2 Steel Residual Calibration
+
+#### 2.4.3 Online Update During Optimization
 
 ## 3. Experimental Setup
 
