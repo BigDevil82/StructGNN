@@ -345,6 +345,7 @@ def evaluate(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
     y_true = y_true.astype(np.float64)
     y_pred = np.maximum(y_pred.astype(np.float64), 0.0)
     err = y_pred - y_true
+    rank = ranking_metrics(y_true, y_pred)
     return {
         "samples": float(len(y_true)),
         "mae": float(mean_absolute_error(y_true, y_pred)),
@@ -353,6 +354,50 @@ def evaluate(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
         "mape": float(np.mean(np.abs(err) / np.maximum(y_true, 1.0))),
         "bias": float(err.mean()),
         "p90_abs_error": float(np.quantile(np.abs(err), 0.9)),
+        **rank,
+    }
+
+
+def ranking_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    pair_samples: int = 20000,
+    top_frac: float = 0.1,
+) -> dict[str, float]:
+    if len(y_true) < 2:
+        return {
+            "pair_acc": float("nan"),
+            "spearman": float("nan"),
+            "top_recall": float("nan"),
+            "top_regret_kg": float("nan"),
+        }
+
+    rng = np.random.default_rng(20260612)
+    i = rng.integers(0, len(y_true), size=pair_samples)
+    j = rng.integers(0, len(y_true), size=pair_samples)
+    mask = (i != j) & (y_true[i] != y_true[j])
+    if not np.any(mask):
+        pair_acc = float("nan")
+    else:
+        i = i[mask]
+        j = j[mask]
+        pair_acc = float(np.mean((y_pred[i] < y_pred[j]) == (y_true[i] < y_true[j])))
+
+    y_rank = pd.Series(y_true).rank(method="average").to_numpy()
+    p_rank = pd.Series(y_pred).rank(method="average").to_numpy()
+    spearman = float(np.corrcoef(y_rank, p_rank)[0, 1]) if len(y_true) >= 3 else float("nan")
+
+    k = max(1, int(np.ceil(len(y_true) * top_frac)))
+    true_order = np.argsort(y_true)
+    pred_order = np.argsort(y_pred)
+    top_recall = len(set(true_order[:k].tolist()) & set(pred_order[:k].tolist())) / k
+    top_regret = float(y_true[pred_order[:k]].min() - y_true[true_order[0]])
+    return {
+        "pair_acc": pair_acc,
+        "spearman": spearman,
+        "top_recall": float(top_recall),
+        "top_regret_kg": top_regret,
     }
 
 
@@ -390,6 +435,10 @@ def summarize(result: pd.DataFrame) -> pd.DataFrame:
         "mape",
         "bias",
         "p90_abs_error",
+        "pair_acc",
+        "spearman",
+        "top_recall",
+        "top_regret_kg",
         "mae_improve_pct",
         "rmse_improve_pct",
         "mape_improve_pct",
@@ -427,14 +476,14 @@ def write_report(result: pd.DataFrame, args: argparse.Namespace, path: Path) -> 
         "",
         "## Best Mean Result By Calibration Size",
         "",
-        "| calib_n | model | MAE | RMSE | R2 | MAPE | MAE improve |",
-        "|---:|---|---:|---:|---:|---:|---:|",
+        "| calib_n | model | MAE | RMSE | R2 | MAPE | pair acc | top recall | MAE improve |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in best.to_dict("records"):
         lines.append(
             f"| {int(row['calib_n'])} | {row['model']} | {row['mae']:.3f} | "
             f"{row['rmse']:.3f} | {row['r2']:.4f} | {row['mape']:.4f} | "
-            f"{row['mae_improve_pct']:.1%} |"
+            f"{row['pair_acc']:.4f} | {row['top_recall']:.4f} | {row['mae_improve_pct']:.1%} |"
         )
     lines += [
         "",

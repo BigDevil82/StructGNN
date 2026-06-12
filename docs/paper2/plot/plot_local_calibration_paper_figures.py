@@ -93,17 +93,19 @@ def build_sample_efficiency(feas: pd.DataFrame, steel: pd.DataFrame) -> pd.DataF
             )
         )
 
-    steel_base = mean_by_size(steel[steel["model"] == STEEL_BASELINE], ["mae", "bias", "rmse"])
+    steel_metrics = existing_cols(steel, ["mae", "bias", "rmse", "pair_acc", "spearman", "top_recall", "top_regret_kg"])
+    steel_base = mean_by_size(steel[steel["model"] == STEEL_BASELINE], steel_metrics)
     steel_best = best_by_size(steel[steel["model"] != STEEL_BASELINE], "model", "mae")
+    steel_mapping = {col: col for col in steel_metrics}
     for _, row in steel_base.iterrows():
-        rows.append(sample_row("steel", "Global", row, {"mae": "mae", "bias": "bias", "rmse": "rmse"}))
+        rows.append(sample_row("steel", "Global", row, steel_mapping))
     for _, row in steel_best.iterrows():
         rows.append(
             sample_row(
                 "steel",
                 "Best local",
                 row,
-                {"mae": "mae", "bias": "bias", "rmse": "rmse"},
+                steel_mapping,
                 calibrator=str(row["model"]),
             )
         )
@@ -112,6 +114,10 @@ def build_sample_efficiency(feas: pd.DataFrame, steel: pd.DataFrame) -> pd.DataF
 
 def mean_by_size(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return df.groupby("calib_n", as_index=False)[cols].mean().sort_values("calib_n")
+
+
+def existing_cols(df: pd.DataFrame, cols: list[str]) -> list[str]:
+    return [col for col in cols if col in df.columns]
 
 
 def best_by_size(df: pd.DataFrame, method_col: str, metric: str) -> pd.DataFrame:
@@ -254,6 +260,25 @@ def build_summary_table(feas: pd.DataFrame, steel: pd.DataFrame, calib_n: int) -
                 "calibrator": sbest["model"],
             }
         )
+    for metric, label, higher_is_better in [
+        ("pair_acc", "Pairwise accuracy", True),
+        ("spearman", "Spearman", True),
+        ("top_recall", "Top-10% recall", True),
+        ("top_regret_kg", "Top-10% regret", False),
+    ]:
+        if metric not in sbase.columns or metric not in sbest.index:
+            continue
+        rows.append(
+            {
+                "task": "Steel",
+                "metric": label,
+                "global": sbase[metric].mean(),
+                "calibrated": sbest[metric],
+                "improvement_pct": relative_change(sbase[metric].mean(), sbest[metric], higher_is_better),
+                "calib_n": int(sbest["calib_n"]),
+                "calibrator": sbest["model"],
+            }
+        )
     rows.append(
         {
             "task": "Steel",
@@ -290,16 +315,14 @@ def plot_sample_efficiency(df: pd.DataFrame, out_dir: Path) -> None:
     plot_metric_lines(
         axes[1, 1],
         df[df["task"] == "steel"],
-        "bias",
-        "Bias (t)",
-        value_scale=1.0 / 1000.0,
-        zero_line=True,
+        "pair_acc",
+        "Pairwise ranking accuracy",
     )
     captions = [
         "(a) Feasibility probability calibration error",
         "(b) Screening capacity at high feasible recall",
         "(c) Steel residual prediction error",
-        "(d) Steel residual prediction bias",
+        "(d) Steel candidate ranking accuracy",
     ]
     for ax, caption in zip(axes.ravel(), captions):
         add_caption(ax, caption)
@@ -317,6 +340,12 @@ def plot_metric_lines(
     value_scale: float = 1.0,
     zero_line: bool = False,
 ) -> None:
+    if metric not in df.columns:
+        ax.text(0.5, 0.5, f"{metric} not available", transform=ax.transAxes, ha="center", va="center")
+        ax.set_xlabel("Local FEA samples")
+        ax.set_ylabel(ylabel)
+        ax.grid(True)
+        return
     for series, part in df.groupby("series", sort=False):
         color = COLORS.get(series, "#999999")
         ax.plot(
