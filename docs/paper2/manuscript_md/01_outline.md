@@ -10,7 +10,7 @@ CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Sh
 
 ## 1. Introduction
 
-介绍剪力墙结构优化设计的工程需求，以及传统优化方法在大量 FEA 调用下计算成本高的问题。然后引出代理模型辅助优化的必要性，并指出单纯离线代理模型存在跨布局泛化和局部偏差问题。最后明确本文提出的思路：构建参数化分析数据集，训练全局代理模型，引入在线局部校准，并将其嵌入结构优化流程。
+按“问题 - 现有解决方法 - 仍然存在的问题 - 本文改进 - 创新点概述”的逻辑组织。首先介绍剪力墙结构优化设计的工程需求，以及基于 FEA 的优化在候选方案数量较多时计算成本高的问题。然后综述已有的智能优化、代理模型辅助优化和深度学习预测方法，说明这些方法试图用数据驱动模型减少昂贵分析调用。接着指出关键矛盾：由于模型误差、训练数据覆盖范围、跨布局泛化能力和边界样本不确定性，代理模型很难被完全信任为最终分析结果；但如果只把代理模型看作不可靠的替代品，又无法充分发挥其在优化中的价值。由此引出本文的核心问题：在代理模型不能保证绝对准确的情况下，如何仍然有效利用它提升结构优化效率。最后概述本文的解决思路，即将全局代理模型、在线局部校准和真实 FEA 验证结合起来，使代理模型服务于候选筛选、排序和 FEA 预算分配，而不是直接给出最终结构评价结果。
 
 ## 2. Calibrated Surrogate-Assisted Optimization Framework
 
@@ -30,7 +30,7 @@ CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Sh
 
 #### 2.2.1 Parametric Structural Evaluation and Design Labels
 
-介绍参数化建模、OpenSees 分析和构件设计校核流程。说明每个样本会得到可行性标签、钢筋用量和材料用量等结果，其中 `final_pass` 和 `material_steel_kg` 是两个代理任务的核心标签。
+介绍参数化结构评价流程中与论文相关的关键环节，而不是展开软件实现细节。需要说明输入参数包括几何截面参数、材料参数和设计条件；结构分析采用 OpenSees，剪力墙使用 MVLEM 类单元进行建模；分析工况包括用于结构响应和设计校核的主要荷载/地震作用；校核指标包括层间位移、构件内力需求、墙梁截面设计结果和最终综合可行性。重点解释为什么代理模型选择预测 `final_pass` 和 `material_steel_kg`：前者直接服务于优化中的不可行方案筛选；后者服务于候选方案造价排序。钢筋用量不能仅由几何快速得到，而是依赖多工况结构分析后的构件内力和截面设计结果，因此计算成本高；同时优化目标又面向材料造价，所以钢筋用量是代理模型中最关键的连续预测指标。
 
 #### 2.2.2 Layout Graph and Design Parameter Representation
 
@@ -78,7 +78,7 @@ CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Sh
 
 ### 3.2 Surrogate Model Training Settings
 
-说明可行性代理模型和钢筋代理模型的训练配置、输入表征、主要 baseline 或对比设置，以及用于论文图表的模型 artifact。重点说明两个代理模型的评价目的不同。
+说明可行性代理模型和钢筋代理模型的训练配置、输入表征、主要 baseline 或对比设置，以及最终用于实验分析的模型版本和训练结果。论文正文中不使用 `artifact` 这类工程实现表述；如果需要保证复现性，可以在附录或开源说明中列出模型权重、预测文件和脚本路径。重点说明两个代理模型的评价目的不同：可行性模型关注保守筛选能力，钢筋模型关注回归误差和候选排序能力。
 
 ### 3.3 Optimization Benchmark Settings
 
