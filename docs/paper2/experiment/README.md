@@ -22,6 +22,7 @@ Outputs:
 
 - `outputs\result\paper2\surrogate_model_performance\tables\feasibility_surrogate_metrics.csv`
 - `outputs\result\paper2\surrogate_model_performance\tables\feasibility_screening_curve.csv`
+- `outputs\result\paper2\surrogate_model_performance\tables\feasibility_error_by_layout.csv`
 - `outputs\result\paper2\surrogate_model_performance\tables\steel_surrogate_metrics.csv`
 - `outputs\result\paper2\surrogate_model_performance\tables\steel_error_by_true_quantile.csv`
 - `outputs\result\paper2\surrogate_model_performance\tables\steel_error_by_layout.csv`
@@ -30,10 +31,12 @@ Outputs:
 
 The generated figure combines:
 
-- conservative feasibility screening curve;
-- steel surrogate representation comparison;
-- steel predicted-vs-true scatter;
-- steel error by true-usage quantile.
+- feasibility precision-recall curve for overall test performance;
+- layout-level feasibility probability bias, showing where the global classifier is less reliable;
+- steel predicted-vs-true scatter for overall regression performance;
+- steel error by true-usage quantile, showing systematic bias at high steel usage.
+
+This figure is intended to support the Section 3.2 narrative: the two global surrogates are useful but imperfect. Their layout-level and target-range-dependent errors motivate the online local calibration experiments in Section 3.3.
 
 To compare another model artifact, pass model specs as `label=artifact_dir`:
 

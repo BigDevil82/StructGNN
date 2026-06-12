@@ -8,8 +8,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score, f1_score, precision_score, r2_score
-from sklearn.metrics import recall_score, roc_auc_score
+from sklearn.metrics import (
+    average_precision_score,
+    brier_score_loss,
+    f1_score,
+    precision_score,
+    precision_recall_curve,
+    r2_score,
+    recall_score,
+    roc_auc_score,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -53,17 +61,26 @@ def main() -> None:
 
     feasibility["summary"].to_csv(table_dir / "feasibility_surrogate_metrics.csv", index=False)
     feasibility["screening_curve"].to_csv(table_dir / "feasibility_screening_curve.csv", index=False)
+    feasibility["layout"].to_csv(table_dir / "feasibility_error_by_layout.csv", index=False)
     steel["summary"].to_csv(table_dir / "steel_surrogate_metrics.csv", index=False)
     steel["quantile"].to_csv(table_dir / "steel_error_by_true_quantile.csv", index=False)
     steel["layout"].to_csv(table_dir / "steel_error_by_layout.csv", index=False)
 
     plot_surrogate_summary(feasibility, steel, fig_dir, args.scatter_sample, args.seed)
-    write_report(out_dir / "report.md", feasibility["summary"], steel["summary"])
+    write_report(
+        out_dir / "report.md",
+        feasibility["summary"],
+        feasibility["layout"],
+        steel["summary"],
+        steel["quantile"],
+    )
     print(f"[paper2][surrogate] outputs written to {out_dir}")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Generate paper Section 3.2 surrogate model performance tables and plots.")
+    p = argparse.ArgumentParser(
+        description="Generate paper Section 3.2 surrogate model performance tables and plots."
+    )
     p.add_argument(
         "--dataset-path",
         default=r"data\parametric\surrogate_dataset\splits\surrogate_samples_with_splits.parquet",
@@ -102,9 +119,12 @@ def load_dataset(path: str) -> pd.DataFrame:
     return df[df["split"] == "test"].copy()
 
 
-def load_feasibility_models(specs: list[str], dataset: pd.DataFrame, target_recall: float) -> dict[str, pd.DataFrame]:
+def load_feasibility_models(
+    specs: list[str], dataset: pd.DataFrame, target_recall: float
+) -> dict[str, pd.DataFrame]:
     rows = []
     curves = []
+    layout_rows = []
     best_df = None
     best_label = None
     best_reject = -1.0
@@ -139,6 +159,7 @@ def load_feasibility_models(specs: list[str], dataset: pd.DataFrame, target_reca
         curve = screening_curve(pred, TARGET_RECALLS)
         curve.insert(0, "model", label)
         curves.append(curve)
+        layout_rows.append(feasibility_layout_metrics(pred, label))
 
         if row["reject_rate"] > best_reject:
             best_df = pred
@@ -149,6 +170,7 @@ def load_feasibility_models(specs: list[str], dataset: pd.DataFrame, target_reca
     return {
         "summary": summary,
         "screening_curve": pd.concat(curves, ignore_index=True),
+        "layout": pd.concat(layout_rows, ignore_index=True),
         "best_predictions": best_df,
         "best_label": best_label,
     }
@@ -228,7 +250,9 @@ def load_feasibility_predictions(model_dir: Path, dataset: pd.DataFrame) -> pd.D
     if true_col:
         out = out.rename(columns={true_col: "y_true"})
     else:
-        out = out.merge(dataset[["layout_id", "sample_id", "final_pass"]], on=["layout_id", "sample_id"], how="left")
+        out = out.merge(
+            dataset[["layout_id", "sample_id", "final_pass"]], on=["layout_id", "sample_id"], how="left"
+        )
         out = out.rename(columns={"final_pass": "y_true"})
     out["y_true"] = out["y_true"].astype(int)
     return out
@@ -237,7 +261,9 @@ def load_feasibility_predictions(model_dir: Path, dataset: pd.DataFrame) -> pd.D
 def load_steel_predictions(model_dir: Path, dataset: pd.DataFrame) -> pd.DataFrame:
     pred = pd.read_parquet(model_dir / "predictions_test.parquet")
     true_col = first_existing(pred, ["steel_true_kg", "material_steel_kg", "y_true", "true", "target"])
-    pred_col = first_existing(pred, ["steel_pred_kg", "pred_material_steel_kg", "y_pred", "pred", "prediction"])
+    pred_col = first_existing(
+        pred, ["steel_pred_kg", "pred_material_steel_kg", "y_pred", "pred", "prediction"]
+    )
     if not pred_col:
         raise ValueError(f"No steel prediction column found in {model_dir}")
 
@@ -303,7 +329,30 @@ def screening_metrics_at_threshold(df: pd.DataFrame, threshold: float) -> dict[s
     }
 
 
-def ranking_metrics(df: pd.DataFrame, eval_pairs: int, large_gap_kg: float, top_frac: float, seed: int) -> dict[str, float]:
+def feasibility_layout_metrics(df: pd.DataFrame, label: str) -> pd.DataFrame:
+    rows = []
+    for layout_id, part in df.groupby("layout_id"):
+        y = part["y_true"].to_numpy(dtype=int)
+        prob = part["prob"].to_numpy(dtype=float)
+        rows.append(
+            {
+                "model": label,
+                "layout_id": layout_id,
+                "samples": len(part),
+                "feasible_rate": float(y.mean()),
+                "predicted_feasible_rate": float(prob.mean()),
+                "calibration_gap": float(abs(prob.mean() - y.mean())),
+                "brier": safe_metric(brier_score_loss, y, prob),
+                "roc_auc": safe_binary_metric(roc_auc_score, y, prob),
+                "pr_auc": safe_binary_metric(average_precision_score, y, prob),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("brier", ascending=False).reset_index(drop=True)
+
+
+def ranking_metrics(
+    df: pd.DataFrame, eval_pairs: int, large_gap_kg: float, top_frac: float, seed: int
+) -> dict[str, float]:
     groups = {
         k: np.array(v, dtype=np.int64)
         for k, v in df.groupby(GROUP_COLS, observed=True).indices.items()
@@ -394,46 +443,88 @@ def steel_metrics(df: pd.DataFrame) -> dict[str, float]:
     }
 
 
-def plot_surrogate_summary(feasibility: dict[str, pd.DataFrame], steel: dict[str, pd.DataFrame], out_dir: Path, sample: int, seed: int) -> None:
+def plot_surrogate_summary(
+    feasibility: dict[str, pd.DataFrame],
+    steel: dict[str, pd.DataFrame],
+    out_dir: Path,
+    sample: int,
+    seed: int,
+) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(10.8, 7.4))
-    plot_screening_curve(axes[0, 0], feasibility["screening_curve"])
-    plot_steel_model_comparison(axes[0, 1], steel["summary"])
+    plot_feasibility_pr_curve(axes[0, 0], feasibility["best_predictions"], feasibility["summary"], feasibility["best_label"])
+    plot_feasibility_layout_calibration(axes[0, 1], feasibility["layout"], feasibility["best_label"])
     plot_steel_pred_true(axes[1, 0], steel["best_predictions"], steel["best_label"], sample, seed)
     plot_steel_quantile_error(axes[1, 1], steel["quantile"])
-    fig.suptitle("Surrogate Model Performance", y=1.02)
+    fig.suptitle("Global Surrogate Model Performance and Limitations", y=1.02)
     fig.tight_layout()
     save_figure(fig, "main_3_2_surrogate_model_performance.png", out_dir)
 
 
-def plot_screening_curve(ax: plt.Axes, curve: pd.DataFrame) -> None:
-    for model, part in curve.groupby("model"):
-        ax.plot(
-            part["feasible_recall"],
-            100 * part["reject_rate"],
-            marker="o",
-            linewidth=1.8,
-            markersize=4,
-            color=MODEL_COLORS.get(model, METHOD_COLORS["gnn_screen_cost"]),
-            label=model,
-        )
-    ax.set_xlabel("Feasible recall")
-    ax.set_ylabel("Rejected candidates (%)")
-    ax.set_title("Conservative feasibility screening")
-    ax.set_xlim(0.895, 1.002)
+def plot_feasibility_pr_curve(ax: plt.Axes, df: pd.DataFrame, summary: pd.DataFrame, label: str) -> None:
+    y = df["y_true"].to_numpy(dtype=int)
+    prob = df["prob"].to_numpy(dtype=float)
+    precision, recall, _ = precision_recall_curve(y, prob)
+    metrics = summary[summary["model"] == label].iloc[0]
+    base_rate = float(y.mean())
+    ax.plot(
+        recall,
+        precision,
+        color=MODEL_COLORS.get(label, METHOD_COLORS["gnn_screen_cost"]),
+        linewidth=2.0,
+        label=label,
+    )
+    ax.axhline(base_rate, color="#777777", linewidth=1.0, linestyle="--", label="Base rate")
+    ax.text(
+        0.04,
+        0.08,
+        f"PR-AUC={metrics['pr_auc']:.3f}\nROC-AUC={metrics['roc_auc']:.3f}\nF1={metrics['f1']:.3f}",
+        transform=ax.transAxes,
+        ha="left",
+        va="bottom",
+        fontsize=8,
+        bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#dddddd", "alpha": 0.9},
+    )
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_title("Feasibility prediction: overall test performance")
+    ax.set_xlim(0.0, 1.01)
+    ax.set_ylim(0.0, 1.02)
     ax.grid(True)
     ax.legend(frameon=False)
 
 
-def plot_steel_model_comparison(ax: plt.Axes, summary: pd.DataFrame) -> None:
-    labels = summary["model"].tolist()
-    x = np.arange(len(labels))
-    colors = [MODEL_COLORS.get(label, "#aaaaaa") for label in labels]
-    ax.bar(x, summary["mae"] / 1000.0, color=colors, edgecolor="#333333", linewidth=0.6)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=18, ha="right")
-    ax.set_ylabel("MAE (t)")
-    ax.set_title("Representation comparison")
-    ax.grid(axis="y")
+def plot_feasibility_layout_calibration(ax: plt.Axes, layout: pd.DataFrame, label: str) -> None:
+    part = layout[layout["model"] == label].copy()
+    x = part["feasible_rate"].to_numpy(dtype=float)
+    y = part["predicted_feasible_rate"].to_numpy(dtype=float)
+    brier = part["brier"].to_numpy(dtype=float)
+    sc = ax.scatter(
+        x,
+        y,
+        c=brier,
+        cmap="YlOrRd",
+        s=34,
+        alpha=0.85,
+        edgecolor="#333333",
+        linewidth=0.4,
+    )
+    ax.plot([0, 1], [0, 1], color="#555555", linewidth=1.0, linestyle="--")
+    for _, row in part.sort_values("brier", ascending=False).head(4).iterrows():
+        ax.text(
+            row["feasible_rate"] + 0.012,
+            row["predicted_feasible_rate"] + 0.012,
+            str(row["layout_id"]),
+            fontsize=6,
+            color="#333333",
+        )
+    ax.set_xlabel("True feasible rate by layout")
+    ax.set_ylabel("Mean predicted probability")
+    ax.set_title("Feasibility prediction: layout-level bias")
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.02, 1.02)
+    ax.grid(True)
+    cbar = ax.figure.colorbar(sc, ax=ax, fraction=0.045, pad=0.02)
+    cbar.set_label("Brier")
 
 
 def plot_steel_pred_true(ax: plt.Axes, df: pd.DataFrame, label: str, sample: int, seed: int) -> None:
@@ -466,7 +557,13 @@ def plot_steel_quantile_error(ax: plt.Axes, quantile: pd.DataFrame) -> None:
     ax.legend(frameon=False)
 
 
-def write_report(path: Path, feasibility: pd.DataFrame, steel: pd.DataFrame) -> None:
+def write_report(
+    path: Path,
+    feasibility: pd.DataFrame,
+    feasibility_layout: pd.DataFrame,
+    steel: pd.DataFrame,
+    steel_quantile: pd.DataFrame,
+) -> None:
     lines = [
         "# Surrogate Model Performance",
         "",
@@ -476,14 +573,23 @@ def write_report(path: Path, feasibility: pd.DataFrame, steel: pd.DataFrame) -> 
         "",
         to_markdown(format_feasibility(feasibility)),
         "",
+        "### Worst layout-level feasibility probability errors",
+        "",
+        to_markdown(format_feasibility_layout(feasibility_layout.head(8))),
+        "",
         "## Steel surrogate and representation comparison",
         "",
         to_markdown(format_steel(steel)),
+        "",
+        "### Steel error by true-usage quantile",
+        "",
+        to_markdown(format_steel_quantile(steel_quantile)),
         "",
         "Generated outputs:",
         "",
         "- `tables/feasibility_surrogate_metrics.csv`",
         "- `tables/feasibility_screening_curve.csv`",
+        "- `tables/feasibility_error_by_layout.csv`",
         "- `tables/steel_surrogate_metrics.csv`",
         "- `tables/steel_error_by_true_quantile.csv`",
         "- `tables/steel_error_by_layout.csv`",
@@ -495,7 +601,17 @@ def write_report(path: Path, feasibility: pd.DataFrame, steel: pd.DataFrame) -> 
 
 def format_feasibility(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    for col in ["roc_auc", "pr_auc", "precision", "recall", "f1", "reject_rate", "feasible_recall", "false_reject_rate", "reject_infeasible_precision"]:
+    for col in [
+        "roc_auc",
+        "pr_auc",
+        "precision",
+        "recall",
+        "f1",
+        "reject_rate",
+        "feasible_recall",
+        "false_reject_rate",
+        "reject_infeasible_precision",
+    ]:
         if col in out:
             out[col] = out[col].map(lambda v: f"{float(v):.4f}")
     return out
@@ -512,6 +628,32 @@ def format_steel(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def format_feasibility_layout(df: pd.DataFrame) -> pd.DataFrame:
+    cols = [
+        "model",
+        "layout_id",
+        "samples",
+        "feasible_rate",
+        "predicted_feasible_rate",
+        "calibration_gap",
+        "brier",
+    ]
+    out = df[cols].copy()
+    for col in ["feasible_rate", "predicted_feasible_rate", "calibration_gap", "brier"]:
+        out[col] = out[col].map(lambda v: f"{float(v):.4f}")
+    return out
+
+
+def format_steel_quantile(df: pd.DataFrame) -> pd.DataFrame:
+    cols = ["model", "bucket", "samples", "mae", "rmse", "mape", "r2", "bias"]
+    out = df[cols].copy()
+    for col in ["mae", "rmse", "bias"]:
+        out[col] = out[col].map(lambda v: f"{float(v):.1f}")
+    for col in ["mape", "r2"]:
+        out[col] = out[col].map(lambda v: "" if pd.isna(v) else f"{float(v):.4f}")
+    return out
+
+
 def to_markdown(df: pd.DataFrame) -> str:
     cols = list(df.columns)
     rows = ["| " + " | ".join(cols) + " |", "| " + " | ".join(["---"] * len(cols)) + " |"]
@@ -525,6 +667,12 @@ def safe_metric(fn, *args, **kwargs) -> float:
         return float(fn(*args, **kwargs))
     except Exception:
         return float("nan")
+
+
+def safe_binary_metric(fn, y: np.ndarray, score: np.ndarray) -> float:
+    if len(np.unique(y)) < 2:
+        return float("nan")
+    return safe_metric(fn, y, score)
 
 
 if __name__ == "__main__":
