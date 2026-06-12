@@ -462,7 +462,7 @@ def evaluate(
         "f1": float(f1_score(y, pred, zero_division=0)),
         "precision": float(precision_score(y, pred, zero_division=0)),
         "recall": float(recall_score(y, pred, zero_division=0)),
-        "balanced_accuracy": float(balanced_accuracy_score(y, pred)),
+        "balanced_accuracy": safe_balanced_accuracy(y, pred),
         "brier": float(brier_score_loss(y, p)),
         "log_loss": safe_log_loss(y, p),
         "ece": expected_calibration_error(y, p, bins=10),
@@ -634,6 +634,12 @@ def safe_pr_auc(y: np.ndarray, p: np.ndarray) -> float:
     if np.sum(y == 1) == 0:
         return float("nan")
     return float(average_precision_score(y, p))
+
+
+def safe_balanced_accuracy(y: np.ndarray, pred: np.ndarray) -> float:
+    if len(np.unique(y)) < 2:
+        return float("nan")
+    return float(balanced_accuracy_score(y, pred))
 
 
 def safe_log_loss(y: np.ndarray, p: np.ndarray) -> float:
