@@ -44,12 +44,14 @@ def main() -> None:
 
     feas = pd.read_csv(root / "feasibility" / "results.csv")
     steel = pd.read_csv(root / "steel" / "results.csv")
+    feas, excluded_feas = filter_feasibility_rows(feas)
 
     sample = build_sample_efficiency(feas, steel)
     layout = build_layout_improvement(feas, steel, args.calib_n)
     summary = build_summary_table(feas, steel, args.calib_n)
 
     sample.to_csv(table_dir / "local_calibration_sample_efficiency.csv", index=False)
+    excluded_feas.to_csv(table_dir / "local_calibration_excluded_feasibility_layouts.csv", index=False)
     layout["feasibility"].to_csv(
         table_dir / "local_calibration_feasibility_layout_improvement.csv", index=False
     )
@@ -59,6 +61,9 @@ def main() -> None:
     plot_sample_efficiency(sample, out_dir)
     plot_layout_improvement(layout, out_dir, args.calib_n)
     print(f"[paper2][local-calib-plot] outputs written to {out_dir}")
+    if not excluded_feas.empty:
+        layouts = ", ".join(excluded_feas["layout_id"].astype(str).tolist())
+        print(f"[paper2][local-calib-plot] excluded zero-positive feasibility layouts: {layouts}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,6 +72,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out-dir", default=r"outputs\result\paper2\local_calibration\plots")
     p.add_argument("--calib-n", type=int, default=100)
     return p
+
+
+def filter_feasibility_rows(feas: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if "positive_rate" not in feas.columns:
+        return feas, pd.DataFrame(columns=["layout_id", "max_positive_rate", "rows"])
+
+    stats = (
+        feas.groupby("layout_id", as_index=False)
+        .agg(max_positive_rate=("positive_rate", "max"), rows=("positive_rate", "size"))
+        .sort_values("layout_id")
+    )
+    excluded = stats[stats["max_positive_rate"] <= 0.0].copy()
+    if excluded.empty:
+        return feas, excluded
+    keep_layouts = set(stats.loc[stats["max_positive_rate"] > 0.0, "layout_id"].astype(str))
+    filtered = feas[feas["layout_id"].astype(str).isin(keep_layouts)].copy()
+    return filtered, excluded
 
 
 def build_sample_efficiency(feas: pd.DataFrame, steel: pd.DataFrame) -> pd.DataFrame:

@@ -134,6 +134,12 @@ Generated figures:
 - `main_3_3_local_calibration_sample_efficiency.png`
 - `main_3_3_local_calibration_layout_improvement.png`
 
+For feasibility calibration summaries, layouts with no feasible samples in the test holdout are excluded from the paper-level metric aggregation. These layouts make recall-style metrics undefined and would otherwise artificially reduce `screen_recall`. The excluded layout list is written to:
+
+```text
+outputs\result\paper2\local_calibration\plots\tables\local_calibration_excluded_feasibility_layouts.csv
+```
+
 The steel local-calibration results also include ranking-oriented metrics:
 
 - `pair_acc`: pairwise steel-usage ordering accuracy within each layout holdout split;
