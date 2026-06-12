@@ -12,8 +12,8 @@ from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
     f1_score,
-    precision_score,
     precision_recall_curve,
+    precision_score,
     r2_score,
     recall_score,
     roc_auc_score,
@@ -466,7 +466,7 @@ def plot_surrogate_summary(
     for ax, caption in zip(axes.ravel(), captions):
         add_panel_caption(ax, caption)
     fig.suptitle("Global Surrogate Model Performance and Limitations", y=0.985)
-    fig.subplots_adjust(left=0.08, right=0.96, bottom=0.11, top=0.91, wspace=0.32, hspace=0.48)
+    fig.subplots_adjust(left=0.08, right=0.96, bottom=0.11, top=0.91, wspace=0.32, hspace=0.35)
     save_figure(fig, "main_3_2_surrogate_model_performance.png", out_dir)
 
 
