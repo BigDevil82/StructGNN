@@ -60,12 +60,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-eval-samples", type=int, default=200)
     p.add_argument(
         "--feasibility-methods",
-        default="platt,isotonic,logistic,residual_lgbm",
+        default="platt,isotonic,logistic,residual_ridge,residual_rf,residual_lgbm,vote",
         help="Subset of methods supported by scripts/local_calibration/feasibility_probability_calibration.py.",
     )
     p.add_argument("--feasibility-input-mode", choices=["prob", "param", "prob_param"], default="prob_param")
     p.add_argument("--screening-target-recall", type=float, default=0.995)
-    p.add_argument("--screening-threshold-scale", type=float, default=1.0)
+    p.add_argument(
+        "--screening-threshold-scale",
+        type=float,
+        default=0.1,
+        help="More conservative local screening threshold. 0.1 matches the previous strong scale01 setting.",
+    )
     p.add_argument(
         "--steel-models",
         default="ridge,gpr,lgbm,knn",

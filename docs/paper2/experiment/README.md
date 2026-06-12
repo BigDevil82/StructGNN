@@ -57,6 +57,46 @@ Generate the standard local-calibration data:
 .\.venv\Scripts\python.exe docs\paper2\experiment\run_local_calibration_paper_experiment.py
 ```
 
+The default command above uses the recommended feasibility calibration settings:
+
+```text
+--feasibility-methods platt,isotonic,logistic,residual_ridge,residual_rf,residual_lgbm,vote
+--feasibility-input-mode prob_param
+--screening-target-recall 0.995
+--screening-threshold-scale 0.1
+--layouts all
+--max-layouts 0
+--calib-sizes 25,50,100,200,500
+--repeats 3
+```
+
+`screening-threshold-scale=0.1` is important. It matches the previous strong `feasibility_probability_quick_scale01` experiment and makes the local screening threshold conservative. Using `1.0` is much more aggressive and can make the screening result look substantially worse.
+
+To reproduce the previous quick `scale01` feasibility experiment more closely, use:
+
+```powershell
+.\.venv\Scripts\python.exe docs\paper2\experiment\run_local_calibration_paper_experiment.py `
+  --out-root outputs\result\paper2\local_calibration_quick_scale01 `
+  --max-layouts 6 `
+  --calib-sizes 25,50,100,200,500 `
+  --repeats 3 `
+  --screening-threshold-scale 0.1 `
+  --feasibility-methods platt,isotonic,logistic,residual_ridge,residual_rf,residual_lgbm,vote
+```
+
+For the paper experiment, keep `--layouts all --max-layouts 0` so all test layouts are included:
+
+```powershell
+.\.venv\Scripts\python.exe docs\paper2\experiment\run_local_calibration_paper_experiment.py `
+  --out-root outputs\result\paper2\local_calibration `
+  --layouts all `
+  --max-layouts 0 `
+  --calib-sizes 25,50,100,200,500 `
+  --repeats 3 `
+  --screening-threshold-scale 0.1 `
+  --feasibility-methods platt,isotonic,logistic,residual_ridge,residual_rf,residual_lgbm,vote
+```
+
 Default outputs:
 
 - `outputs\result\paper2\local_calibration\feasibility\results.csv`
