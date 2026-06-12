@@ -6,58 +6,116 @@ CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Sh
 
 ## Abstract
 
+概括研究背景、核心问题、方法框架和主要实验结论。摘要中应突出本文不是用代理模型替代 FEA，而是通过代理模型和在线校准机制减少优化过程中的无效 FEA 调用。
+
 ## 1. Introduction
+
+介绍剪力墙结构优化设计的工程需求，以及传统优化方法在大量 FEA 调用下计算成本高的问题。然后引出代理模型辅助优化的必要性，并指出单纯离线代理模型存在跨布局泛化和局部偏差问题。最后明确本文提出的思路：构建参数化分析数据集，训练全局代理模型，引入在线局部校准，并将其嵌入结构优化流程。
 
 ## 2. Calibrated Surrogate-Assisted Optimization Framework
 
+本节是方法部分。开头先用整体框架图说明从候选方案生成、代理筛选、局部校准、FEA 验证到优化器更新的完整闭环，然后再分别介绍问题定义、数据形成、代理模型和在线校准机制。
+
 ### Opening Framework Overview
+
+用一张框架图和简短文字交代完整流程。重点说明全局代理模型、局部校准器和真实 FEA 的关系：代理模型用于筛选和排序，FEA 仍然是最终评价标准，FEA 结果会回流更新局部校准器。
 
 ### 2.1 Problem Formulation
 
+定义给定剪力墙布局和设计条件下的截面与材料优化问题。说明设计变量、目标函数、约束条件和真实评价器。重点强调优化目标是材料造价，约束由 OpenSees 分析和规范校核确定。
+
 ### 2.2 Data Formulation for Surrogate Learning
+
+说明代理模型训练数据如何形成。这里不展开具体数据规模和 split 细节，而是讲清楚一个样本如何从候选设计变成模型输入和监督标签。
 
 #### 2.2.1 Parametric Structural Evaluation and Design Labels
 
+介绍参数化建模、OpenSees 分析和构件设计校核流程。说明每个样本会得到可行性标签、钢筋用量和材料用量等结果，其中 `final_pass` 和 `material_steel_kg` 是两个代理任务的核心标签。
+
 #### 2.2.2 Layout Graph and Design Parameter Representation
+
+介绍模型输入表征。说明布局被表示为 room graph，同时保留全局布局统计特征；截面、材料和设计条件作为数值或类别参数输入模型。重点解释这种表征为何能够同时服务可行性判断和钢筋用量预测。
 
 ### 2.3 Global Surrogate Models
 
+介绍两个全局代理模型。重点不是把模型写成复杂深度学习细节，而是说明它们共享统一架构，分别服务于保守可行性筛选和材料造价预排序。
+
 #### 2.3.1 Unified LayoutParamGNN Architecture
+
+描述统一的 LayoutParamGNN 架构：room graph 经过 GNN 编码，设计参数经过参数编码器，全局布局特征直接融合，最后由任务头输出预测结果。可配合模型结构图。
 
 #### 2.3.2 Feasibility Screening Surrogate
 
+说明可行性模型的任务是预测候选方案通过校核的概率。强调该模型在优化中被作为保守筛选器使用，阈值选择目标是尽量保持高 feasible recall，而不是追求普通分类阈值下的最高准确率。
+
 #### 2.3.3 Steel Usage Surrogate and Cost Score
+
+说明钢筋模型预测 `material_steel_kg`，其作用主要是候选排序和造价预估，而不是直接替代最终材料用量结果。混凝土用量通过几何和截面参数快速估计，钢筋预测与混凝土估计共同形成候选造价分数。
 
 ### 2.4 Online Local Calibration
 
+介绍本文的关键机制：全局代理模型在所有布局上训练，但优化过程固定在单个布局和局部搜索区域内，因此可以利用优化中已经产生的 FEA 结果进行在线局部校准。
+
 #### 2.4.1 Feasibility Probability Calibration
+
+说明可行性概率校准的目的和方法。重点是修正全局模型在当前布局上的概率偏差，并根据局部样本得到更适合当前问题的保守筛选阈值。
 
 #### 2.4.2 Steel Residual Calibration
 
+说明钢筋残差校准的思想：不重新训练全局模型，而是学习真实钢筋用量与全局预测之间的残差。强调校准后的钢筋代理主要用于候选造价排序。
+
 #### 2.4.3 Online Update During Optimization
+
+说明在线使用流程。每一批候选经过代理筛选和排序后，部分候选进入真实 FEA；这些 FEA 结果再加入局部校准样本集，用于后续批次的概率和残差校准。
 
 ## 3. Experimental Setup
 
+本节只交代实验设计，不讨论结果。目的是真实、清楚地说明数据来源、模型配置、优化设置和评价指标，使后续结果具有可复现性。
+
 ### 3.1 Dataset and Structural Evaluation Settings
+
+说明布局数据来源、参数采样范围、OpenSees 分析与规范校核流程、训练/验证/测试划分方式。这里需要交代测试布局数量和布局类别，但不展开结果。
 
 ### 3.2 Surrogate Model Training Settings
 
+说明可行性代理模型和钢筋代理模型的训练配置、输入表征、主要 baseline 或对比设置，以及用于论文图表的模型 artifact。重点说明两个代理模型的评价目的不同。
+
 ### 3.3 Optimization Benchmark Settings
+
+说明优化算法、种群规模/迭代次数/随机种子、测试布局选择、full FEA baseline 和代理辅助方法的对比设置。强调最终方案必须经过真实 FEA 验证。
 
 ### 3.4 Evaluation Metrics
 
+统一定义代理模型指标、局部校准指标和优化指标。代理模型包括分类、回归和排序指标；优化指标包括 FEA 调用次数、可行解成功率、首次可行解 FEA 次数和最终造价差异。
+
 ## 4. Results and Discussion
+
+本节按照“代理模型是否可用、局部校准是否有效、优化效率是否提升”的顺序组织结果。讨论应服务于论文主线，避免堆砌所有探索性实验。
 
 ### 4.1 Global Surrogate Model Performance
 
+展示两个全局代理模型的整体性能和局限性。可行性模型展示整体分类能力和布局级概率偏差；钢筋模型展示回归效果、高钢筋区间偏差和排序能力。结论应引出局部校准的必要性。
+
 ### 4.2 Online Local Calibration Performance
+
+展示局部校准随样本数增加的效果，以及 layout-wise before/after 改善。重点说明局部校准能够减少概率校准误差、修正钢筋用量系统偏差，并保持较高候选排序准确性。
 
 ### 4.3 Optimization Efficiency and Solution Quality
 
+展示代理辅助优化相对 full FEA 的核心结果。重点比较 FEA 调用次数、最终可行率、材料造价质量和不同优化算法下的一致性，证明方法减少 FEA 开销但不明显损害解质量。
+
 ### 4.4 Ablation and Practical Discussion
+
+讨论方法边界和关键影响因素。包括在线校准的贡献、部分布局本身难以找到可行解的原因、代理模型误差对优化的影响，以及本文方法在实际工程应用中的适用范围。
 
 ## 5. Conclusions
 
+总结本文提出的方法、主要发现和工程意义。强调代理模型用于 FEA 预算分配而非替代最终验算，并指出后续可扩展方向，例如更真实的工程布局、更丰富的设计变量和多目标优化。
+
 ## Acknowledgements
 
+如需要，放置资助、数据或软件工具致谢。
+
 ## References
+
+按目标期刊格式整理相关文献，包括剪力墙优化、代理模型辅助优化、图神经网络、可靠性/校准方法和 OpenSees 结构分析等方向。
