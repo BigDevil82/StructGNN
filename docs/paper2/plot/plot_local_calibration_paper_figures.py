@@ -50,7 +50,9 @@ def main() -> None:
     summary = build_summary_table(feas, steel, args.calib_n)
 
     sample.to_csv(table_dir / "local_calibration_sample_efficiency.csv", index=False)
-    layout["feasibility"].to_csv(table_dir / "local_calibration_feasibility_layout_improvement.csv", index=False)
+    layout["feasibility"].to_csv(
+        table_dir / "local_calibration_feasibility_layout_improvement.csv", index=False
+    )
     layout["steel"].to_csv(table_dir / "local_calibration_steel_layout_improvement.csv", index=False)
     summary.to_csv(table_dir / "local_calibration_summary.csv", index=False)
 
@@ -72,7 +74,14 @@ def build_sample_efficiency(feas: pd.DataFrame, steel: pd.DataFrame) -> pd.DataF
     feas_base = mean_by_size(feas[feas["method"] == FEAS_BASELINE], ["brier", "ece", "screen_reject_rate"])
     feas_best = best_by_size(feas[~feas["method"].str.startswith("global")], "method", "brier")
     for _, row in feas_base.iterrows():
-        rows.append(sample_row("feasibility", "Global", row, {"brier": "brier", "ece": "ece", "screen_reject_rate": "screen_reject_rate"}))
+        rows.append(
+            sample_row(
+                "feasibility",
+                "Global",
+                row,
+                {"brier": "brier", "ece": "ece", "screen_reject_rate": "screen_reject_rate"},
+            )
+        )
     for _, row in feas_best.iterrows():
         rows.append(
             sample_row(
@@ -131,19 +140,27 @@ def sample_row(
     return out
 
 
-def build_layout_improvement(feas: pd.DataFrame, steel: pd.DataFrame, calib_n: int) -> dict[str, pd.DataFrame]:
+def build_layout_improvement(
+    feas: pd.DataFrame, steel: pd.DataFrame, calib_n: int
+) -> dict[str, pd.DataFrame]:
     feas_sub = nearest_calib(feas, calib_n)
     steel_sub = nearest_calib(steel, calib_n)
 
     feas_best = best_by_layout(feas_sub[~feas_sub["method"].str.startswith("global")], "method", "brier")
-    feas_base = layout_mean(feas_sub[feas_sub["method"] == FEAS_BASELINE], ["brier", "ece", "screen_reject_rate"])
+    feas_base = layout_mean(
+        feas_sub[feas_sub["method"] == FEAS_BASELINE], ["brier", "ece", "screen_reject_rate"]
+    )
     feas_layout = feas_best.merge(feas_base, on="layout_id", suffixes=("_calib", "_global"))
-    feas_layout["brier_improve_pct"] = (feas_layout["brier_global"] - feas_layout["brier_calib"]) / feas_layout["brier_global"].clip(lower=1.0e-9)
+    feas_layout["brier_improve_pct"] = (
+        feas_layout["brier_global"] - feas_layout["brier_calib"]
+    ) / feas_layout["brier_global"].clip(lower=1.0e-9)
 
     steel_best = best_by_layout(steel_sub[steel_sub["model"] != STEEL_BASELINE], "model", "mae")
     steel_base = layout_mean(steel_sub[steel_sub["model"] == STEEL_BASELINE], ["mae", "rmse", "bias"])
     steel_layout = steel_best.merge(steel_base, on="layout_id", suffixes=("_calib", "_global"))
-    steel_layout["mae_improve_pct"] = (steel_layout["mae_global"] - steel_layout["mae_calib"]) / steel_layout["mae_global"].clip(lower=1.0e-9)
+    steel_layout["mae_improve_pct"] = (steel_layout["mae_global"] - steel_layout["mae_calib"]) / steel_layout[
+        "mae_global"
+    ].clip(lower=1.0e-9)
     return {"feasibility": feas_layout, "steel": steel_layout}
 
 
@@ -193,6 +210,23 @@ def build_summary_table(feas: pd.DataFrame, steel: pd.DataFrame, calib_n: int) -
             "calibrator": fbest["method"],
         }
     )
+    for metric, label, higher_is_better in [
+        ("recall", "Recall", True),
+        ("pr_auc", "PR-AUC", True),
+        ("screen_reject_rate", "Screen reject rate", True),
+        ("screen_recall", "Screen recall", True),
+    ]:
+        rows.append(
+            {
+                "task": "Feasibility",
+                "metric": label,
+                "global": fbase[metric].mean(),
+                "calibrated": fbest[metric],
+                "improvement_pct": relative_change(fbase[metric].mean(), fbest[metric], higher_is_better),
+                "calib_n": int(fbest["calib_n"]),
+                "calibrator": fbest["method"],
+            }
+        )
     rows.append(
         {
             "task": "Steel",
@@ -204,18 +238,42 @@ def build_summary_table(feas: pd.DataFrame, steel: pd.DataFrame, calib_n: int) -
             "calibrator": sbest["model"],
         }
     )
+    for metric, label, higher_is_better in [
+        ("rmse", "RMSE", False),
+        ("r2", "R2", True),
+        ("mape", "MAPE", False),
+    ]:
+        rows.append(
+            {
+                "task": "Steel",
+                "metric": label,
+                "global": sbase[metric].mean(),
+                "calibrated": sbest[metric],
+                "improvement_pct": relative_change(sbase[metric].mean(), sbest[metric], higher_is_better),
+                "calib_n": int(sbest["calib_n"]),
+                "calibrator": sbest["model"],
+            }
+        )
     rows.append(
         {
             "task": "Steel",
             "metric": "Bias",
             "global": sbase["bias"].mean(),
             "calibrated": sbest["bias"],
-            "improvement_pct": (abs(sbase["bias"].mean()) - abs(sbest["bias"])) / max(abs(sbase["bias"].mean()), 1.0e-9),
+            "improvement_pct": (abs(sbase["bias"].mean()) - abs(sbest["bias"]))
+            / max(abs(sbase["bias"].mean()), 1.0e-9),
             "calib_n": int(sbest["calib_n"]),
             "calibrator": sbest["model"],
         }
     )
     return pd.DataFrame(rows)
+
+
+def relative_change(global_value: float, calibrated_value: float, higher_is_better: bool) -> float:
+    denom = max(abs(float(global_value)), 1.0e-9)
+    if higher_is_better:
+        return (float(calibrated_value) - float(global_value)) / denom
+    return (float(global_value) - float(calibrated_value)) / denom
 
 
 def plot_sample_efficiency(df: pd.DataFrame, out_dir: Path) -> None:
@@ -246,7 +304,7 @@ def plot_sample_efficiency(df: pd.DataFrame, out_dir: Path) -> None:
     for ax, caption in zip(axes.ravel(), captions):
         add_caption(ax, caption)
     fig.suptitle("Sample Efficiency of Layout-Local Calibration", y=0.985)
-    fig.subplots_adjust(left=0.08, right=0.98, bottom=0.11, top=0.91, wspace=0.28, hspace=0.50)
+    fig.subplots_adjust(left=0.08, right=0.98, bottom=0.11, top=0.91, wspace=0.28, hspace=0.35)
     save_figure(fig, "main_3_3_local_calibration_sample_efficiency.png", out_dir)
 
 
