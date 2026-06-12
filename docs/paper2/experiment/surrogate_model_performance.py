@@ -466,14 +466,14 @@ def plot_surrogate_summary(
     for ax, caption in zip(axes.ravel(), captions):
         add_panel_caption(ax, caption)
     fig.suptitle("Global Surrogate Model Performance and Limitations", y=0.985)
-    fig.subplots_adjust(left=0.08, right=0.96, bottom=0.13, top=0.91, wspace=0.32, hspace=0.72)
+    fig.subplots_adjust(left=0.08, right=0.96, bottom=0.11, top=0.91, wspace=0.32, hspace=0.48)
     save_figure(fig, "main_3_2_surrogate_model_performance.png", out_dir)
 
 
 def add_panel_caption(ax: plt.Axes, text: str) -> None:
     ax.text(
         0.5,
-        -0.30,
+        -0.22,
         text,
         transform=ax.transAxes,
         ha="center",
