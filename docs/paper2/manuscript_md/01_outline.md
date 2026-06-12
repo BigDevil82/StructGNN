@@ -78,7 +78,7 @@ CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Sh
 
 ### 3.2 Surrogate Model Training Settings
 
-说明可行性代理模型和钢筋代理模型的训练配置、输入表征、主要 baseline 或对比设置，以及最终用于实验分析的模型版本和训练结果。论文正文中不使用 `artifact` 这类工程实现表述；如果需要保证复现性，可以在附录或开源说明中列出模型权重、预测文件和脚本路径。重点说明两个代理模型的评价目的不同：可行性模型关注保守筛选能力，钢筋模型关注回归误差和候选排序能力。
+说明全局可行性代理模型和钢筋代理模型的训练配置、输入表征、主要 baseline 或对比设置，局部校准模型的不同模型。
 
 ### 3.3 Optimization Benchmark Settings
 
