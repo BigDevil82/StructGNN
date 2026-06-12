@@ -315,14 +315,16 @@ def plot_sample_efficiency(df: pd.DataFrame, out_dir: Path) -> None:
     plot_metric_lines(
         axes[1, 1],
         df[df["task"] == "steel"],
-        "pair_acc",
-        "Pairwise ranking accuracy",
+        "bias",
+        "Bias (t)",
+        value_scale=1.0 / 1000.0,
+        zero_line=True,
     )
     captions = [
         "(a) Feasibility probability calibration error",
         "(b) Screening capacity at high feasible recall",
         "(c) Steel residual prediction error",
-        "(d) Steel candidate ranking accuracy",
+        "(d) Steel residual prediction bias",
     ]
     for ax, caption in zip(axes.ravel(), captions):
         add_caption(ax, caption)
