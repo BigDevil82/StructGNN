@@ -162,7 +162,7 @@ def batch_get_bibtex(doi_file: str, output_file: str, delay: float = 1.5):
 
 def main() -> None:
     print("正在读取结果数据并生成箱线图...")
-    from experiments.ablation.analyze_results import plot_boxplot
+    from docs.paper.experiments.ablation.analyze_results import plot_boxplot
 
     results_path = r"outputs\outputs\result\ablation_study\analysis\conditional_eval_results.json"
     with open(results_path, "r", encoding="utf-8") as f:
