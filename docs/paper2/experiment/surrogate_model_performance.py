@@ -451,13 +451,35 @@ def plot_surrogate_summary(
     seed: int,
 ) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(10.8, 7.4))
-    plot_feasibility_pr_curve(axes[0, 0], feasibility["best_predictions"], feasibility["summary"], feasibility["best_label"])
+    plot_feasibility_pr_curve(
+        axes[0, 0], feasibility["best_predictions"], feasibility["summary"], feasibility["best_label"]
+    )
     plot_feasibility_layout_calibration(axes[0, 1], feasibility["layout"], feasibility["best_label"])
     plot_steel_pred_true(axes[1, 0], steel["best_predictions"], steel["best_label"], sample, seed)
     plot_steel_quantile_error(axes[1, 1], steel["quantile"])
-    fig.suptitle("Global Surrogate Model Performance and Limitations", y=1.02)
-    fig.tight_layout()
+    captions = [
+        "(a) Feasibility prediction: overall test performance",
+        "(b) Feasibility prediction: layout-level probability bias",
+        "(c) Steel usage prediction: overall test performance",
+        "(d) Steel usage prediction: error by true-usage quantile",
+    ]
+    for ax, caption in zip(axes.ravel(), captions):
+        add_panel_caption(ax, caption)
+    fig.suptitle("Global Surrogate Model Performance and Limitations", y=0.985)
+    fig.subplots_adjust(left=0.08, right=0.96, bottom=0.13, top=0.91, wspace=0.32, hspace=0.72)
     save_figure(fig, "main_3_2_surrogate_model_performance.png", out_dir)
+
+
+def add_panel_caption(ax: plt.Axes, text: str) -> None:
+    ax.text(
+        0.5,
+        -0.30,
+        text,
+        transform=ax.transAxes,
+        ha="center",
+        va="top",
+        fontsize=9,
+    )
 
 
 def plot_feasibility_pr_curve(ax: plt.Axes, df: pd.DataFrame, summary: pd.DataFrame, label: str) -> None:
@@ -476,21 +498,20 @@ def plot_feasibility_pr_curve(ax: plt.Axes, df: pd.DataFrame, summary: pd.DataFr
     ax.axhline(base_rate, color="#777777", linewidth=1.0, linestyle="--", label="Base rate")
     ax.text(
         0.04,
-        0.08,
+        0.92,
         f"PR-AUC={metrics['pr_auc']:.3f}\nROC-AUC={metrics['roc_auc']:.3f}\nF1={metrics['f1']:.3f}",
         transform=ax.transAxes,
         ha="left",
-        va="bottom",
+        va="top",
         fontsize=8,
         bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#dddddd", "alpha": 0.9},
     )
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
-    ax.set_title("Feasibility prediction: overall test performance")
     ax.set_xlim(0.0, 1.01)
     ax.set_ylim(0.0, 1.02)
     ax.grid(True)
-    ax.legend(frameon=False)
+    ax.legend(loc="upper right", frameon=False)
 
 
 def plot_feasibility_layout_calibration(ax: plt.Axes, layout: pd.DataFrame, label: str) -> None:
@@ -509,17 +530,8 @@ def plot_feasibility_layout_calibration(ax: plt.Axes, layout: pd.DataFrame, labe
         linewidth=0.4,
     )
     ax.plot([0, 1], [0, 1], color="#555555", linewidth=1.0, linestyle="--")
-    for _, row in part.sort_values("brier", ascending=False).head(4).iterrows():
-        ax.text(
-            row["feasible_rate"] + 0.012,
-            row["predicted_feasible_rate"] + 0.012,
-            str(row["layout_id"]),
-            fontsize=6,
-            color="#333333",
-        )
     ax.set_xlabel("True feasible rate by layout")
     ax.set_ylabel("Mean predicted probability")
-    ax.set_title("Feasibility prediction: layout-level bias")
     ax.set_xlim(-0.02, 1.02)
     ax.set_ylim(-0.02, 1.02)
     ax.grid(True)
@@ -528,6 +540,12 @@ def plot_feasibility_layout_calibration(ax: plt.Axes, layout: pd.DataFrame, labe
 
 
 def plot_steel_pred_true(ax: plt.Axes, df: pd.DataFrame, label: str, sample: int, seed: int) -> None:
+    y_true = df["y_true"].to_numpy(dtype=float)
+    y_pred = df["y_pred"].to_numpy(dtype=float)
+    mae = float(np.mean(np.abs(y_pred - y_true)) / 1000.0)
+    rmse = float(np.sqrt(np.mean((y_pred - y_true) ** 2)) / 1000.0)
+    r2 = safe_metric(r2_score, y_true, y_pred)
+    mape = float(np.mean(np.abs(y_pred - y_true) / np.maximum(y_true, 1.0)))
     part = df
     if len(part) > sample:
         part = part.sample(sample, random_state=seed)
@@ -537,9 +555,18 @@ def plot_steel_pred_true(ax: plt.Axes, df: pd.DataFrame, label: str, sample: int
     lo = float(min(x.min(), y.min()))
     hi = float(max(x.max(), y.max()))
     ax.plot([lo, hi], [lo, hi], color="#555555", linewidth=1.0, linestyle="--")
+    ax.text(
+        0.04,
+        0.96,
+        f"R2={r2:.3f}\nMAE={mae:.1f} t\nRMSE={rmse:.1f} t\nMAPE={100 * mape:.1f}%",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=8,
+        bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#dddddd", "alpha": 0.9},
+    )
     ax.set_xlabel("True steel usage (t)")
     ax.set_ylabel("Predicted steel usage (t)")
-    ax.set_title(f"Predicted vs true: {label}")
     ax.grid(True)
 
 
@@ -552,7 +579,6 @@ def plot_steel_quantile_error(ax: plt.Axes, quantile: pd.DataFrame) -> None:
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_ylabel("Error (t)")
-    ax.set_title("Error by true steel quantile")
     ax.grid(axis="y")
     ax.legend(frameon=False)
 
