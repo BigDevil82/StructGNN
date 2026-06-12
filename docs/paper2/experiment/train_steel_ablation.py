@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from steel_regression_common import TARGET, set_seed, train_regression
+from docs.paper2.experiment.steel_regression_common import TARGET, set_seed, train_regression
 from src.surrogate.gnn.dataset import CAT_COLS, NUM_COLS, GNNDataConfig, build_dataloaders
 from src.surrogate.gnn.model import ParamEncoder, auto_param_emb_dims
 

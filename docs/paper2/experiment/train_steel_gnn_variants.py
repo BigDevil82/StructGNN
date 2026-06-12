@@ -22,7 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from steel_regression_common import TARGET, set_seed, train_regression
+from docs.paper2.experiment.steel_regression_common import TARGET, set_seed, train_regression
 from src.surrogate.gnn.dataset import CAT_COLS, NUM_COLS, GNNDataConfig, build_dataloaders
 from src.surrogate.gnn.model import ParamEncoder, auto_param_emb_dims
 
@@ -245,7 +245,9 @@ def run(cfg: GNNVariantConfig) -> dict[str, object]:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Experimental GNN steel regression variants.")
-    p.add_argument("--variant", choices=("meanmax", "attention", "set2set", "film", "virtual_node"), required=True)
+    p.add_argument(
+        "--variant", choices=("meanmax", "attention", "set2set", "film", "virtual_node"), required=True
+    )
     p.add_argument("--dataset-path", default=GNNVariantConfig.dataset_path)
     p.add_argument("--graph-repr", choices=("member", "room"), default="room")
     p.add_argument("--graph-cache-dir", default=GNNVariantConfig.graph_cache_dir)
