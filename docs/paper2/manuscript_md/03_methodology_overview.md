@@ -8,6 +8,6 @@
 
 这种闭环流程使代理模型在优化过程中扮演辅助决策角色，而不是直接替代结构分析。全局代理模型提供跨布局、跨参数空间的初始判断能力，使优化过程在早期也能进行候选筛选；局部校准模型利用优化过程中已经产生的真实分析结果，提升代理判断对当前布局的适应性；有限元分析则持续为优化器提供可靠反馈，并防止代理误差直接决定最终设计结果。三者共同构成一个“生成候选、代理筛选、真实验证、局部校准、优化更新”的迭代闭环。
 
-后续小节按照这一闭环流程展开。第 2.1 节首先形式化定义剪力墙结构优化问题，包括设计变量、目标函数、约束条件和真实评价器。第 2.2 节说明代理学习数据如何由参数化结构评价流程形成，并介绍布局图和设计参数的输入表征。第 2.3 节描述两个全局代理模型，包括统一的布局参数融合架构、可行性筛选代理和钢筋用量代理。第 2.4 节进一步介绍在线局部校准方法，说明如何利用优化过程中新增的有限元结果校准可行性概率和钢筋用量残差。
+// 后续小节按照这一闭环流程展开。第 2.1 节首先形式化定义剪力墙结构优化问题，包括设计变量、目标函数、约束条件和真实评价器。第 2.2 节说明代理学习数据如何由参数化结构评价流程形成，并介绍布局图和设计参数的输入表征。第 2.3 节描述两个全局代理模型，包括统一的布局参数融合架构、可行性筛选代理和钢筋用量代理。第 2.4 节进一步介绍在线局部校准方法，说明如何利用优化过程中新增的有限元结果校准可行性概率和钢筋用量残差。
 
-在论文图示中，建议图 2.1 采用从左到右的闭环结构。左侧为优化器生成候选方案，中间为代理评估模块，包含可行性筛选和造价预排序，右侧为真实 FEA 与规范校核模块，底部用反馈箭头表示真实结果同时返回优化器和局部校准器。图中应明确区分“代理预测路径”和“真实验证路径”，并突出最终最优方案仍由真实有限元分析确认。
+// 图 2.1 建议设计为“优化闭环 + 代理增强模块”的组合式框架图，而不是把代理模型、优化算法和 FEA 三个部分画成相同权重的并列模块。主体可以采用从左到右的流程：左侧是 optimization algorithm，表示 GA/PSO/random search 等优化器根据历史评价结果生成 candidate designs；中间是本文核心的 surrogate-assisted candidate assessment，建议占据图中最大面积，并在内部进一步拆成 global surrogates、online local calibration、candidate filtering/ranking 三个子模块；右侧是 high-fidelity FEA and code checking，面积略小但用深色或边框强调其 final verification role。数据流上，候选方案从优化器进入代理评估模块，先由 feasibility surrogate 给出可行概率并筛掉明显不可行方案，再由 steel surrogate 加上快速混凝土估计形成 calibrated cost score，对剩余候选进行排序和预算分配；只有被选中的候选进入 FEA。FEA 输出 feasible label、steel usage、concrete volume、material cost，这些结果一条箭头返回优化器用于更新搜索状态，另一条箭头返回 local calibration buffer，用于更新 probability calibration 和 steel residual calibration。图中可以用两种线型区分代理路径和真实验证路径，例如实线表示 FEA-verified feedback，虚线表示 surrogate prediction。视觉重点应放在两个创新点上：一是 global surrogate 经 online local calibration 后再参与决策，二是 calibrated surrogate 不直接给出最终设计结果，而是通过 screening and ranking 减少 FEA 调用。图中不需要展开 OpenSees 建模或网络层细节，这些内容在后续小节说明即可。
