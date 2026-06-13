@@ -64,7 +64,7 @@ $$
 =\max(\hat{m}_s+\widehat{\Delta m}_s,0).
 $$
 
-残差模型可根据局部样本数量采用不同复杂度的回归器。样本较少时使用 Ridge regression 以获得稳定的线性修正；样本增加后可使用 Gaussian process regression 捕捉局部非线性；当局部样本进一步增多时，可采用 LightGBM residual regressor 提升表达能力。无论采用哪类残差模型，校准后的钢筋预测主要用于候选造价排序和 FEA 预算分配，而不作为最终材料用量结果。
+这种残差校准思想与 residual learning 和 gradient boosting 中的逐步误差修正类似。全局钢筋代理模型提供基准预测，局部残差模型只学习当前布局和局部搜索区域中的剩余误差，因此不需要重新学习完整的钢筋用量映射。残差模型可以采用较简单的回归器实现，其输入主要由设计变量和全局钢筋预测组成。校准后的钢筋预测主要用于候选造价排序和 FEA 预算分配，而不作为最终材料用量结果。
 
 结合快速估计的混凝土用量 $\tilde{m}_c$，校准后的候选造价分数可写为
 
@@ -98,6 +98,6 @@ $$
 \{(x,\hat{p}_f,\hat{m}_s,y_f,m_s):x\in \mathcal{S}_t\}.
 $$
 
-未进入真实有限元分析的候选方案只影响当前批次的预算分配，不被作为真实训练标签加入局部校准集。通过这种在线更新机制，代理模型在优化早期主要依赖全局预测，随着真实评价样本累积，逐步获得对当前布局和局部搜索区域更适应的校准能力。
+未进入真实有限元分析的候选方案只影响当前批次的预算分配，不被作为真实训练标签加入局部校准集。通过这种在线更新机制，代理模型在优化早期主要依赖全局预测；随着优化过程不断产生新的 FEA 样本，局部校准器逐步提升可行性概率和钢筋残差预测在当前布局上的准确性。更准确的局部校准进一步改善后续批次的筛选和排序，使有限元预算更集中地分配给高价值候选方案。优化搜索和局部校准由此形成相互促进的闭环：优化过程提供局部真实样本，局部校准提高代理辅助决策质量，改进后的代理决策又提升后续优化效率。
 
 // 正式论文中可以把 2.4.3 配成一个简短算法框：Input: global surrogates, optimizer, local buffer; for each generation: predict, calibrate, screen/rank, evaluate selected candidates, update optimizer and local buffer。算法框应强调 skipped candidates are not accepted as final evaluations。
