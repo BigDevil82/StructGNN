@@ -35,7 +35,7 @@
 
 ## 3.2 Surrogate Model Training Settings
 
-代理模型实验分为全局代理模型比较和局部校准模型比较。全局代理模型包括可行性分类模型和钢筋用量回归模型，二者均在训练布局上训练，并在未见测试布局上评估。为验证本文图表征代理模型的有效性，实验与若干常用机器学习和深度学习 baseline 进行比较，包括 parameter-only MLP、parameter + layout statistics MLP、LightGBM、CatBoost 以及 room-graph LayoutParamGNN。上述对比用于评估布局信息、图结构表征和表格型特征在两个代理任务中的贡献。
+代理模型实验分为全局代理模型比较和局部校准模型比较。全局代理模型包括可行性分类模型和钢筋用量回归模型，二者均在训练布局上训练，并在未见测试布局上评估。为验证布局信息和图结构表征的作用，本文比较三类模型。第一类模型仅使用截面、材料和设计条件参数作为输入，通过多层感知机进行预测；第二类模型在上述设计参数基础上进一步加入全局布局统计特征，同样采用多层感知机作为预测器；第三类模型为本文采用的 room-graph LayoutParamGNN，它同时利用房间图结构、全局布局特征和设计参数。上述对比用于区分设计参数本身、人工统计布局特征以及图结构表征对代理预测性能的贡献。
 
 局部校准实验在测试布局内进行。对于每个测试布局，随机抽取不同数量的 FEA 样本作为局部校准集，其余样本作为布局内验证集，以模拟优化过程中逐步积累真实分析结果的过程。可行性概率校准比较 Platt scaling、isotonic regression、local logistic calibration、概率残差修正和 ensemble vote correction。钢筋残差校准比较 Ridge regression、Gaussian process regression、LightGBM、KNN 和小型 MLP。每种设置重复多次随机抽样，以减小局部样本选择带来的偶然性。
 
