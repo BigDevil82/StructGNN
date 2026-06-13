@@ -23,6 +23,8 @@ $$
 
 // 模型结构图可以画成三路输入：room graph -> GNN encoder；design parameters -> parameter encoder；layout statistics -> direct features。三路融合后分出两个 task heads：feasibility probability 和 steel usage。图中不需要画具体层数、激活函数或训练超参数。
 
+// 英文正式写作时，这一小节可以适度补充三个层面的细节。第一，解释为什么选择 room graph 而不是 member graph，例如 room graph 更接近建筑空间组织，节点规模更稳定，也能表达剪力墙布置对空间单元的分隔关系。第二，说明 GNN encoder、parameter encoder 和 global feature fusion 的功能分工，而不是展开具体超参数。第三，交代两个任务共享 backbone 但分别训练或分别设置 task head 的原因：共享输入表征保证方法统一，任务头区分分类概率和连续钢筋用量输出。若篇幅允许，可以给出一张模型结构图，并在正文中用 2-3 句话解释每条输入分支的物理含义。
+
 ## 2.3.2 Feasibility Screening Surrogate
 
 可行性代理模型用于估计候选方案通过综合校核的概率。给定输入 $z=\{G,q,p\}$，模型输出
@@ -34,6 +36,8 @@ $$
 该概率反映候选方案在当前布局、截面材料参数和设计条件下满足分析与设计要求的可能性。在普通分类任务中，阈值通常根据 accuracy、F1 score 或 balanced accuracy 等指标选择；但在本文的优化场景中，可行性模型承担的是保守筛选角色，其主要目标是减少明显不可行方案的真实分析调用，同时尽量避免误删潜在可行方案。
 
 因此，阈值选择更关注 feasible recall，即真实可行方案中被保留下来的比例。较高的 feasible recall 能够降低优化过程错过可行优质方案的风险。对于概率低于筛选阈值的候选方案，优化器可将其视为低优先级或直接跳过真实有限元分析；对于概率高于阈值的候选方案，仍需结合后续造价预排序和真实分析预算决定是否进入有限元分析。该使用方式强调可行性代理模型的筛选价值，而不是将其预测标签作为最终结构校核结果。
+
+// 英文正式写作时，这一小节需要比当前正文更明确地区分 classification performance 和 screening performance。可以先说明训练目标是预测 `final_pass`，再说明优化应用中真正关心的是 false negative risk，即真实可行方案被筛掉的风险。因此阈值不是按默认 0.5 或最大 F1 选取，而是根据验证集上的目标 feasible recall 或保守筛选要求确定。这里还可以补充概率校准的重要性，为 2.4 的局部可行性校准做铺垫。若实验部分有对应指标，正文中可提前说明会报告 ROC-AUC/PR-AUC、recall、screen recall、reject rate 等不同指标，其中 reject rate 代表节省 FEA 的潜力，screen recall 代表筛选安全性。
 
 ## 2.3.3 Steel Usage Surrogate and Cost Score
 
@@ -60,3 +64,5 @@ $$
 其中 $\eta$ 为可行性风险惩罚系数。该分数用于决定有限元分析预算在一批候选方案中的分配顺序。分数较低的候选方案更可能进入真实分析流程，而被代理模型判断为高风险或高造价的方案可延后或跳过。通过这种方式，钢筋用量代理模型与可行性代理模型共同服务于优化过程中的候选预筛选，而最终材料造价仍由真实分析和设计校核结果确定。
 
 // 这一节需要避免把 steel surrogate 描述成“最终造价预测器”。论文中应始终强调它用于 pre-ranking / budget allocation，最终 reported cost 来自 FEA-based design check。
+
+// 英文正式写作时，这一小节可以补充钢筋预测与最终优化目标之间的关系。优化目标是材料造价，而钢筋用量只是其中一个组成部分；混凝土用量由于可由几何和截面参数快速估计，因此无需训练复杂代理模型。钢筋用量则依赖结构分析和截面设计结果，是更适合代理建模的昂贵量。这里还可以说明 cost score 的作用是 batch-level preselection：在一批候选方案中决定哪些更值得进入 FEA，而不是用 $\hat{C}$ 作为最终 objective。若需要进一步严谨，可以把 $S$ 描述为 ranking score 而非 predicted cost，并说明 $\eta$ 控制可行性风险和经济性之间的权衡。
