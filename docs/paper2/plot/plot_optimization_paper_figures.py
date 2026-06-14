@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.ticker import ScalarFormatter
-
 from optimization_plot_data import (
     DEFAULT_EXPERIMENTS,
     complete_case_rows,
@@ -17,7 +16,6 @@ from optimization_plot_data import (
     paired_with_full,
     read_payload,
     screening_flow,
-    sort_layouts_for_heatmap,
 )
 from paper_plot_style import (
     ALGORITHM_ORDER,
@@ -140,7 +138,7 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
 
 def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> None:
     thresholds = np.array([0, 1, 2, 3, 5, 8, 10, 15], dtype=float)
-    fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=False)
     for ax, algorithm in zip(axes, ALGORITHM_ORDER):
         sub = paired[(paired["algorithm"] == algorithm) & paired["full_feasible"]].copy()
         for method in SURROGATE_METHODS:
@@ -168,8 +166,7 @@ def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> N
         ax.set_ylim(0, 105)
         ax.set_xlim(thresholds.min(), thresholds.max())
         ax.grid(True)
-        if ax is axes[0]:
-            ax.set_ylabel("Qualified case ratio (%)")
+        ax.set_ylabel("Qualified ratio among full-feasible cases (%)")
     axes[-1].legend(loc="lower right", frameon=False)
     fig.suptitle("Efficiency-Quality Qualification Under Cost Tolerance", y=1.02)
     fig.tight_layout()
@@ -179,10 +176,11 @@ def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> N
 def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
     df = df.copy()
     df["col"] = df["algorithm"] + "\n" + df["method"].map(METHOD_LABELS_SHORT)
-    layout_order = sort_layouts_for_heatmap(df)
     col_order = [f"{algo}\n{METHOD_LABELS_SHORT[m]}" for algo in ALGORITHM_ORDER for m in METHOD_ORDER]
     grouped = df.groupby(["layout_id", "col"])["best_feasible"].agg(["mean", "sum", "count"]).reset_index()
-    matrix = grouped.pivot(index="layout_id", columns="col", values="mean").reindex(layout_order)[col_order]
+    matrix = grouped.pivot(index="layout_id", columns="col", values="mean")[col_order]
+    layout_order = _sort_layouts_by_success_pattern(matrix, col_order)
+    matrix = matrix.reindex(layout_order)
     counts = grouped.pivot(index="layout_id", columns="col", values="sum").reindex(layout_order)[col_order]
     totals = grouped.pivot(index="layout_id", columns="col", values="count").reindex(layout_order)[col_order]
 
@@ -212,6 +210,13 @@ def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
     cbar.set_label("Success rate")
     fig.tight_layout()
     save_figure(fig, "main_03_success_heatmap.png", out_dir)
+
+
+def _sort_layouts_by_success_pattern(matrix: pd.DataFrame, col_order: list[str]) -> list[str]:
+    sort_df = matrix[col_order].fillna(-1.0).copy()
+    sort_df["_layout_id"] = sort_df.index.astype(str)
+    sort_df = sort_df.sort_values(col_order + ["_layout_id"], ascending=[False] * len(col_order) + [True])
+    return sort_df.index.tolist()
 
 
 def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str) -> None:
