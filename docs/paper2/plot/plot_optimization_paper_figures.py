@@ -304,15 +304,35 @@ def select_representative_cases(df: pd.DataFrame, algorithm: str) -> list[dict[s
         "first_feasible_fea_calls"
     )
     selected: list[dict[str, object]] = []
+    used_layouts: set[str] = set()
     if not feasible.empty:
-        selected.append(case_dict(feasible.iloc[0], "Easy"))
-        selected.append(case_dict(feasible.iloc[len(feasible) // 2], "Medium"))
+        easy = feasible.iloc[0]
+        selected.append(case_dict(easy, "Easy"))
+        used_layouts.add(str(easy["layout_id"]))
+        medium = _pick_distinct_case(feasible, len(feasible) // 2, used_layouts)
+        if medium is not None:
+            selected.append(case_dict(medium, "Medium"))
+            used_layouts.add(str(medium["layout_id"]))
     hard = full[~full["best_feasible"]].sort_values("best_objective")
     if not hard.empty:
-        selected.append(case_dict(hard.iloc[0], "Hard"))
+        row = _pick_distinct_case(hard, 0, used_layouts)
+        selected.append(case_dict(row if row is not None else hard.iloc[0], "Hard"))
     elif len(feasible) >= 3:
-        selected.append(case_dict(feasible.iloc[-1], "Hard"))
+        row = _pick_distinct_case(feasible, len(feasible) - 1, used_layouts)
+        selected.append(case_dict(row if row is not None else feasible.iloc[-1], "Hard"))
     return selected[:3]
+
+
+def _pick_distinct_case(df: pd.DataFrame, target_idx: int, used_layouts: set[str]) -> pd.Series | None:
+    if df.empty:
+        return None
+    target_idx = min(max(int(target_idx), 0), len(df) - 1)
+    order = sorted(range(len(df)), key=lambda i: (abs(i - target_idx), i))
+    for i in order:
+        row = df.iloc[i]
+        if str(row["layout_id"]) not in used_layouts:
+            return row
+    return df.iloc[target_idx]
 
 
 def case_dict(row: pd.Series, label: str) -> dict[str, object]:
