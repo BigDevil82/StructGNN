@@ -96,17 +96,53 @@ CASCADE: Calibrated Adaptive Surrogate Candidate Assessment for FEA-Efficient Sh
 
 展示两个全局代理模型的整体性能和局限性。可行性模型展示整体分类能力和布局级概率偏差；钢筋模型展示回归效果、高钢筋区间偏差和排序能力。结论应引出局部校准的必要性。
 
+主要解读图 outputs\result\paper2\surrogate_model_performance\plots\main_3_2_surrogate_model_performance.png 中的四个子图：（a）ROC-AUC 和 PR-AUC 展示可行性模型的整体分类性能；(b) 不同布局下的模型预测的可行性概率与真实概率的对比，展示模型在不同布局下的预测偏差；Predicted vs True Steel Usage 展示钢筋模型的回归性能和高钢筋区间偏差；Steel Usage pred error by true steel usage quantile 展示钢筋模型在不同钢筋用量区间下的预测误差。
+
+实验结果表明，两个全局代理模型在整体上具有一定的预测能力，但存在明显的局限性。可行性模型虽然在分类指标上表现尚可，但在不同布局上的概率预测存在系统偏差，导致难以直接用于可靠的筛选。钢筋模型在回归指标上表现一般，尤其在高钢筋用量区间存在较大偏差，虽然排序能力较好，但仍无法直接替代最终材料用量结果。这些结果表明全局代理模型不能完全信任，需要通过在线局部校准来修正其偏差并提升优化效率。
+
 ### 4.2 Online Local Calibration Performance
 
 展示局部校准随样本数增加的效果，以及 layout-wise before/after 改善。重点说明局部校准能够减少概率校准误差、修正钢筋用量系统偏差，并保持较高候选排序准确性。
+
+图outputs\result\paper2\local_calibration\plots\main_3_3_local_calibration_layout_improvement.png 展示了采用100个样本进行局部校准在不同布局上的改进效果。图（a）展示了局部校准后可行性概率预测的改善，图（b）展示了局部校准后钢筋用量预测的改善。可行性模型在Brier score较大的布局上效果显著，明显降低了预测误差，然而仍不能完全消除偏差，这也解释了为什么不能直接依赖代理模型的结果进行结构优化。钢筋用量预测模型经局部校准后在高钢筋用量区间的偏差得到明显修正，在不同的quantile区间的MAE基本相近且较低，说明局部校准有效提升了模型在当前布局上的预测性能。
+
+main_3_3_local_calibration_sample_efficiency 这张图则展示了随着局部校准样本数增加，概率校准误差和钢筋用量预测误差的变化趋势。结果表明，可行性模型仅需25个样本就能显著降低概率校准误差，且随着样本数增加，误差持续下降但边际效益递减；reject rate在25个样本已达到约50%，说明局部校准能够快速提升代理模型的筛选能力。钢筋用量预测模型校准的样本效率极高，不同的样本数达到的MAE和bias水平相近。且校准后bias接近0，说明局部校准成功修正了钢筋用量预测的系统偏差。
+
+从下面这个表可以看出，局部校准在可行性模型的 Brier score 和 ECE 上分别提升了 42% 和 63%，在筛选指标上 reject rate 提升了 16%，虽然 screen recall 有轻微下降，但仍保持在非常高的水平（99.39%）。钢筋用量预测模型在 MAE、RMSE、R2 和 MAPE 上分别提升了 82%、78%、17% 和 82%，说明局部校准显著提升了模型的回归性能。
+
+task	metric	global	calib	improvement
+Feasibility	Brier	0.07 	0.04 	42%
+Feasibility	ECE	0.09 	0.03 	63%
+Feasibility	Screen reject rate	0.47 	0.55 	16%
+Feasibility	Screen recall	0.9990 	0.9939 	-1%
+Steel	MAE	11479.89 	2044.75 	82%
+Steel	RMSE	12300.64 	2755.98 	78%
+Steel	R2	0.85 	0.99 	17%
+Steel	MAPE	0.09 	0.02 	82%
+
 
 ### 4.3 Optimization Efficiency and Solution Quality
 
 展示代理辅助优化相对 full FEA 的核心结果。重点比较 FEA 调用次数、最终可行率、材料造价质量和不同优化算法下的一致性，证明方法减少 FEA 开销但不明显损害解质量。
 
-### 4.4 Ablation and Practical Discussion
+相关图片在 outputs\result\paper2\optim_efficiency
+main_01_distribution_summary_3x3 对比了GA，PSO、Random Search三种不同优化算法三种筛选模式下FEA调用次数、造价差距和找到首个可行解所需FEA调用数的分布情况。结果表明，不同优化算法，可行性筛选+造价排序筛选均可以显著降低FEA调用次数，同时保持较低的造价差距。这也就是说，代理辅助优化在不牺牲解质量的前提下，能够有效减少结构分析的计算开销。同时，经过筛选后，找到首个可行解所需的FEA调用数也降低，说明代理模型在优化初期就能够有效引导搜索过程远离明显不可行的设计区域。此外，Random Search即使仅通过代理模型进行筛选，也可以降低FEA调用次数并保持较好的解质量，说明代理模型的确筛出了大量不可行的设计方案。基于两种代理辅助筛选的优化方法在不同优化算法下表现出较好的一致性，说明该方法具有较好的鲁棒性。
 
-讨论方法边界和关键影响因素。包括在线校准的贡献、部分布局本身难以找到可行解的原因、代理模型误差对优化的影响，以及本文方法在实际工程应用中的适用范围。
+main_02_tolerance_success_curve 这张图展示在仅考虑 full FEA baseline 能够找到可行解的 cases 上，进一步比较代理辅助方法是否能够在减少 FEA 调用的同时保持接近的优化质量。横轴表示相对于 full FEA 最优造价允许增加的容差，纵轴表示满足“找到可行解、FEA 调用次数减少、最终造价不超过给定容差”三个条件的 case 比例。可以看到，随着容差从 0% 增加到约 5%，三类优化算法下的合格比例均快速上升，之后趋于平稳，说明代理辅助方法在大多数可解 case 中能够以较小造价损失换取 FEA 调用次数减少。相比仅使用造价代理的设置，结合可行性筛选与造价预排序的方法在 GA、PSO 和 random search 中整体取得更高的合格比例，表明可行性筛选能够有效避免低造价但不可行的候选方案占用评价预算，从而提升代理辅助优化的稳定性。需要注意的是，不同算法子图中的样本基数不同，因此图中标注的合格 case 数不能直接横向比较；该图主要用于说明在各自 full-feasible cases 内，代理辅助方法保持解质量并减少 FEA 调用的能力。
+
+### 4.4 Discussion: Mechanism and Practical Implications of Surrogate-Assisted Optimization
+
+前述结果表明，校准代理辅助方法能够在保持可行率和最终造价基本稳定的同时显著降低真实 FEA 调用次数。为了理解这一现象，需要从优化过程本身出发，观察候选方案在代理筛选、造价预排序和真实 FEA 验证之间如何流动。因此，本节从三个层面展开讨论：首先分析候选方案在代理辅助流程中的分流比例，以说明 FEA 调用减少的直接来源；随后通过代表性优化轨迹说明可行性代理和造价代理的互补作用；最后从布局层面分析不同方法的成功率差异，讨论方法的适用范围和困难案例的来源。
+
+在线校准的贡献可以从图outputs\result\paper2\discussion\supp_03_screening_funnel.png反映出来。该图展示了代理辅助策略在优化过程中对候选方案的分流作用。堆叠区域表示每一代候选方案中被可行性代理模型提前筛除、通过可行性筛选但因造价预排序被跳过、以及最终进入真实 FEA 的平均比例。可以看到，约 60% 的候选方案在进入 FEA 前被代理流程过滤，说明代理模型有效减少了真实分析调用。绿色曲线表示全部候选方案中最终经过 FEA 验证且确认为可行的比例。绿色曲线低于红色区域说明，进入 FEA 的候选中仍有一部分未能通过真实校核。这是因为可行性筛选采用保守策略，目标是尽量避免误删潜在可行方案，因此会有意保留部分不确定或边界候选进入 FEA 验证。
+
+outputs\result\paper2\discussion\main_04_process_scatter_examples.png 这张图，选取了三个具有代表性的 GA 优化过程，分别对应较易、中等和困难的布局案例，用于展示代理模型在候选筛选和搜索轨迹中的作用。Full FEA 方法对所有候选方案进行真实分析，因此可以观察到大量高造价候选和不可行候选被反复评估。引入钢筋用量代理后，优化过程优先保留预测材料造价较低的候选方案，使高造价、偏保守的设计明显减少，搜索轨迹更集中于较低造价区域。然而，仅依赖造价代理仍无法充分区分低造价但不满足规范要求的方案，因此在 Cost surrogate 列中仍存在较多灰色不可行点。进一步加入可行性筛选后，Screen + cost 方法显著减少了进入 FEA 的不可行候选，剩余评价点以绿色可行方案为主，同时得到的最优可行造价与 Full FEA 和 Cost surrogate 基本接近。这说明两个代理模型在优化中承担了互补作用，即钢筋用量代理主要压缩高造价候选的评价空间，可行性代理则进一步减少低价值的不可行候选，从而在不明显损害最终解质量的前提下降低真实 FEA 调用次数。
+
+对于第三个困难案例，三种方法均未能发现可行解。值得注意的是，Full FEA 和 Screen + cost 都尝试了较宽范围的材料造价水平，其中也包括相对较高造价的截面方案，但所有候选仍未通过校核。这表明该案例的失败并非由代理筛选过度激进造成，而更可能源于布局本身或当前截面材料搜索空间的限制。换言之，对于部分结构布置，仅通过截面尺寸和材料等级优化可能不足以获得满足规范要求的方案，后续需要回到布局层面调整剪力墙布置或扩大设计变量范围。
+
+outputs\result\paper2\discussion\main_03_success_heatmap.png 该热力图展示了不同优化算法和代理辅助策略在各测试布局上的可行解发现率。行按照各方法从左到右的成功率模式排序，因此图中从上到下大致反映了布局优化难度由低到高的变化。可以看到，部分布局在 GA、PSO 和 random search 下均能稳定找到可行解，说明这些布局在当前截面与材料搜索空间内具有较大的可行域；而底部若干布局即使在 full FEA baseline 下成功率也较低，表明其困难主要来自布局或搜索空间本身，而非代理筛选造成。相比仅使用钢筋造价代理的设置，加入可行性筛选与局部校准后的 `Screen + cost` 方法在 GA 和 PSO 中整体表现更接近 full FEA，并在多个布局上高于仅使用 cost surrogate 的方法，说明可行性筛选有助于避免低造价但不可行的候选方案占用有限评价预算。Random search 中三种方法差异较小，说明在缺少有效搜索更新机制时，代理筛选主要减少计算开销，而对可行解发现率的提升受到随机采样质量限制。
+
+Taken together, these process-level analyses clarify the role of the proposed surrogate-assisted framework. The funnel analysis shows how FEA calls are reduced, the trajectory examples reveal the complementary effects of cost-based ranking and feasibility screening, and the layout-level heatmap highlights the dependence of optimization success on layout difficulty. These observations support the practical interpretation of the method: calibrated surrogates are most useful as decision-support tools for allocating expensive FEA evaluations, while final design acceptance must remain tied to physics-based analysis and code checking.
 
 ## 5. Conclusions
 
