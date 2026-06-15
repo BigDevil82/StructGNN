@@ -32,9 +32,9 @@ from paper_plot_style import METHOD_COLORS, save_figure, set_paper_style
 GROUP_COLS = ["layout_id", "N", "hs", "h_story", "intensity", "site_class", "seismic_group"]
 TARGET_RECALLS = [0.90, 0.95, 0.98, 0.99, 0.995, 0.999]
 MODEL_COLORS = {
-    "Param only": "#8fb6d6",
-    "Param + layout stats": "#efbd75",
-    "LayoutParamGNN": "#e8a69d",
+    "Design-parameter MLP": "#8fb6d6",
+    "Design-parameter + layout-statistics MLP": "#efbd75",
+    "Room-graph LayoutParamGNN": "#e8a69d",
 }
 
 
@@ -89,7 +89,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--feasibility-models",
         nargs="+",
         default=[
-            r"LayoutParamGNN=data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1",
+            r"Design-parameter MLP=data\parametric\ckpt\feas_ablation_param_only",
+            r"Design-parameter + layout-statistics MLP=data\parametric\ckpt\feas_ablation_param_graph_feat",
+            r"Room-graph LayoutParamGNN=data\parametric\ckpt\baseline_gnn_room_hybrid_h256_screen995_v1",
         ],
         help="Model specs as label=artifact_dir. Each artifact needs metrics.json and/or predictions_test.parquet.",
     )
@@ -97,9 +99,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--steel-models",
         nargs="+",
         default=[
-            r"Param only=data\parametric\ckpt\steel_ablation_param_only",
-            r"Param + layout stats=data\parametric\ckpt\steel_ablation_param_graph_feat",
-            r"LayoutParamGNN=data\parametric\ckpt\steel_gnn_room_lr5e4_b512",
+            r"Design-parameter MLP=data\parametric\ckpt\steel_ablation_param_only",
+            r"Design-parameter + layout-statistics MLP=data\parametric\ckpt\steel_ablation_param_graph_feat",
+            r"Room-graph LayoutParamGNN=data\parametric\ckpt\steel_gnn_room_lr5e4_b512",
         ],
         help="Model specs as label=artifact_dir. Each artifact needs predictions_test.parquet.",
     )
