@@ -1,3 +1,5 @@
+
+
 \section{Experimental Setup}
 \label{sec:experimental_setup}
 
@@ -13,6 +15,30 @@ First, the global surrogate models are evaluated on unseen shear wall layouts. T
 Second, the effectiveness of online local calibration is investigated. Since each optimization task is performed for a fixed layout and design condition, FEA-verified samples generated during optimization can provide layout-specific feedback. The calibration experiments therefore examine whether a small number of locally verified samples can improve feasibility probability calibration, reduce reinforcement prediction bias, and improve candidate ranking in the current layout.
 
 Third, the calibrated surrogate models are embedded into optimization procedures. The optimization experiments compare full FEA-based optimization with several surrogate-assisted evaluation strategies. The comparison focuses on the number of true FEA calls, feasible-solution discovery, and final material cost. All compared methods use the same design space and true evaluator, and the final best solution is always determined by FEA-verified results.
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{global_surrogate_overview.png}
+\caption{Overall performance and error patterns of the global layout-parameter surrogate model.}
+\label{fig:global_surrogate_overview}
+\end{figure*}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{local_calibration_effect.png}
+\caption{Effect of online local calibration using FEA-verified samples from the current layout.}
+\label{fig:local_calibration_effect}
+\end{figure*}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{calibration_sample_efficiency.png}
+\caption{Sample efficiency of online local calibration under different numbers of local FEA-verified samples.}
+\label{fig:calibration_sample_efficiency}
+\end{figure*}
 
 \subsection{Dataset and Structural Evaluation}
 \label{subsec:dataset_structural_evaluation}
