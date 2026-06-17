@@ -79,27 +79,29 @@ Table~\ref{tab:local_calibration_results} summarizes representative results usin
 
 For the reinforcement surrogate, local residual calibration significantly improves both accuracy and bias. The MAE decreases from 11.48~t to 2.04~t, the RMSE decreases from 12.30~t to 2.76~t, and the $R^2$ increases from 0.847 to 0.994. The MAPE decreases from 9.26\% to 1.64\%, and the bias is reduced from $-5.02$~t to nearly zero. These results confirm that the residual calibration model effectively corrects the systematic error of the global reinforcement surrogate in the current layout.
 
-\begin{table*}[t]
+\begin{table}[t]
 \centering
 \caption{Representative local calibration results using 100 FEA-verified samples.}
 \label{tab:local_calibration_results}
-\small
-\setlength{\tabcolsep}{6pt}
-\begin{tabularx}{0.88\textwidth}{@{}llrrr@{}}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.20\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}@{}}
 \toprule
-Task & Metric & Global & Calibrated & Improvement \\
+Metric & Global & Calib. & Improv. \\
 \midrule
-Feasibility & Brier & 0.0749 & 0.0437 & 42\% \\
-Feasibility & ECE & 0.0895 & 0.0333 & 63\% \\
-Feasibility & Screen reject rate & 0.4708 & 0.5481 & 16\% \\
-Feasibility & Screen recall & 0.9990 & 0.9939 & -1\% \\
-Steel & MAE & 11.48~t & 2.04~t & 82\% \\
-Steel & RMSE & 12.30~t & 2.76~t & 78\% \\
-Steel & $R^2$ & 0.847 & 0.994 & 17\% \\
-Steel & MAPE & 9.26\% & 1.64\% & 82\% \\
+\multicolumn{4}{@{}l}{\textit{Feasibility}} \\
+Brier & 0.0749 & 0.0437 & 42\% \\
+ECE & 0.0895 & 0.0333 & 63\% \\
+Screen reject rate & 0.4708 & 0.5481 & 16\% \\
+Screen recall & 0.9990 & 0.9939 & -1\% \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Steel}} \\
+MAE & 11.48~t & 2.04~t & 82\% \\
+RMSE & 12.30~t & 2.76~t & 78\% \\
+$R^2$ & 0.847 & 0.994 & 17\% \\
+MAPE & 9.26\% & 1.64\% & 82\% \\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
 Figure~\ref{fig:calibration_sample_efficiency} further shows the influence of local calibration sample size. For feasibility calibration, a small number of local samples already reduces probability calibration error, and further increasing the sample size leads to gradually diminishing returns. For reinforcement residual calibration, the MAE and bias are consistently lower than those of the global model across different sample sizes. This suggests that the global model has already learned the main cross-layout mapping, while local calibration only needs to correct the remaining layout-specific residual.
 
