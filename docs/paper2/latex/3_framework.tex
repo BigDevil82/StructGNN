@@ -10,7 +10,7 @@ The essential feature of the framework is that surrogate predictions are used on
 
 For a fixed shear wall layout $L$ and design condition $c$, the optimization task is to search the design space $\mathcal{X}$ for section and material parameters that minimize the material cost while satisfying all structural checks. At iteration $t$, the optimizer $\mathcal{O}$ generates a batch of candidate designs:
 \begin{equation}
-\mathcal{B}*t=
+\mathcal{B}_t=
 \left\{
 x_{t,1},x_{t,2},\ldots,x_{t,N_b}
 \right\},
@@ -45,7 +45,7 @@ If the local calibration set $\mathcal{D}_{t}^{loc}$ satisfies the activation co
 \end{equation}
 where $\mathcal{C}_{f,t}$ and $\mathcal{C}_{s,t}$ denote the feasibility probability calibration model and the reinforcement residual calibration model at iteration $t$, respectively. If the calibration conditions are not satisfied, the framework directly uses the global predictions, namely $\hat{p}_{f,t,i}^{C}=\hat{p}_{f,t,i}^{G}$ and $\hat{m}_{s,t,i}^{C}=\hat{m}_{s,t,i}^{G}$.
 
-The calibrated predictions are then used for candidate screening and priority ranking. The candidate subset selected for true evaluation is denoted by $\mathcal{S}*t\subseteq \mathcal{B}*t$. For each candidate in $\mathcal{S}*t$, the true evaluator produces FEA-verified results:
+The calibrated predictions are then used for candidate screening and priority ranking. The candidate subset selected for true evaluation is denoted by $\mathcal{S}_t\subseteq \mathcal{B}_t$. For each candidate in $\mathcal{S}_t$, the true evaluator produces FEA-verified results:
 \begin{equation}
 \mathcal{E}(L,c,x_{t,i})
 \rightarrow
@@ -55,7 +55,7 @@ The calibrated predictions are then used for candidate screening and priority ra
 \end{equation}
 These verified results are used to update the optimizer and to expand the local calibration set. The overall framework is illustrated in Fig.~\ref{fig:calibrated_optimization_framework}.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
 \fbox{
 \parbox[c][0.30\textheight][c]{0.88\textwidth}{
@@ -66,7 +66,7 @@ Replace this box with the actual figure.
 }
 \caption{Calibrated surrogate-assisted optimization framework. The surrogate module pre-evaluates candidates and allocates the FEA budget, while the final feasibility and objective value are determined by the true evaluator.}
 \label{fig:calibrated_optimization_framework}
-\end{figure}
+\end{figure*}
 
 \subsection{Candidate Screening and Priority Ranking}
 \label{subsec:candidate_screening_ranking}
@@ -78,7 +78,7 @@ Given the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and the scree
 \mathcal{B}_{t}^{pass}
 =
 \left\{
-x_{t,i}\in\mathcal{B}*t
+x_{t,i}\in\mathcal{B}_t
 \mid
 \hat{p}_{f,t,i}^{C}\ge \tau_t
 \right\}.
@@ -108,7 +108,7 @@ where $\rho(\cdot)$ is a decreasing feasibility-risk function and $\eta$ is the 
 
 The selected candidate subset is obtained by ranking candidates in $\mathcal{B}_{t}^{pass}$ according to $S_{t,i}^{C}$:
 \begin{equation}
-\mathcal{S}*t
+\mathcal{S}_t
 =
 \mathrm{TopK}
 \left(
@@ -123,7 +123,7 @@ Through this two-stage mechanism, the feasibility surrogate and the reinforcemen
 \subsection{Online Update with FEA-Verified Samples}
 \label{subsec:online_update_framework}
 
-After the selected candidates $\mathcal{S}*t$ are evaluated by the true evaluator, their verified results are used in two ways. First, they are used by the optimizer to update the search state. For a feasible candidate, the true material cost is calculated from the verified reinforcement and concrete quantities:
+After the selected candidates $\mathcal{S}_t$ are evaluated by the true evaluator, their verified results are used in two ways. First, they are used by the optimizer to update the search state. For a feasible candidate, the true material cost is calculated from the verified reinforcement and concrete quantities:
 \begin{equation}
 C_{t,i}
 =
