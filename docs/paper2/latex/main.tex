@@ -1,0 +1,252 @@
+% !TeX root = main.tex
+%% 
+%% Copyright 2007-2020 Elsevier Ltd
+%% 
+%% This file is part of the 'Elsarticle Bundle'.
+%% ---------------------------------------------
+%% 
+%% It may be distributed under the conditions of the LaTeX Project Public
+%% License, either version 1.2 of this license or (at your option) any
+%% later version.  The latest version of this license is in
+%%    http://www.latex-project.org/lppl.txt
+%% and version 1.2 or later is part of all distributions of LaTeX
+%% version 1999/12/01 or later.
+%% 
+%% The list of all files belonging to the 'Elsarticle Bundle' is
+%% given in the file `manifest.txt'.
+%% 
+
+%% Template article for Elsevier's document class `elsarticle'
+%% with numbered style bibliographic references
+%% SP 2008/03/01
+%%
+%% 
+%%
+%% $Id: elsarticle-template-num.tex 190 2020-11-23 11:12:32Z rishi $
+%%
+%%
+% \documentclass[preprint,12pt]{elsarticle}
+
+%% Use the option review to obtain double line spacing
+%% \documentclass[authoryear,preprint,review,12pt]{elsarticle}
+
+%% Use the options 1p,twocolumn; 3p; 3p,twocolumn; 5p; or 5p,twocolumn
+%% for a journal layout:
+%% \documentclass[final,1p,times]{elsarticle}
+%% \documentclass[final,1p,times,twocolumn]{elsarticle}
+%% \documentclass[final,3p,times]{elsarticle}
+% \documentclass[final,3p,times,twocolumn]{elsarticle}
+%% \documentclass[final,5p,times]{elsarticle}
+\documentclass[final,5p,times,twocolumn, fleqn]{elsarticle}
+
+%% For including figures, graphicx.sty has been loaded in
+%% elsarticle.cls. If you prefer to use the old commands
+%% please give \usepackage{epsfig}
+
+%% The amssymb package provides various useful mathematical symbols
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{enumerate}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{lineno}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{cuted}
+\setlength{\linenumbersep}{3pt}
+\hyphenpenalty=1000
+\hypersetup{
+     colorlinks   = true,
+     linkcolor    = blue,
+     citecolor    = blue
+}
+\setlength{\mathindent}{0pt}
+% \newenvironment{revblock}
+%   {\begingroup\ifdefined\makeunmarked\else\color{red}\fi}
+%   {\endgroup}
+
+% \ifdefined\makeunmarked
+%   \RenewDocumentCommand{\textcolor}{O{} m m}{#3}
+% \fi
+
+\captionsetup[table]{
+  labelfont=bf,             % "Table n" 加粗
+  singlelinecheck=false,    % 强制左对齐（禁止单行居中）
+  justification=raggedright, % 文本左对齐
+  labelsep=newline          % 如果希望 Table 1 和标题文字分两行显示，请取消此行注释
+}
+
+\makeatletter
+\setlength{\@fptop}{0pt}
+\makeatother
+%% The amsthm package provides extended theorem environments
+%% \usepackage{amsthm}
+
+%% The lineno packages adds line numbers. Start line numbering with
+%% \begin{linenumbers}, end it with \end{linenumbers}. Or switch it on
+%% for the whole article with \linenumbers.
+%% \usepackage{lineno}
+
+\journal{Journal of Building Engineering}
+
+\begin{document}
+\setlength{\abovedisplayskip}{5pt}
+\setlength{\belowdisplayskip}{5pt}
+
+\begin{frontmatter}
+
+%% Title, authors and addresses
+
+%% use the tnoteref command within \title for footnotes;
+%% use the tnotetext command for theassociated footnote;
+%% use the fnref command within \author or \address for footnotes;
+%% use the fntext command for theassociated footnote;
+%% use the corref command within \author for corresponding author footnotes;
+%% use the cortext command for theassociated footnote;
+%% use the ead command for the email address,
+%% and the form \ead[url] for the home page:
+%% \title{Title\tnoteref{label1}}
+%% \tnotetext[label1]{}
+%% \author{Name\corref{cor1}\fnref{label2}}
+%% \ead{email address}
+%% \ead[url]{home page}
+%% \fntext[label2]{}
+%% \cortext[cor1]{}
+%% \affiliation{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+%% \fntext[label3]{}
+
+\title{Calibrated Surrogate-Assisted Optimization for FEA-Efficient Shear Wall Structural Design}
+
+%% use optional labels to link authors explicitly to addresses:
+%% \author[label1,label2]{}
+%% \affiliation[label1]{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+%%
+%% \affiliation[label2]{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+
+\author{Hao Leng}
+\author{Ying Zhou}
+\author{Yuqing Gao\corref{cor}}
+
+\ead{yuqing27@tongji.edu.cn}
+\cortext[cor]{Corresponding author}
+\address{State Key Laboratory of Disaster Reduction in Civil Engineering, Tongji University, Shanghai 200092, China}
+
+% \affiliation{organization={State Key Laboratory of Disaster Reduction in Civil Engineering, Tongji University},
+%             city={Shanghai 200092},
+%             country={China}}
+
+% \affiliation[inst2]{organization={Department Two},%Department and Organization
+%             addressline={Address Two}, 
+%             city={City Two},
+%             postcode={22222}, 
+%             state={State Two},
+%             country={Country Two}}
+
+\begin{abstract}
+Shear wall structural optimization for high-rise buildings requires repeated finite-element analysis and code-based design checking, making conventional optimization computationally expensive in preliminary design. Existing surrogate-assisted optimization methods can reduce evaluation cost, but static global surrogates may suffer from layout-specific prediction bias and are unreliable when directly used as substitutes for engineering evaluation. This paper proposes a calibrated surrogate-assisted optimization framework for FEA-efficient shear wall structural design. A layout-parameter surrogate model is first developed to estimate candidate feasibility and reinforcement usage from room-level graph representations, global layout statistics, and design parameters. During optimization, the surrogate predictions are further corrected through online local calibration using FEA-verified samples accumulated from the current layout, enabling layout-specific feasibility probability calibration and reinforcement residual correction. Based on the calibrated predictions, the framework conservatively filters low-feasibility candidates and prioritizes promising low-cost candidates for true FEA evaluation, thereby reallocating the limited analysis budget rather than replacing structural analysis. Experiments on 143 engineering shear wall layouts with approximately 715,000 FEA-labeled samples show that the proposed method improves candidate assessment, reduces local surrogate bias, and substantially decreases true FEA calls while maintaining comparable solution quality. The results demonstrate that online local calibration and surrogate-assisted budget allocation provide an effective strategy for improving the computational efficiency of shear wall structural optimization.
+\end{abstract}
+
+%%Graphical abstract
+% \begin{graphicalabstract}
+% \includegraphics{grabs}
+% \end{graphicalabstract}
+
+%%Research highlights
+% \begin{strip}
+\begin{highlights}
+\item {Room-level graphs encode spatial semantics and boundary feasibility.}
+\item {FiLM conditioning enables discrete density-controlled wall generation.}
+\item {Dual-stream training improves compliance with sparse paired labels.}
+\end{highlights}
+% \end{strip}
+
+\begin{keyword}
+%% keywords here, in the form: keyword \sep keyword
+structural design automation \sep  shear wall layout \sep graph neural networks \sep conditional generation \sep room-level representation  
+%% PACS codes here, in the form: \PACS code \sep code
+% \PACS 0000 \sep 1111
+%% MSC codes here, in the form: \MSC code \sep code
+%% or \MSC[2008] code \sep code (2000 is the default)
+% \MSC 0000 \sep 1111
+\end{keyword}
+
+\end{frontmatter}
+
+\linenumbers
+
+%%%%%%%%%%%%%%%%%%%%%%% main body start %%%%%%%%%%%%%%%%%%%%%%
+\input{1_intro} % introduction
+
+\input{2_problem_model} % related works
+
+\input{3_framework} % methodology
+
+\input{4_expriement_setup} % experiments
+
+\input{5_results} % discussion
+
+\input{6_conclusion} % conclusion
+%%%%%%%%%%%%%%%%%%%%%%% main body end %%%%%%%%%%%%%%%%%%%%%%
+
+\section*{Data availability statement}
+Data will be made available on request.
+
+\section*{Declaration of Competing Interest}
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+\section*{CRediT authorship contribution statement}
+Hao Leng: Conceptualization, Methodology, Software, Formal analysis, Data curation, Writing – original draft \& Visualization. Yuqing Gao: Conceptualization, Methodology, Editing, Review, Supervision. Ying Zhou: Conceptualization, Review, Supervision, Project administration, Funding acquisition. 
+
+\section*{Acknowledgments}
+This work was supported by the National Natural Science Foundation of China (No. 52025083, U2139209), the Shanghai Urban Digital Transformation Special Fund (Grant No. 202201033), the Shanghai Rising-Star Program (Grant No. 24YF2749100) and the Open Recruitment for Leadership Positions Project of Tongji Architectural Design (Group) Co., Ltd. (Grant No. 2024J-JB07) . The authors would like to acknowledge Mr. Zhen Zhang, Mr. Yi Wang, Mr. Zhuoju Huang and Mr. Ming Du from Tongji Architectural Design Institute for providing valuable design drawings used to train the model in this study. We would also like to express our gratitude to Mr. Zhijie Mo and Mr. Boyang Liu for their assistance in annotating the room layout datasets used for model training.
+
+
+%%%%%%%%%%%%%%%%%%%%%%% appendix %%%%%%%%%%%%%%%%%%%%%%
+% \switchonecolumn
+% \input{8appendix}
+% \clearpage
+% \switchtwocolumn
+
+%%%%%%%%%%%%%%%%%%%%%%% bibliography %%%%%%%%%%%%%%%%%%%%%%
+%% If you have bibdatabase file and want bibtex to generate the
+%% bibitems, please use
+%%
+% \bibliographystyle{elsarticle-num} 
+% \bibliography{cas-refs}
+
+%% else use the following coding to input the bibitems directly in the
+%% TeX file.
+
+% \begin{thebibliography}{00}
+
+% %% \bibitem{label}
+% %% Text of bibliographic item
+
+% \bibitem{}
+
+% \end{thebibliography}
+\end{document}
+\endinput
+%%
+%% End of file `elsarticle-template-num.tex'.

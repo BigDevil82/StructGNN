@@ -1,0 +1,191 @@
+\section{Calibrated Surrogate-Assisted Optimization Framework}
+\label{sec:optimization_framework}
+
+Section~\ref{sec:problem_surrogate} introduced the global surrogate models and the online local calibration strategy for candidate assessment. This section further describes how these models are embedded into an optimization process. The proposed framework places a calibrated surrogate-based pre-evaluation module between the optimizer and the true structural evaluator. The optimizer is responsible for generating candidate designs, while the surrogate module screens and ranks candidates before FEA. Only selected candidates are submitted to the true evaluator for parametric modeling, FEA, and code-based checking. The verified results are then used to update both the optimizer and the local calibration set.
+
+The essential feature of the framework is that surrogate predictions are used only to allocate the FEA budget, rather than to determine the final optimal design. The feasibility, material quantities, and objective value of any selected candidate are always obtained from the true evaluator $\mathcal{E}$.
+
+\subsection{Overall Framework}
+\label{subsec:overall_framework}
+
+For a fixed shear wall layout $L$ and design condition $c$, the optimization task is to search the design space $\mathcal{X}$ for section and material parameters that minimize the material cost while satisfying all structural checks. At iteration $t$, the optimizer $\mathcal{O}$ generates a batch of candidate designs:
+\begin{equation}
+\mathcal{B}*t=
+\left\{
+x_{t,1},x_{t,2},\ldots,x_{t,N_b}
+\right\},
+\label{eq:candidate_batch}
+\end{equation}
+where $N_b$ is the batch size.
+
+For each candidate $x_{t,i}$, the corresponding input representation is constructed as
+\begin{equation}
+z_{t,i}={G,q,d_{t,i}},
+\label{eq:candidate_input_framework}
+\end{equation}
+where $G$ is the room-level layout graph, $q$ is the vector of global layout statistics, and $d_{t,i}$ is the design-parameter vector formed by $x_{t,i}$ and the design condition $c$. Since the layout and design condition remain fixed in a single optimization task, $G$ and $q$ are constant, while $d_{t,i}$ varies among candidates.
+
+The global surrogate models first provide feasibility and reinforcement predictions for all candidates:
+\begin{equation}
+\hat{p}_{f,t,i}^{G}=SM_f(z_{t,i}),
+\label{eq:global_feasibility_framework}
+\end{equation}
+\begin{equation}
+\hat{m}_{s,t,i}^{G}=SM_s(z_{t,i}).
+\label{eq:global_steel_framework}
+\end{equation}
+If the local calibration set $\mathcal{D}_{t}^{loc}$ satisfies the activation conditions, the global predictions are corrected by the online calibration module:
+\begin{equation}
+\hat{p}_{f,t,i}^{C}=\mathcal{C}_{f,t}(\hat{p}_{f,t,i}^{G}),
+\label{eq:calibrated_feasibility_framework}
+\end{equation}
+\begin{equation}
+\hat{m}_{s,t,i}^{C}=\mathcal{C}_{s,t}(z_{t,i},\hat{m}_{s,t,i}^{G}),
+\label{eq:calibrated_steel_framework}
+\end{equation}
+where $\mathcal{C}_{f,t}$ and $\mathcal{C}_{s,t}$ denote the feasibility probability calibration model and the reinforcement residual calibration model at iteration $t$, respectively. If the calibration conditions are not satisfied, the framework directly uses the global predictions, namely $\hat{p}_{f,t,i}^{C}=\hat{p}_{f,t,i}^{G}$ and $\hat{m}_{s,t,i}^{C}=\hat{m}_{s,t,i}^{G}$.
+
+The calibrated predictions are then used for candidate screening and priority ranking. The candidate subset selected for true evaluation is denoted by $\mathcal{S}*t\subseteq \mathcal{B}*t$. For each candidate in $\mathcal{S}*t$, the true evaluator produces FEA-verified results:
+\begin{equation}
+\mathcal{E}(L,c,x_{t,i})
+\rightarrow
+(y_{f,t,i},m_{s,t,i},m_{c,t,i},r_{t,i}),
+\quad x_{t,i}\in\mathcal{S}_t .
+\label{eq:true_eval_framework}
+\end{equation}
+These verified results are used to update the optimizer and to expand the local calibration set. The overall framework is illustrated in Fig.~\ref{fig:calibrated_optimization_framework}.
+
+\begin{figure}[t]
+\centering
+\fbox{
+\parbox[c][0.30\textheight][c]{0.88\textwidth}{
+\centering
+Placeholder for the calibrated surrogate-assisted optimization framework.\\
+Replace this box with the actual figure.
+}
+}
+\caption{Calibrated surrogate-assisted optimization framework. The surrogate module pre-evaluates candidates and allocates the FEA budget, while the final feasibility and objective value are determined by the true evaluator.}
+\label{fig:calibrated_optimization_framework}
+\end{figure}
+
+\subsection{Candidate Screening and Priority Ranking}
+\label{subsec:candidate_screening_ranking}
+
+The surrogate-based pre-evaluation module consists of two consecutive operations: feasibility screening and priority ranking. The first operation aims to reduce unnecessary FEA calls for candidates that are very unlikely to satisfy the structural checks. The second operation prioritizes candidates that are more likely to achieve low material cost under the limited FEA budget.
+
+Given the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and the screening threshold $\tau_t$, the candidates passing the feasibility screening are defined as
+\begin{equation}
+\mathcal{B}_{t}^{pass}
+=
+\left\{
+x_{t,i}\in\mathcal{B}*t
+\mid
+\hat{p}_{f,t,i}^{C}\ge \tau_t
+\right\}.
+\label{eq:pass_set}
+\end{equation}
+The threshold $\tau_t$ follows the conservative strategy introduced in Section~\ref{subsec:online_local_calibration}. Its purpose is not to classify all candidates accurately, but to avoid removing potentially feasible designs. Candidates filtered out at this stage are not labeled as infeasible; they are simply not evaluated by FEA in the current iteration and are not added to the local calibration set.
+
+For each candidate passing the feasibility screening, a calibrated surrogate cost is estimated as
+\begin{equation}
+\hat{C}_{t,i}^{C}
+=
+\pi_s\hat{m}_{s,t,i}^{C}
++
+\pi_c\tilde{m}_{c,t,i},
+\label{eq:calibrated_cost_framework}
+\end{equation}
+where $\tilde{m}_{c,t,i}$ is the rapidly estimated concrete quantity. Since a low predicted cost may still correspond to a high feasibility risk, the ranking score further includes a risk penalty:
+\begin{equation}
+S_{t,i}^{C}
+=
+\hat{C}_{t,i}^{C}
++
+\eta \rho(\hat{p}_{f,t,i}^{C}),
+\label{eq:ranking_score}
+\end{equation}
+where $\rho(\cdot)$ is a decreasing feasibility-risk function and $\eta$ is the penalty coefficient. A lower value of $S_{t,i}^{C}$ indicates a higher priority for true evaluation.
+
+The selected candidate subset is obtained by ranking candidates in $\mathcal{B}_{t}^{pass}$ according to $S_{t,i}^{C}$:
+\begin{equation}
+\mathcal{S}*t
+=
+\mathrm{TopK}
+\left(
+\mathcal{B}_{t}^{pass}, S_{t,i}^{C}, K_t
+\right),
+\label{eq:selected_set}
+\end{equation}
+where $K_t$ is the FEA budget assigned to iteration $t$. If the number of candidates passing the feasibility screening is smaller than $K_t$, the remaining budget can be filled by the highest-ranked candidates from the original batch to maintain search diversity. In the experiments, the same budget rule is applied to all compared surrogate-assisted strategies.
+
+Through this two-stage mechanism, the feasibility surrogate and the reinforcement surrogate have different but complementary functions. The feasibility surrogate reduces the probability that clearly infeasible candidates consume FEA calls, whereas the reinforcement surrogate ranks the remaining candidates by material economy. Online local calibration improves both decisions by adapting the global surrogate predictions to the current layout and search region.
+
+\subsection{Online Update with FEA-Verified Samples}
+\label{subsec:online_update_framework}
+
+After the selected candidates $\mathcal{S}*t$ are evaluated by the true evaluator, their verified results are used in two ways. First, they are used by the optimizer to update the search state. For a feasible candidate, the true material cost is calculated from the verified reinforcement and concrete quantities:
+\begin{equation}
+C_{t,i}
+=
+\pi_s m_{s,t,i}
++
+\pi_c m_{c,t,i},
+\quad y_{f,t,i}=1 .
+\label{eq:true_cost_framework}
+\end{equation}
+This value is used as the true objective value for optimizer update and best-solution comparison. Infeasible candidates are handled according to the constraint-handling strategy of the optimizer.
+
+Second, the same verified samples are added to the local calibration set:
+\begin{equation}
+\begin{aligned}
+\mathcal{D}_{t+1}^{loc}
+=
+\mathcal{D}_{t}^{loc}
+\cup
+\bigl\{
+&(z_{t,i},
+\hat{p}_{f,t,i}^{G},
+\hat{m}_{s,t,i}^{G},
+y_{f,t,i},
+m_{s,t,i})
+&\mid x_{t,i}\in\mathcal{S}_t
+\bigr\}.
+\end{aligned}
+\label{eq:local_set_update}
+\end{equation}
+The stored global predictions and verified labels allow the calibration module to learn layout-specific probability shifts and reinforcement residuals. Candidates that are not evaluated by FEA have no verified labels and are therefore not used for calibration.
+
+At the beginning of optimization, $\mathcal{D}_{t}^{loc}$ may be empty or too small for reliable calibration, and the framework mainly relies on global surrogate predictions with conservative screening. As more FEA-verified samples are accumulated, the local calibration module becomes active and progressively corrects the global surrogate bias. This online update process allows the surrogate module to become more consistent with the current optimization task without retraining the full global graph model.
+
+\subsection{Algorithm Summary}
+\label{subsec:algorithm_summary}
+
+The complete calibrated surrogate-assisted optimization procedure is summarized in Algorithm~\ref{alg:csa_optimization}. The algorithm takes a fixed layout, design condition, design space, optimizer, global surrogate models, true evaluator, and FEA budget as inputs. It outputs the best feasible design verified by true FEA and code-based checking.
+
+\begin{algorithm}[t]
+\caption{Calibrated surrogate-assisted optimization}
+\label{alg:csa_optimization}
+\begin{algorithmic}[1]
+\REQUIRE Layout $L$, design condition $c$, design space $\mathcal{X}$, optimizer $\mathcal{O}$, global surrogates $SM_f$ and $SM_s$, true evaluator $\mathcal{E}$, initial local calibration set $\mathcal{D}_{0}^{loc}=\emptyset$, FEA budget.
+\ENSURE Best feasible design verified by $\mathcal{E}$.
+\FOR{$t=0,1,\ldots,T-1$}
+\STATE Generate a candidate batch $\mathcal{B}_t$ using optimizer $\mathcal{O}$.
+\STATE Construct candidate representations $z_{t,i}={G,q,d_{t,i}}$ for all $x_{t,i}\in\mathcal{B}_t$.
+\STATE Obtain global predictions $\hat{p}_{f,t,i}^{G}=SM_f(z_{t,i})$ and $\hat{m}_{s,t,i}^{G}=SM_s(z_{t,i})$.
+\IF{$\mathcal{D}_{t}^{loc}$ satisfies the calibration conditions}
+\STATE Compute calibrated predictions $\hat{p}_{f,t,i}^{C}$ and $\hat{m}_{s,t,i}^{C}$.
+\ELSE
+\STATE Set $\hat{p}_{f,t,i}^{C}=\hat{p}_{f,t,i}^{G}$ and $\hat{m}_{s,t,i}^{C}=\hat{m}_{s,t,i}^{G}$.
+\ENDIF
+\STATE Screen candidates according to $\hat{p}_{f,t,i}^{C}$ and $\tau_t$.
+\STATE Rank the retained candidates using the score $S_{t,i}^{C}$.
+\STATE Select $\mathcal{S}_t$ for true FEA and code-based checking.
+\STATE Evaluate each $x_{t,i}\in\mathcal{S}_t$ using $\mathcal{E}$ to obtain $(y_{f,t,i},m_{s,t,i},m_{c,t,i},r_{t,i})$.
+\STATE Update optimizer $\mathcal{O}$ using FEA-verified results.
+\STATE Update the local calibration set $\mathcal{D}_{t+1}^{loc}$.
+\ENDFOR
+\STATE \RETURN The best feasible design verified by $\mathcal{E}$.
+\end{algorithmic}
+\end{algorithm}
+
+The proposed algorithm keeps the true structural evaluator as the only source of verified feasibility and objective values. The surrogate module only changes how candidate designs are prioritized before evaluation. Therefore, the framework improves computational efficiency by reallocating FEA calls from low-value candidates to more promising candidates, while preserving the reliability of the final design evaluation.
