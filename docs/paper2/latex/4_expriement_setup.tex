@@ -33,11 +33,25 @@ The parameter sampling space is summarized in Table~\ref{tab:parameter_space}. T
 \centering
 \caption{Sampling space of structural design parameters.}
 \label{tab:parameter_space}
-\begin{minipage}[c][0.18\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for the parameter sampling table.\
-Replace this box with the actual table.
-\end{minipage}
+\begin{tabularx}{\textwidth}{lllX}
+\toprule
+Parameter & Symbol & Unit & Sampling values \\
+\midrule
+Number of stories & $N$ & - & 18--33 \\
+Story height & $h_{story}$ & m & 2.9 \\
+Bottom wall thickness & $t_{w,b}$ & mm & 200, 250, 300, 350, 400 \\
+Middle wall thickness & $t_{w,m}$ & mm & 160, 180, 200, 250, 300 \\
+Top wall thickness & $t_{w,t}$ & mm & 160, 180, 200, 250 \\
+Main beam depth & $h_{b,main}$ & mm & 400, 500, 550, 600, 650, 700 \\
+Main beam width & $b_{b,main}$ & mm & 200, 250, 300, 350 \\
+Secondary beam depth & $h_{b,sec}$ & mm & 300, 400, 450, 500 \\
+Secondary beam width & $b_{b,sec}$ & mm & 200, 250, 300 \\
+Concrete grade & $f_c$ & - & C30, C35, C40, C45, C50 \\
+Seismic intensity & - & - & 6.0, 7.0, 7.5, 8.0 \\
+Site class & - & - & I0, I, II, III, IV \\
+Seismic group & - & - & 1, 2, 3 \\
+\bottomrule
+\end{tabularx}
 \end{table*}
 
 \begin{table*}[t]
