@@ -8,17 +8,16 @@
 \centering
 \caption{Best feasibility probability calibrator under different local sample sizes.}
 \label{tab:appendix_feasibility_calibrator}
-\small
-\setlength{\tabcolsep}{3pt}
-\begin{tabularx}{\columnwidth}{@{}rXrrrr@{}}
+\setlength{\tabcolsep}{5pt}
+\begin{tabularx}{\textwidth}{@{}rXrrrr@{}}
 \toprule
-Samples & Best calibrator & Brier & ECE & Reject & Recall \\
+Calib. samples & Best feasibility calibrator & Brier & ECE & Screen reject & Screen recall \\
 \midrule
 25 & Platt scaling & 0.0505 & 0.0455 & 47.4\% & 0.9476 \\
-50 & Residual RF & 0.0464 & 0.0406 & 51.6\% & 0.9485 \\
-100 & Residual RF & 0.0420 & 0.0325 & 52.3\% & 0.9487 \\
-200 & Residual RF & 0.0381 & 0.0261 & 59.1\% & 0.9481 \\
-500 & Residual RF & 0.0344 & 0.0201 & 63.9\% & 0.9441 \\
+50 & Residual random forest & 0.0464 & 0.0406 & 51.6\% & 0.9485 \\
+100 & Residual random forest & 0.0420 & 0.0325 & 52.3\% & 0.9487 \\
+200 & Residual random forest & 0.0381 & 0.0261 & 59.1\% & 0.9481 \\
+500 & Residual random forest & 0.0344 & 0.0201 & 63.9\% & 0.9441 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -27,15 +26,14 @@ Samples & Best calibrator & Brier & ECE & Reject & Recall \\
 \centering
 \caption{Best steel residual calibrator under different local sample sizes.}
 \label{tab:appendix_steel_calibrator}
-\small
-\setlength{\tabcolsep}{3pt}
-\begin{tabularx}{\columnwidth}{@{}rXrrrr@{}}
+\setlength{\tabcolsep}{5pt}
+\begin{tabularx}{\textwidth}{@{}rXrrrr@{}}
 \toprule
-Samples & Best residual model & MAE & RMSE & $R^2$ & Pair acc. \\
+Calib. samples & Best steel residual model & MAE (kg) & RMSE (kg) & $R^2$ & Pair acc. \\
 \midrule
 25 & Ridge & 2395.9 & 3162.8 & 0.9924 & 0.9769 \\
-50 & GP & 2229.1 & 3003.6 & 0.9932 & 0.9785 \\
-100 & GP & 2044.7 & 2756.0 & 0.9943 & 0.9797 \\
+50 & Gaussian process & 2229.1 & 3003.6 & 0.9932 & 0.9785 \\
+100 & Gaussian process & 2044.7 & 2756.0 & 0.9943 & 0.9797 \\
 200 & LightGBM & 1741.3 & 2386.0 & 0.9957 & 0.9821 \\
 500 & LightGBM & 1444.8 & 1992.6 & 0.9970 & 0.9851 \\
 \bottomrule
