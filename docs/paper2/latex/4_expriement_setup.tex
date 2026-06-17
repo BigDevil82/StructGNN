@@ -29,11 +29,13 @@ The resulting dataset contains approximately 715,000 FEA-labeled samples. A layo
 
 The parameter sampling space is summarized in Table~\ref{tab:parameter_space}. The detailed distribution of layouts and samples across design-condition groups is given in Table~\ref{tab:dataset_split}.
 
-\begin{table*}[t]
+\begin{table}[t]
 \centering
 \caption{Sampling space of structural design parameters.}
 \label{tab:parameter_space}
-\begin{tabularx}{\textwidth}{lllX}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{0.30\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.08\columnwidth}>{\raggedright\arraybackslash}X@{}}
 \toprule
 Parameter & Symbol & Unit & Sampling values \\
 \midrule
@@ -52,7 +54,7 @@ Site class & - & - & I0, I, II, III, IV \\
 Seismic group & - & - & 1, 2, 3 \\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{table}
 
 \begin{table*}[t]
 \centering

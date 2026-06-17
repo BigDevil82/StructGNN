@@ -21,11 +21,17 @@ Table~\ref{tab:global_feasibility_results} compares the feasibility surrogate un
 \centering
 \caption{Feasibility prediction performance of different surrogate input settings.}
 \label{tab:global_feasibility_results}
-\begin{minipage}[c][0.16\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for feasibility prediction results.\
-Include metrics such as ROC-AUC, PR-AUC, F1, feasible recall, reject rate, and false reject count.
-\end{minipage}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{}Xrrrrrr@{}}
+\toprule
+Model & ROC-AUC & PR-AUC & F1 & Reject rate & Feasible recall & False reject count \\
+\midrule
+Design-parameter MLP & 0.9117 & 0.6137 & 0.5927 & 0.4787 & 0.9946 & 90 \\
+Design-parameter + layout-statistics MLP & 0.9547 & 0.8163 & 0.7370 & 0.4447 & 0.9994 & 10 \\
+Room-graph LayoutParamGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
+\bottomrule
+\end{tabularx}
 \end{table*}
 
 From the perspective of optimization, the most important role of the feasibility surrogate is conservative screening rather than ordinary binary classification. Under the selected screening threshold, the LayoutParamGNN rejects approximately 47.36\% of candidate samples while maintaining a feasible recall of 0.9998, with only three truly feasible samples being falsely rejected. In comparison, the design-parameter-only model produces more false rejections under a similar reject rate. The layout-statistics model reduces the false reject count to 10, but its overall PR-AUC and F1 score remain lower than those of the LayoutParamGNN. These results support the use of the room-level graph model as the global feasibility surrogate in the subsequent optimization experiments.
@@ -36,11 +42,17 @@ The reinforcement usage prediction results are shown in Table~\ref{tab:global_st
 \centering
 \caption{Reinforcement usage prediction performance of different surrogate input settings.}
 \label{tab:global_steel_results}
-\begin{minipage}[c][0.16\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for reinforcement prediction results.\
-Include metrics such as MAE, RMSE, $R^2$, MAPE, bias, pairwise ranking accuracy, Spearman correlation, and top-$k$ recall.
-\end{minipage}
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{@{}Xrrrrrrrr@{}}
+\toprule
+Model & MAE (t) & RMSE (t) & $R^2$ & MAPE & Bias (t) & Pairwise acc. & Spearman & Top-10\% recall \\
+\midrule
+Design-parameter MLP & 32.30 & 45.77 & 0.351 & 0.247 & -13.89 & 0.9586 & 0.9547 & 0.8974 \\
+Design-parameter + layout-statistics MLP & 13.83 & 18.75 & 0.891 & 0.112 & -1.66 & 0.9652 & 0.9628 & 0.9142 \\
+Room-graph LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
+\bottomrule
+\end{tabularx}
 \end{table*}
 
 Since the reinforcement surrogate is mainly used to rank candidates before FEA, ranking quality is also important. The LayoutParamGNN achieves a pairwise ranking accuracy of 0.9787, a Spearman correlation of 0.9779, and a top-10\% recall of 0.9483. These results indicate that the model can reliably compare the relative reinforcement demand of different candidates within the same layout, even if the exact reinforcement quantity still contains prediction error.
@@ -71,11 +83,22 @@ For the reinforcement surrogate, local residual calibration significantly improv
 \centering
 \caption{Representative local calibration results using 100 FEA-verified samples.}
 \label{tab:local_calibration_results}
-\begin{minipage}[c][0.18\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for local calibration results.\
-Include feasibility calibration metrics and reinforcement residual calibration metrics before and after calibration.
-\end{minipage}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabularx}{0.88\textwidth}{@{}llrrr@{}}
+\toprule
+Task & Metric & Global & Calibrated & Improvement \\
+\midrule
+Feasibility & Brier & 0.0749 & 0.0437 & 42\% \\
+Feasibility & ECE & 0.0895 & 0.0333 & 63\% \\
+Feasibility & Screen reject rate & 0.4708 & 0.5481 & 16\% \\
+Feasibility & Screen recall & 0.9990 & 0.9939 & -1\% \\
+Steel & MAE & 11.48~t & 2.04~t & 82\% \\
+Steel & RMSE & 12.30~t & 2.76~t & 78\% \\
+Steel & $R^2$ & 0.847 & 0.994 & 17\% \\
+Steel & MAPE & 9.26\% & 1.64\% & 82\% \\
+\bottomrule
+\end{tabularx}
 \end{table*}
 
 Figure~\ref{fig:calibration_sample_efficiency} further shows the influence of local calibration sample size. For feasibility calibration, a small number of local samples already reduces probability calibration error, and further increasing the sample size leads to gradually diminishing returns. For reinforcement residual calibration, the MAE and bias are consistently lower than those of the global model across different sample sizes. This suggests that the global model has already learned the main cross-layout mapping, while local calibration only needs to correct the remaining layout-specific residual.
