@@ -10,12 +10,7 @@ Figure~\ref{fig:global_surrogate_overview} summarizes the overall performance an
 
 \begin{figure*}[t]
 \centering
-\fbox{
-\parbox[c][0.32\textheight][c]{0.88\textwidth}{
-\centering
-\includegraphics[width=0.9\textwidth]{global_surrogate_overview.png}
-}
-}
+\includegraphics[width=\textwidth]{global_surrogate_overview.png}
 \caption{Overall performance and error patterns of the global layout-parameter surrogate model.}
 \label{fig:global_surrogate_overview}
 \end{figure*}
@@ -26,13 +21,11 @@ Table~\ref{tab:global_feasibility_results} compares the feasibility surrogate un
 \centering
 \caption{Feasibility prediction performance of different surrogate input settings.}
 \label{tab:global_feasibility_results}
-\fbox{
 \begin{minipage}[c][0.16\textheight][c]{0.92\textwidth}
 \centering
 Placeholder for feasibility prediction results.\
 Include metrics such as ROC-AUC, PR-AUC, F1, feasible recall, reject rate, and false reject count.
 \end{minipage}
-}
 \end{table*}
 
 From the perspective of optimization, the most important role of the feasibility surrogate is conservative screening rather than ordinary binary classification. Under the selected screening threshold, the LayoutParamGNN rejects approximately 47.36\% of candidate samples while maintaining a feasible recall of 0.9998, with only three truly feasible samples being falsely rejected. In comparison, the design-parameter-only model produces more false rejections under a similar reject rate. The layout-statistics model reduces the false reject count to 10, but its overall PR-AUC and F1 score remain lower than those of the LayoutParamGNN. These results support the use of the room-level graph model as the global feasibility surrogate in the subsequent optimization experiments.
@@ -43,13 +36,11 @@ The reinforcement usage prediction results are shown in Table~\ref{tab:global_st
 \centering
 \caption{Reinforcement usage prediction performance of different surrogate input settings.}
 \label{tab:global_steel_results}
-\fbox{
 \begin{minipage}[c][0.16\textheight][c]{0.92\textwidth}
 \centering
 Placeholder for reinforcement prediction results.\
 Include metrics such as MAE, RMSE, $R^2$, MAPE, bias, pairwise ranking accuracy, Spearman correlation, and top-$k$ recall.
 \end{minipage}
-}
 \end{table*}
 
 Since the reinforcement surrogate is mainly used to rank candidates before FEA, ranking quality is also important. The LayoutParamGNN achieves a pairwise ranking accuracy of 0.9787, a Spearman correlation of 0.9779, and a top-10\% recall of 0.9483. These results indicate that the model can reliably compare the relative reinforcement demand of different candidates within the same layout, even if the exact reinforcement quantity still contains prediction error.
@@ -65,12 +56,7 @@ Figure~\ref{fig:local_calibration_effect} compares the layout-level performance 
 
 \begin{figure*}[t]
 \centering
-\fbox{
-\parbox[c][0.30\textheight][c]{0.88\textwidth}{
-\centering
-\includegraphics[width=0.9\textwidth]{local_calibration_effect.png}
-}
-}
+\includegraphics[width=\textwidth]{local_calibration_effect.png}
 \caption{Effect of online local calibration using FEA-verified samples from the current layout.}
 \label{fig:local_calibration_effect}
 \end{figure*}
@@ -85,25 +71,18 @@ For the reinforcement surrogate, local residual calibration significantly improv
 \centering
 \caption{Representative local calibration results using 100 FEA-verified samples.}
 \label{tab:local_calibration_results}
-\fbox{
 \begin{minipage}[c][0.18\textheight][c]{0.92\textwidth}
 \centering
 Placeholder for local calibration results.\
 Include feasibility calibration metrics and reinforcement residual calibration metrics before and after calibration.
 \end{minipage}
-}
 \end{table*}
 
 Figure~\ref{fig:calibration_sample_efficiency} further shows the influence of local calibration sample size. For feasibility calibration, a small number of local samples already reduces probability calibration error, and further increasing the sample size leads to gradually diminishing returns. For reinforcement residual calibration, the MAE and bias are consistently lower than those of the global model across different sample sizes. This suggests that the global model has already learned the main cross-layout mapping, while local calibration only needs to correct the remaining layout-specific residual.
 
 \begin{figure*}[t]
 \centering
-\fbox{
-\parbox[c][0.28\textheight][c]{0.88\textwidth}{
-\centering
-\includegraphics[width=0.9\textwidth]{calibration_sample_efficiency.png}
-}
-}
+\includegraphics[width=\textwidth]{calibration_sample_efficiency.png}
 \caption{Sample efficiency of online local calibration under different numbers of local FEA-verified samples.}
 \label{fig:calibration_sample_efficiency}
 \end{figure*}
@@ -117,12 +96,7 @@ The calibrated surrogate models are further embedded into optimization procedure
 
 \begin{figure*}[t]
 \centering
-\fbox{
-\parbox[c][0.32\textheight][c]{0.88\textwidth}{
-\centering
-\includegraphics[width=0.9\textwidth]{optimization_benchmark_results.png}
-}
-}
+\includegraphics[width=\textwidth]{optimization_benchmark_results.png}
 \caption{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
 \label{fig:optimization_benchmark_results}
 \end{figure*}
@@ -137,12 +111,7 @@ Figure~\ref{fig:cost_tolerance_analysis} further evaluates the robustness of sol
 
 \begin{figure*}[t]
 \centering
-\fbox{
-\parbox[c][0.28\textheight][c]{0.88\textwidth}{
-\centering
-\includegraphics[width=0.9\textwidth]{cost_tolerance_analysis.png}
-}
-}
+\includegraphics[width=\textwidth]{cost_tolerance_analysis.png}
 \caption{Cost-tolerance analysis of surrogate-assisted strategies in full-feasible cases.}
 \label{fig:cost_tolerance_analysis}
 \end{figure*}
@@ -158,12 +127,7 @@ Figure~\ref{fig:candidate_flow_analysis} illustrates the flow of candidates duri
 
 \begin{figure*}[t]
 \centering
-\fbox{
-\parbox[c][0.30\textheight][c]{0.88\textwidth}{
-\centering
-\includegraphics[width=0.9\textwidth]{candidate_flow_analysis.png}
-}
-}
+\includegraphics[width=\textwidth]{candidate_flow_analysis.png}
 \caption{Candidate flow in the calibrated surrogate-assisted optimization process.}
 \label{fig:candidate_flow_analysis}
 \end{figure*}
@@ -174,12 +138,7 @@ Figure~\ref{fig:optimization_case_examples} provides representative optimization
 
 \begin{figure*}[t]
 \centering
-\fbox{
-\parbox[c][0.32\textheight][c]{0.88\textwidth}{
-\centering
-\includegraphics[width=0.9\textwidth]{optimization_case_examples.png}
-}
-}
+\includegraphics[width=\textwidth]{optimization_case_examples.png}
 \caption{Representative optimization histories for layouts with different levels of difficulty.}
 \label{fig:optimization_case_examples}
 \end{figure*}
@@ -192,12 +151,7 @@ Figure~\ref{fig:layout_difficulty_heatmap} shows the feasible-solution discovery
 
 \begin{figure*}[t]
 \centering
-\fbox{
-\parbox[c][0.30\textheight][c]{0.88\textwidth}{
-\centering
-\includegraphics[width=0.9\textwidth]{layout_difficulty_heatmap.png}
-}
-}
+\includegraphics[width=\textwidth]{layout_difficulty_heatmap.png}
 \caption{Feasible-solution discovery patterns across test layouts and optimization strategies.}
 \label{fig:layout_difficulty_heatmap}
 \end{figure*}
