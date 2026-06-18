@@ -1,0 +1,276 @@
+\appendix
+
+\section{Definition of Evaluation Metrics}
+\label{app:evaluation_metrics}
+
+This appendix defines the evaluation metrics that are specific to surrogate-assisted candidate screening, probability calibration, ranking-based reinforcement prediction, and optimization efficiency. Standard classification and regression metrics, such as ROC-AUC, PR-AUC, F1 score, MAE, RMSE, $R^2$, and MAPE, follow their conventional definitions and are not repeated here.
+
+\subsection{Screening Metrics for Feasibility Prediction}
+\label{app:screening_metrics}
+
+In this study, the feasibility surrogate is used as a conservative screening model. Therefore, its performance is evaluated not only by ordinary classification metrics, but also by whether it can reject low-value candidates while retaining most truly feasible candidates.
+
+Let $y_i \in {0,1}$ denote the true feasibility label of candidate $i$, where $y_i=1$ indicates a feasible candidate. Let $\hat{p}*{f,i}$ denote the predicted or calibrated feasibility probability, and let $\tau$ denote the screening threshold. A candidate is retained for potential FEA evaluation if
+\begin{equation}
+\hat{p}*{f,i} \geq \tau .
+\end{equation}
+
+The feasible recall is defined as
+\begin{equation}
+R_{\mathrm{fea}}
+=
+\frac{
+\sum_{i=1}^{N}
+\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}*{f,i}\geq \tau)
+}{
+\sum*{i=1}^{N}
+\mathbb{I}(y_i=1)
+},
+\label{eq:app_feasible_recall}
+\end{equation}
+where $\mathbb{I}(\cdot)$ is the indicator function. This metric measures the proportion of truly feasible candidates retained after surrogate screening. A high feasible recall is required because falsely filtering out feasible candidates may reduce the chance of finding a valid optimal design.
+
+The reject rate is defined as
+\begin{equation}
+R_{\mathrm{rej}}
+=
+\frac{
+\sum_{i=1}^{N}
+\mathbb{I}(\hat{p}_{f,i}<\tau)
+}{N}.
+\label{eq:app_reject_rate}
+\end{equation}
+It measures the proportion of candidates rejected before true FEA evaluation. A higher reject rate indicates greater potential for reducing FEA calls, but it is meaningful only when feasible recall remains sufficiently high.
+
+The false reject count is defined as
+\begin{equation}
+N_{\mathrm{fr}}
+=
+\sum_{i=1}^{N}
+\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}_{f,i}<\tau).
+\label{eq:app_false_reject}
+\end{equation}
+It directly counts the number of truly feasible candidates incorrectly rejected by the screening rule. This metric is reported because even a small false reject rate may be important when the number of feasible candidates is limited.
+
+\subsection{Probability Calibration Metrics}
+\label{app:calibration_metrics}
+
+The feasibility surrogate outputs a probability rather than a binary decision. In surrogate-assisted optimization, probability reliability is important because the screening threshold is selected based on predicted feasibility probabilities.
+
+The Brier score is used to measure the mean squared error between predicted probabilities and true binary labels:
+\begin{equation}
+\mathrm{Brier}
+=
+\frac{1}{N}
+\sum_{i=1}^{N}
+(\hat{p}_{f,i}-y_i)^2.
+\label{eq:app_brier}
+\end{equation}
+A lower Brier score indicates better probabilistic prediction.
+
+Expected calibration error (ECE) measures the discrepancy between predicted probability and empirical feasibility frequency. The predictions are divided into $M$ probability bins. Let $B_m$ denote the set of samples in bin $m$. The average confidence and empirical feasible rate in bin $m$ are defined as
+\begin{equation}
+\mathrm{conf}(B_m)
+=
+\frac{1}{|B_m|}
+\sum_{i\in B_m}
+\hat{p}*{f,i},
+\label{eq:app_confidence}
+\end{equation}
+\begin{equation}
+\mathrm{freq}(B_m)
+=
+\frac{1}{|B_m|}
+\sum*{i\in B_m}
+y_i.
+\label{eq:app_frequency}
+\end{equation}
+The ECE is then calculated as
+\begin{equation}
+\mathrm{ECE}
+=
+\sum_{m=1}^{M}
+\frac{|B_m|}{N}
+\left|
+\mathrm{freq}(B_m)
+-
+\mathrm{conf}(B_m)
+\right|.
+\label{eq:app_ece}
+\end{equation}
+A smaller ECE indicates that the predicted feasibility probabilities are more consistent with the observed feasible frequencies.
+
+\subsection{Ranking Metrics for Reinforcement Prediction}
+\label{app:ranking_metrics}
+
+The reinforcement surrogate is mainly used to rank candidates by material economy before true FEA evaluation. Therefore, ranking-oriented metrics are reported in addition to regression errors.
+
+Pairwise ranking accuracy evaluates whether the surrogate correctly predicts the relative order of reinforcement usage between candidate pairs. Given two candidates $i$ and $j$, the ordering is correctly predicted if
+\begin{equation}
+(m_{s,i}-m_{s,j})(\hat{m}*{s,i}-\hat{m}*{s,j}) > 0 .
+\end{equation}
+The pairwise ranking accuracy is defined as
+\begin{equation}
+A_{\mathrm{rank}}
+=
+\frac{
+\sum_{i<j}
+\mathbb{I}
+\left[
+(m_{s,i}-m_{s,j})(\hat{m}*{s,i}-\hat{m}*{s,j}) > 0
+\right]
+}{
+\binom{N}{2}
+}.
+\label{eq:app_pairwise_ranking}
+\end{equation}
+A higher value indicates that the surrogate better preserves the relative material economy of candidates.
+
+Spearman's rank correlation coefficient is also used to measure the monotonic agreement between true and predicted reinforcement usage:
+\begin{equation}
+\rho_s
+=
+1
+-
+\frac{
+6\sum_{i=1}^{N} d_i^2
+}{
+N(N^2-1)
+},
+\label{eq:app_spearman}
+\end{equation}
+where $d_i$ is the difference between the true rank and predicted rank of candidate $i$. A value closer to 1 indicates better rank consistency.
+
+Top-$k$ recall evaluates whether the surrogate can identify the truly low-reinforcement candidates. Let $\mathcal{T}_k$ denote the set of candidates with the lowest true reinforcement usage, and let $\hat{\mathcal{T}}*k$ denote the set of candidates with the lowest predicted reinforcement usage. The top-$k$ recall is defined as
+\begin{equation}
+R*{\mathrm{top}\text{-}k}
+=
+\frac{
+|\mathcal{T}_k \cap \hat{\mathcal{T}}_k|
+}{
+|\mathcal{T}_k|
+}.
+\label{eq:app_topk_recall}
+\end{equation}
+This metric is particularly relevant for optimization because only a small subset of promising candidates is selected for true FEA evaluation.
+
+The prediction bias of reinforcement usage is defined as
+\begin{equation}
+\mathrm{Bias}
+=
+\frac{1}{N}
+\sum_{i=1}^{N}
+(\hat{m}*{s,i}-m*{s,i}).
+\label{eq:app_bias}
+\end{equation}
+A positive value indicates overestimation, while a negative value indicates underestimation. Bias is reported because systematic overestimation or underestimation may affect candidate ranking and FEA budget allocation.
+
+\subsection{Optimization Efficiency and Solution Quality Metrics}
+\label{app:optimization_metrics}
+
+In the optimization experiments, the primary computational metric is the number of true FEA calls:
+\begin{equation}
+N_{\mathrm{FEA}}
+=
+\sum_{t}
+|\mathcal{S}_t|,
+\label{eq:app_fea_calls}
+\end{equation}
+where $\mathcal{S}_t$ is the set of candidates submitted to the true evaluator at iteration $t$.
+
+The FEA reduction ratio is calculated relative to full FEA optimization:
+\begin{equation}
+R_{\mathrm{FEA}}
+=
+1
+-
+\frac{
+N_{\mathrm{FEA}}^{\mathrm{sur}}
+}{
+N_{\mathrm{FEA}}^{\mathrm{full}}
+},
+\label{eq:app_fea_reduction}
+\end{equation}
+where $N_{\mathrm{FEA}}^{\mathrm{sur}}$ and $N_{\mathrm{FEA}}^{\mathrm{full}}$ are the numbers of true FEA calls used by the surrogate-assisted strategy and the full FEA baseline, respectively.
+
+The feasible-solution discovery rate is defined as the proportion of optimization runs that successfully find at least one feasible design:
+\begin{equation}
+R_{\mathrm{succ}}
+=
+\frac{
+N_{\mathrm{runs}}^{\mathrm{feasible}}
+}{
+N_{\mathrm{runs}}
+}.
+\label{eq:app_success_rate}
+\end{equation}
+This metric reflects whether surrogate screening reduces the chance of discovering feasible solutions.
+
+For runs that find feasible solutions, the final material cost of the best FEA-verified feasible design is reported. To compare surrogate-assisted optimization with full FEA optimization under the same layout and random seed, the normalized objective ratio is calculated as
+\begin{equation}
+R_{\mathrm{obj}}
+=
+\frac{
+C_{\mathrm{best}}^{\mathrm{sur}}
+}{
+C_{\mathrm{best}}^{\mathrm{full}}
+},
+\label{eq:app_objective_ratio}
+\end{equation}
+where $C_{\mathrm{best}}^{\mathrm{sur}}$ and $C_{\mathrm{best}}^{\mathrm{full}}$ are the best verified feasible costs obtained by the surrogate-assisted method and the full FEA baseline, respectively. A value close to 1 indicates that the surrogate-assisted method achieves comparable solution quality.
+
+The number of FEA calls required to find the first feasible solution is also reported:
+\begin{equation}
+N_{\mathrm{first}}
+=
+\min
+\left\{
+n
+\mid
+\exists i \leq n,\ y_{f,i}=1
+\right\}.
+\label{eq:app_first_feasible}
+\end{equation}
+This metric indicates how quickly an optimization strategy reaches the feasible region under a limited FEA budget.
+
+
+\section{Additional Calibration Results}
+\label{app:calibration_results}
+\setcounter{table}{0}
+\renewcommand{\thetable}{A\arabic{table}}
+
+\begin{table}[H]
+\centering
+\caption{Best feasibility probability calibrator under different local sample sizes.}
+\label{tab:appendix_feasibility_calibrator}
+\setlength{\tabcolsep}{5pt}
+\begin{tabularx}{\textwidth}{@{}rXrrrr@{}}
+\toprule
+Calib. samples & Best feasibility calibrator & Brier & ECE & Screen reject & Screen recall \\
+\midrule
+25 & Platt scaling & 0.0505 & 0.0455 & 47.4\% & 0.9476 \\
+50 & Residual random forest & 0.0464 & 0.0406 & 51.6\% & 0.9485 \\
+100 & Residual random forest & 0.0420 & 0.0325 & 52.3\% & 0.9487 \\
+200 & Residual random forest & 0.0381 & 0.0261 & 59.1\% & 0.9481 \\
+500 & Residual random forest & 0.0344 & 0.0201 & 63.9\% & 0.9441 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Best steel residual calibrator under different local sample sizes.}
+\label{tab:appendix_steel_calibrator}
+\setlength{\tabcolsep}{5pt}
+\begin{tabularx}{\textwidth}{@{}rXrrrr@{}}
+\toprule
+Calib. samples & Best steel residual model & MAE (kg) & RMSE (kg) & $R^2$ & Pair acc. \\
+\midrule
+25 & Ridge & 2395.9 & 3162.8 & 0.9924 & 0.9769 \\
+50 & Gaussian process & 2229.1 & 3003.6 & 0.9932 & 0.9785 \\
+100 & Gaussian process & 2044.7 & 2756.0 & 0.9943 & 0.9797 \\
+200 & LightGBM & 1741.3 & 2386.0 & 0.9957 & 0.9821 \\
+500 & LightGBM & 1444.8 & 1992.6 & 0.9970 & 0.9851 \\
+\bottomrule
+\end{tabularx}
+\end{table}

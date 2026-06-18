@@ -47,13 +47,13 @@ The dataset is constructed from engineering shear wall layouts and a parametric 
 
 The dataset contains 143 shear wall layouts designed by professional engineers. Following the design-condition grouping used in the previous layout-generation study, the layouts are divided into three groups according to seismic intensity and building height. Group7-H1 corresponds to low-demand cases with seismic intensity 7, PGA of 0.10~g, and building height $H \leq 50$~m. Group7-H2 corresponds to medium-demand cases with the same seismic intensity but building height $H>50$~m. Group8 corresponds to high-demand cases with seismic intensity 8 and PGA of 0.20~g. These groups reflect the combined influence of seismic demand and structural height on shear wall section design and material usage.
 
-For each layout, 5000 candidate design schemes are sampled from a predefined parameter space. The sampled variables include the number of stories, wall thicknesses in different vertical zones, main and secondary beam dimensions, concrete strength grade, seismic intensity, site class, and seismic group. For parameters defined along the building height, basic engineering constraints are imposed during sampling. For example, upper-zone wall thickness is not allowed to be larger than lower-zone wall thickness.
+For each layout, 5000 candidate design schemes are sampled from a predefined parameter space, which is summarized in Table~\ref{tab:parameter_space}. The sampled variables include the number of stories, wall thicknesses in different vertical zones, main and secondary beam dimensions, concrete strength grade, seismic intensity, site class, and seismic group. For parameters defined along the building height, basic engineering constraints are imposed during sampling. For example, upper-zone wall thickness is not allowed to be larger than lower-zone wall thickness.
 
 A true structural evaluator $\mathcal{E}$ is used to generate labels for all sampled candidates. For each candidate, the evaluator automatically constructs the structural model, performs FEA in OpenSees, extracts global structural responses and member forces, and conducts code-based member design and reinforcement calculation. The comprehensive feasibility label $y_f$ is determined by analysis validity, global response limits, and member-level design checks. The reinforcement usage label $m_s$ is obtained from the final member design results.
 
-The resulting dataset contains approximately 715,000 FEA-labeled samples. A layout-level split is adopted to evaluate cross-layout generalization. Specifically, 100 layouts are used for training, 21 layouts for validation, and 22 layouts for testing, corresponding to an approximate ratio of 0.70:0.15:0.15. All parameter variants of the same layout are assigned to the same subset to avoid information leakage between training and testing.
+The resulting dataset contains approximately 715,000 FEA-labeled samples. After removing cases with failed analyses or invalid results, the final dataset contains 714,972 samples. A layout-level split is adopted to evaluate cross-layout generalization. Specifically, 100 layouts are used for training, 21 layouts for validation, and 22 layouts for testing, corresponding to an approximate ratio of 0.70:0.15:0.15. All parameter variants of the same layout are assigned to the same subset to avoid information leakage between training and testing. The test layouts cover the three design-condition groups and are used for global surrogate evaluation, local calibration analysis, and optimization benchmarking.
 
-The parameter sampling space is summarized in Table~\ref{tab:parameter_space}. The detailed distribution of layouts and samples across design-condition groups is given in Table~\ref{tab:dataset_split}.
+ The detailed distribution of layouts and samples across design-condition groups is given in Table~\ref{tab:dataset_split}.
 
 \begin{table}[t]
 \centering
@@ -113,74 +113,37 @@ To examine the effect of layout representation, three model settings are compare
 \item \textbf{LayoutParamGNN}: room-level graph, global layout statistics, and design parameters are jointly used as input.
 \end{enumerate}
 
-The feasibility surrogate is trained using weighted binary cross-entropy loss to account for class imbalance. The validation set is used to select the screening threshold under a target feasible recall, rather than using the default threshold of 0.5. This setting is consistent with the role of the feasibility surrogate as a conservative pre-screening tool.
+The LayoutParamGNN adopts a three-layer GraphSAGE encoder for room-graph feature extraction. The graph-level representation is fused with global layout statistics and design-parameter embeddings before being passed to the prediction head. For the feasibility model, the hidden dimension, dropout rate, batch size, and learning rate are set to 256, 0.2, 128, and 0.001, respectively. Weighted binary cross-entropy is used to handle class imbalance. The screening threshold is selected on the validation set according to a target feasible recall of 0.995, rather than using the default classification threshold of 0.5.
 
-The reinforcement surrogate is trained using the logarithmically transformed and standardized reinforcement quantity as the regression target. Smooth L1 loss is used to reduce the influence of large outliers. In addition to ordinary regression metrics, ranking metrics are also reported because the reinforcement surrogate is mainly used to rank candidate designs by material economy during optimization.
+For the reinforcement model, the hidden dimension, dropout rate, batch size, and learning rate are set to 128, 0.1, 512, and 0.0005, respectively. The target reinforcement quantity is transformed using \texttt{log1p} and then standardized using the mean and standard deviation computed from the training set. Smooth L1 loss is adopted for regression training. During inference, the predicted value is transformed back to the original reinforcement-quantity scale. Both global surrogate models are trained using validation-based early stopping.
 
-The main training configurations and hyperparameters are summarized in Table~\ref{tab:surrogate_training_settings}.
-
-\begin{table*}[t]
-\centering
-\caption{Training settings of global surrogate models.}
-\label{tab:surrogate_training_settings}
-\begin{minipage}[c][0.16\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for surrogate model training settings.\
-Replace this box with the actual table.
-\end{minipage}
-\end{table*}
 
 \subsection{Local Calibration Settings}
 \label{subsec:local_calibration_settings}
 
 Local calibration experiments are conducted on the test layouts to simulate the use of FEA-verified samples accumulated during optimization. For each test layout, a certain number of verified samples are randomly selected as the local calibration set, and the remaining samples are used as the layout-specific evaluation set. Each local calibration sample stores the candidate representation, the global surrogate predictions, and the true FEA-based labels.
 
-For feasibility calibration, the input is the global feasibility prediction, or its logit transformation, and the target is the true feasibility label. Several lightweight calibration methods can be compared, including Platt scaling, isotonic regression, local logistic calibration, and probability residual correction. The calibrated probabilities are evaluated using probability calibration metrics and conservative screening metrics.
+The calibration objects are the feasibility probability and the reinforcement residual. For feasibility calibration, the global feasibility probability is first transformed into the logit space and then combined with the design parameters as the calibration input, while the target is the true feasibility label. Several lightweight calibration methods are compared, including Platt scaling, isotonic regression, logistic calibration, probability residual correction, and ensemble voting. The calibrated probabilities are used to assess probability reliability and conservative screening performance.
 
-For reinforcement calibration, the target is the residual between the true reinforcement quantity and the global surrogate prediction. Candidate features and the global reinforcement prediction are used to fit a local residual model. Candidate methods include ridge regression, Gaussian process regression, K-nearest neighbors, gradient boosting, and a small multilayer perceptron. The calibrated reinforcement predictions are evaluated by regression accuracy, systematic bias, and ranking quality.
+For reinforcement calibration, the model learns the residual between the true reinforcement usage and the global surrogate prediction. The input consists of the global reinforcement prediction and design parameters, while the target is the reinforcement residual. Ridge regression, Gaussian process regression, LightGBM, and K-nearest neighbors are compared as lightweight residual calibration models. These models are not intended to replace the global surrogate. Instead, they are used to test whether the systematic error of the global model can be corrected with a small number of layout-specific FEA samples.
 
-To examine sample efficiency, different local calibration sizes are considered, such as 25, 50, 100, 200, and 500 samples. For each size, repeated random sampling is conducted, and average results are reported. The local calibration settings are summarized in Table~\ref{tab:local_calibration_settings}.
-
-\begin{table*}[t]
-\centering
-\caption{Settings for online local calibration experiments.}
-\label{tab:local_calibration_settings}
-\begin{minipage}[c][0.16\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for local calibration settings.\
-Replace this box with the actual table.
-\end{minipage}
-\end{table*}
+To examine sample efficiency, local calibration sizes of 25, 50, 100, 200, and 500 samples are considered. Each setting is repeated three times with different random samples, and the average results are reported. In the online optimization experiments, local calibration is activated only after at least 25 FEA-verified samples have been accumulated for the current layout. The feasibility screening threshold follows the same conservative principle as the global model, with a target feasible recall of 0.995 and a threshold scale factor of 0.1. When the local samples are insufficient or contain only one class for the feasibility task, the framework falls back to the global surrogate prediction and the validation-based global threshold.
 
 \subsection{Optimization Benchmark Settings}
 \label{subsec:optimization_benchmark_settings}
 
-Optimization experiments are performed on the test layouts to evaluate whether the proposed framework can reduce true FEA calls in actual search processes. For each test layout, the layout $L$ and design condition $c$ are fixed, and the optimization variables are the section and material parameters $x$. All compared methods use the same design space, true evaluator, and random seeds when applicable.
+Optimization experiments are conducted on 15 unseen layouts selected from the test set, with five layouts from each design-condition group. For each layout, five random seeds are used. For each test layout, the layout $L$ and design condition $c$ are fixed, and the optimization variables are the section and material parameters $x$. All compared methods use the same design space, true evaluator, and random seeds.
 
-The main optimizer is a genetic algorithm. To test whether the surrogate-assisted mechanism depends on a specific optimizer, particle swarm optimization and random search are also included as supplementary optimizers. For all optimizers, the final feasibility and material cost of each selected design are obtained from the true evaluator $\mathcal{E}$.
+The main optimizer is a genetic algorithm. In the experiments, the population size, number of generations, mutation rate, and elite size are set to 48, 15, 0.30, and 2, respectively. To examine whether the surrogate-assisted mechanism depends on a specific optimizer, particle swarm optimization (PSO) and random search are also included as supplementary optimizers. The PSO uses a swarm size of 48 and 15 iterations, with a mutation rate of 0.15 to improve exploration. The random search baseline evaluates 720 candidates in batches of 48.
 
 Four candidate evaluation strategies are compared:
 \begin{enumerate}
 \item \textbf{Full FEA optimization}: all candidates generated by the optimizer are evaluated by $\mathcal{E}$. This strategy serves as the baseline.
-\item \textbf{Cost surrogate}: candidates are ranked using the reinforcement surrogate and estimated concrete quantity, and only high-priority candidates are submitted to $\mathcal{E}$.
-\item \textbf{Screen + cost surrogate}: feasibility screening is applied before cost-based ranking.
-\item \textbf{Calibrated screen + cost surrogate}: online local calibration is further introduced, and calibrated feasibility and reinforcement predictions are used for screening and ranking.
+\item \textbf{Cost surrogate}: candidates are ranked using the reinforcement surrogate and the estimated concrete quantity, and only high-priority candidates are submitted to $\mathcal{E}$.
+\item \textbf{screen + cost surrogate}: feasibility screening, reinforcement-based cost ranking, and online local calibration are jointly used to select candidates for true FEA evaluation.
 \end{enumerate}
 
-For surrogate-assisted strategies, each optimizer first generates a candidate batch $\mathcal{B}_t$. The surrogate module then evaluates all candidates in the batch and selects a subset $\mathcal{S}_t$ for true FEA and code checking. The verified results are used to update the optimizer and the local calibration set. Candidates not selected for FEA are not used as true samples and are not considered in final best-solution comparison.
-
-The optimization benchmark settings are summarized in Table~\ref{tab:optimization_settings}.
-
-\begin{table*}[t]
-\centering
-\caption{Optimization benchmark settings and compared candidate evaluation strategies.}
-\label{tab:optimization_settings}
-\begin{minipage}[c][0.18\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for optimization benchmark settings.\
-Replace this box with the actual table.
-\end{minipage}
-\end{table*}
+For surrogate-assisted strategies, each optimizer first generates a candidate batch $\mathcal{B}_t$. The surrogate module then evaluates all candidates in the batch and selects a subset $\mathcal{S}_t$ for true FEA and code checking. A minimum number of evaluated candidates is enforced to avoid overly aggressive filtering. In the experiments, the minimum number of true evaluations per batch is set to \texttt{min\_eval} = 8. The verified results are used to update the optimizer and the local calibration set. Candidates not selected for FEA are not used as true samples and are not considered in final best-solution comparison.
 
 \subsection{Evaluation Metrics}
 \label{subsec:evaluation_metrics}
@@ -194,16 +157,3 @@ For the reinforcement surrogate, mean absolute error (MAE), root mean square err
 For local calibration, feasibility probability calibration is evaluated using Brier score and expected calibration error (ECE), together with screening recall and reject rate. Reinforcement residual calibration is evaluated using MAE, RMSE, bias, and ranking metrics after calibration.
 
 For optimization experiments, computational efficiency is measured by the number of true FEA calls and the FEA reduction ratio. Solution quality is measured by feasible-solution discovery rate, the number of FEA calls required to find the first feasible solution, and final material cost. For each test layout and random seed, surrogate-assisted strategies are compared with full FEA optimization to determine whether FEA reduction is achieved without substantial degradation in feasibility discovery or final cost.
-
-The evaluation metrics are summarized in Table~\ref{tab:evaluation_metrics}.
-
-\begin{table*}[t]
-\centering
-\caption{Evaluation metrics for global surrogate models, local calibration, and optimization performance.}
-\label{tab:evaluation_metrics}
-\begin{minipage}[c][0.18\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for evaluation metrics.\
-Replace this box with the actual table.
-\end{minipage}
-\end{table*}
