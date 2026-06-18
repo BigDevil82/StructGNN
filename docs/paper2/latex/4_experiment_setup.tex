@@ -148,7 +148,7 @@ For surrogate-assisted strategies, each optimizer first generates a candidate ba
 \subsection{Evaluation Metrics}
 \label{subsec:evaluation_metrics}
 
-The evaluation metrics are divided into three groups: global surrogate metrics, local calibration metrics, and optimization performance metrics.
+The evaluation metrics are grouped according to the three experimental objectives. Since the experiments involve multiple metrics for classification, regression, calibration, ranking, and optimization performance, this subsection only summarizes their roles in the evaluation. The detailed definitions of the key and less common metrics are provided in Appendix~\ref{app:evaluation_metrics}.
 
 For the feasibility surrogate, ROC-AUC, PR-AUC, and F1 score are used to evaluate overall classification performance. Since the model is used as a conservative screening tool, feasible recall, reject rate, and false reject count are also reported. Feasible recall measures the proportion of truly feasible candidates retained after screening. Reject rate measures the proportion of candidates filtered before FEA. False reject count measures the number of feasible candidates mistakenly filtered out.
 

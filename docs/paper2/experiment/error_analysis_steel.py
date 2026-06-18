@@ -10,10 +10,15 @@ import numpy as np
 import pandas as pd
 import torch
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+PLOT_UTILS = PROJECT_ROOT / "docs" / "paper2" / "plot"
+if str(PLOT_UTILS) not in sys.path:
+    sys.path.insert(0, str(PLOT_UTILS))
+
+from paper_plot_style import set_paper_style
 from src.surrogate.features.consts import PARAM_FEATURES
 
 
@@ -37,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    set_paper_style()
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -206,7 +212,6 @@ def _plot_param_error_bars(param_metrics: pd.DataFrame, output_path: Path) -> No
         ax.grid(axis="y", alpha=0.25)
     for ax in axes[len(params) :]:
         ax.axis("off")
-    fig.suptitle("Steel prediction error by parameter bucket", fontsize=16)
     fig.savefig(output_path, dpi=180)
     plt.close(fig)
 
@@ -218,7 +223,6 @@ def _plot_true_steel_histogram(df: pd.DataFrame, output_path: Path) -> None:
     ax.hist(vals, bins=30, color="#4C78A8", edgecolor="black")
     ax.set_xlabel("True steel usage (kg)")
     ax.set_ylabel("Count")
-    ax.set_title("Distribution of True Steel Usage")
     ax.grid(alpha=0.25)
     fig.savefig(output_path, dpi=180)
     plt.close(fig)
@@ -248,7 +252,6 @@ def _plot_normalized_true_histogram(df: pd.DataFrame, output_path: Path) -> None
     ax.hist(norm, bins=30, color="#4C78A8", edgecolor="black")
     ax.set_xlabel("Normalized target")
     ax.set_ylabel("Count")
-    ax.set_title(f"Normalized True Steel Usage (mean={y_mean:.3f}, std={y_std:.3f})")
     ax.grid(alpha=0.25)
     fig.savefig(output_path, dpi=180)
     plt.close(fig)

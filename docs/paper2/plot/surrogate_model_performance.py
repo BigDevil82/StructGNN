@@ -27,7 +27,7 @@ PLOT_UTILS = ROOT / "docs" / "paper2" / "plot"
 if str(PLOT_UTILS) not in sys.path:
     sys.path.insert(0, str(PLOT_UTILS))
 
-from paper_plot_style import METHOD_COLORS, save_figure, set_paper_style
+from paper_plot_style import METHOD_COLORS, PLOT_DIR, save_figure, set_paper_style
 
 GROUP_COLS = ["layout_id", "N", "hs", "h_story", "intensity", "site_class", "seismic_group"]
 TARGET_RECALLS = [0.90, 0.95, 0.98, 0.99, 0.995, 0.999]
@@ -44,7 +44,7 @@ def main() -> None:
 
     out_dir = Path(args.out_dir)
     table_dir = out_dir / "tables"
-    fig_dir = out_dir / "plots"
+    fig_dir = out_dir
     table_dir.mkdir(parents=True, exist_ok=True)
     fig_dir.mkdir(parents=True, exist_ok=True)
 
@@ -105,7 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
         ],
         help="Model specs as label=artifact_dir. Each artifact needs predictions_test.parquet.",
     )
-    p.add_argument("--out-dir", default=r"outputs\result\paper2\surrogate_model_performance")
+    p.add_argument("--out-dir", default=str(PLOT_DIR))
     p.add_argument("--screening-target-recall", type=float, default=0.995)
     p.add_argument("--eval-pairs", type=int, default=200000)
     p.add_argument("--large-gap-kg", type=float, default=10000.0)
@@ -467,9 +467,8 @@ def plot_surrogate_summary(
     ]
     for ax, caption in zip(axes.ravel(), captions):
         add_panel_caption(ax, caption)
-    fig.suptitle("Global Surrogate Model Performance and Limitations", y=0.985)
-    fig.subplots_adjust(left=0.08, right=0.96, bottom=0.11, top=0.91, wspace=0.32, hspace=0.35)
-    save_figure(fig, "main_3_2_surrogate_model_performance.png", out_dir)
+    fig.subplots_adjust(left=0.08, right=0.96, bottom=0.11, top=0.98, wspace=0.32, hspace=0.35)
+    save_figure(fig, "global_surrogate_overview.png", out_dir)
 
 
 def add_panel_caption(ax: plt.Axes, text: str) -> None:
@@ -621,7 +620,7 @@ def write_report(
         "- `tables/steel_surrogate_metrics.csv`",
         "- `tables/steel_error_by_true_quantile.csv`",
         "- `tables/steel_error_by_layout.csv`",
-        "- `plots/main_3_2_surrogate_model_performance.png`",
+        "- `global_surrogate_overview.png`",
         "",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")

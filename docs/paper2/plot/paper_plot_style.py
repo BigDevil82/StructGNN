@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Iterable
 
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[3]
-PLOT_DIR = ROOT / "outputs/result/optimization/plots"
+PLOT_DIR = ROOT / "outputs/result/paper2/all_figs"
 
 METHOD_ORDER = ["full", "gnn_cost", "gnn_screen_cost"]
 SURROGATE_METHODS = ["gnn_cost", "gnn_screen_cost"]
@@ -30,10 +31,31 @@ METHOD_COLORS = {
 }
 
 
+def register_paper_fonts() -> None:
+    font_paths = [
+        Path.home() / r"AppData\Local\Microsoft\Windows\Fonts\OPTIMA.OTF",
+        Path.home() / r"AppData\Local\Microsoft\Windows\Fonts\OPTIMA BOLD.TTF",
+        Path(r"C:\Windows\Fonts\OPTIMA.OTF"),
+        Path(r"C:\Windows\Fonts\OPTIMA BOLD.TTF"),
+    ]
+    for path in font_paths:
+        if path.exists():
+            font_manager.fontManager.addfont(str(path))
+
+
 def set_paper_style() -> None:
+    register_paper_fonts()
     plt.rcParams.update(
         {
-            "font.family": "serif",
+            "font.family": "sans-serif",
+            "font.sans-serif": [
+                "Optima",
+                "Optima LT Std",
+                "Gill Sans",
+                "Segoe UI",
+                "Arial",
+                "DejaVu Sans",
+            ],
             "font.size": 9,
             "axes.titlesize": 11,
             "axes.labelsize": 9,
@@ -45,9 +67,11 @@ def set_paper_style() -> None:
             "axes.spines.right": False,
             "axes.edgecolor": "#222222",
             "grid.color": "#d9d9d9",
+            "grid.linestyle": "--",
             "grid.linewidth": 0.7,
             "grid.alpha": 0.75,
             "savefig.dpi": 300,
+            "savefig.bbox": "tight",
         }
     )
 

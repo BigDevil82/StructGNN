@@ -10,9 +10,9 @@ This appendix defines the evaluation metrics that are specific to surrogate-assi
 
 In this study, the feasibility surrogate is used as a conservative screening model. Therefore, its performance is evaluated not only by ordinary classification metrics, but also by whether it can reject low-value candidates while retaining most truly feasible candidates.
 
-Let $y_i \in {0,1}$ denote the true feasibility label of candidate $i$, where $y_i=1$ indicates a feasible candidate. Let $\hat{p}*{f,i}$ denote the predicted or calibrated feasibility probability, and let $\tau$ denote the screening threshold. A candidate is retained for potential FEA evaluation if
+Let $y_i \in {0,1}$ denote the true feasibility label of candidate $i$, where $y_i=1$ indicates a feasible candidate. Let $\hat{p}_{f,i}$ denote the predicted or calibrated feasibility probability, and let $\tau$ denote the screening threshold. A candidate is retained for potential FEA evaluation if
 \begin{equation}
-\hat{p}*{f,i} \geq \tau .
+\hat{p}_{f,i} \geq \tau .
 \end{equation}
 
 The feasible recall is defined as
@@ -21,9 +21,9 @@ R_{\mathrm{fea}}
 =
 \frac{
 \sum_{i=1}^{N}
-\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}*{f,i}\geq \tau)
+\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}_{f,i}\geq \tau)
 }{
-\sum*{i=1}^{N}
+\sum_{i=1}^{N}
 \mathbb{I}(y_i=1)
 },
 \label{eq:app_feasible_recall}
@@ -74,14 +74,14 @@ Expected calibration error (ECE) measures the discrepancy between predicted prob
 =
 \frac{1}{|B_m|}
 \sum_{i\in B_m}
-\hat{p}*{f,i},
+\hat{p}_{f,i},
 \label{eq:app_confidence}
 \end{equation}
 \begin{equation}
 \mathrm{freq}(B_m)
 =
 \frac{1}{|B_m|}
-\sum*{i\in B_m}
+\sum_{i\in B_m}
 y_i.
 \label{eq:app_frequency}
 \end{equation}
@@ -107,7 +107,7 @@ The reinforcement surrogate is mainly used to rank candidates by material econom
 
 Pairwise ranking accuracy evaluates whether the surrogate correctly predicts the relative order of reinforcement usage between candidate pairs. Given two candidates $i$ and $j$, the ordering is correctly predicted if
 \begin{equation}
-(m_{s,i}-m_{s,j})(\hat{m}*{s,i}-\hat{m}*{s,j}) > 0 .
+(m_{s,i}-m_{s,j})(\hat{m}_{s,i}-\hat{m}_{s,j}) > 0 .
 \end{equation}
 The pairwise ranking accuracy is defined as
 \begin{equation}
@@ -117,7 +117,7 @@ A_{\mathrm{rank}}
 \sum_{i<j}
 \mathbb{I}
 \left[
-(m_{s,i}-m_{s,j})(\hat{m}*{s,i}-\hat{m}*{s,j}) > 0
+(m_{s,i}-m_{s,j})(\hat{m}_{s,i}-\hat{m}_{s,j}) > 0
 \right]
 }{
 \binom{N}{2}
@@ -141,9 +141,9 @@ N(N^2-1)
 \end{equation}
 where $d_i$ is the difference between the true rank and predicted rank of candidate $i$. A value closer to 1 indicates better rank consistency.
 
-Top-$k$ recall evaluates whether the surrogate can identify the truly low-reinforcement candidates. Let $\mathcal{T}_k$ denote the set of candidates with the lowest true reinforcement usage, and let $\hat{\mathcal{T}}*k$ denote the set of candidates with the lowest predicted reinforcement usage. The top-$k$ recall is defined as
+Top-$k$ recall evaluates whether the surrogate can identify the truly low-reinforcement candidates. Let $\mathcal{T}_k$ denote the set of candidates with the lowest true reinforcement usage, and let $\hat{\mathcal{T}}_k$ denote the set of candidates with the lowest predicted reinforcement usage. The top-$k$ recall is defined as
 \begin{equation}
-R*{\mathrm{top}\text{-}k}
+R_{\mathrm{top}\text{-}k}
 =
 \frac{
 |\mathcal{T}_k \cap \hat{\mathcal{T}}_k|
@@ -160,7 +160,7 @@ The prediction bias of reinforcement usage is defined as
 =
 \frac{1}{N}
 \sum_{i=1}^{N}
-(\hat{m}*{s,i}-m*{s,i}).
+(\hat{m}_{s,i}-m_{s,i}).
 \label{eq:app_bias}
 \end{equation}
 A positive value indicates overestimation, while a negative value indicates underestimation. Bias is reported because systematic overestimation or underestimation may affect candidate ranking and FEA budget allocation.

@@ -16,7 +16,7 @@ PLOT_UTILS = ROOT / "docs" / "paper2" / "plot"
 if str(PLOT_UTILS) not in sys.path:
     sys.path.insert(0, str(PLOT_UTILS))
 
-from paper_plot_style import save_figure, set_paper_style
+from paper_plot_style import PLOT_DIR, save_figure, set_paper_style
 
 FEAS_BASELINE = "global_local_threshold"
 STEEL_BASELINE = "global"
@@ -69,7 +69,7 @@ def main() -> None:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Plot paper Section 3.3 local calibration figures.")
     p.add_argument("--result-root", default=r"outputs\result\paper2\local_calibration")
-    p.add_argument("--out-dir", default=r"outputs\result\paper2\local_calibration\plots")
+    p.add_argument("--out-dir", default=str(PLOT_DIR))
     p.add_argument("--calib-n", type=int, default=100)
     return p
 
@@ -350,9 +350,8 @@ def plot_sample_efficiency(df: pd.DataFrame, out_dir: Path) -> None:
     ]
     for ax, caption in zip(axes.ravel(), captions):
         add_caption(ax, caption)
-    fig.suptitle("Sample Efficiency of Layout-Local Calibration", y=0.985)
-    fig.subplots_adjust(left=0.08, right=0.98, bottom=0.11, top=0.91, wspace=0.28, hspace=0.35)
-    save_figure(fig, "main_3_3_local_calibration_sample_efficiency.png", out_dir)
+    fig.subplots_adjust(left=0.08, right=0.98, bottom=0.11, top=0.98, wspace=0.28, hspace=0.35)
+    save_figure(fig, "calibration_sample_efficiency.png", out_dir)
 
 
 def plot_metric_lines(
@@ -410,9 +409,8 @@ def plot_layout_improvement(layout: dict[str, pd.DataFrame], out_dir: Path, cali
     )
     add_caption(axes[0], "(a) Layout-wise feasibility calibration improvement")
     add_caption(axes[1], "(b) Layout-wise steel residual calibration improvement")
-    fig.suptitle(f"Layout-Wise Improvement with {calib_n} Local FEA Samples", y=0.985)
-    fig.subplots_adjust(left=0.08, right=0.98, bottom=0.22, top=0.88, wspace=0.28)
-    save_figure(fig, "main_3_3_local_calibration_layout_improvement.png", out_dir)
+    fig.subplots_adjust(left=0.08, right=0.98, bottom=0.22, top=0.98, wspace=0.28)
+    save_figure(fig, "local_calibration_effect.png", out_dir)
 
 
 def plot_before_after(

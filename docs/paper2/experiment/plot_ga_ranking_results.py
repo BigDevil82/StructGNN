@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+PLOT_UTILS = PROJECT_ROOT / "docs" / "paper2" / "plot"
+if str(PLOT_UTILS) not in sys.path:
+    sys.path.insert(0, str(PLOT_UTILS))
+
+from paper_plot_style import set_paper_style
 
 ROOT = Path(r"outputs\result\optimization\ranking_overnight")
 FIG_DIR = ROOT / "figures"
@@ -22,6 +33,7 @@ METHOD_COLORS = {
 
 
 def main() -> None:
+    set_paper_style()
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     _plot_primary_summary()
     _plot_primary_paired_distributions()
@@ -167,7 +179,6 @@ def _plot_layout_level_tradeoff() -> None:
     ax2.plot(list(x), agg["median_objective_ratio"], color="#333333", marker="o", linewidth=1.5)
     ax2.axhline(1.0, color="#777777", linestyle="--", linewidth=1)
     ax2.set_ylabel("Median objective ratio")
-    ax2.set_title("Surrogate preselection performance by layout")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "layout_level_gnn_tradeoff.png", dpi=220)
     plt.close(fig)

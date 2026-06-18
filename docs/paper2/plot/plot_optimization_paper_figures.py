@@ -64,9 +64,8 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
     fig, axes = plt.subplots(3, 3, figsize=(11.4, 7.2), sharex=False)
     fea_ymax = float(df["fea_calls"].max()) * 1.08
     first_ymax = float(df["first_feasible_fea_calls"].max(skipna=True)) * 1.08
-    valid_gap = paired[paired["both_feasible"] & paired["cost_gap_pct"].notna()]
-    gap_q = valid_gap["cost_gap_pct"].abs().quantile(0.98) if not valid_gap.empty else 10
-    gap_lim = max(5.0, min(80.0, float(gap_q) * 1.2))
+    feasible_cost = df.loc[df["best_feasible"], "material_cost"].dropna()
+    cost_ymax = float(feasible_cost.quantile(0.98)) * 1.10 if not feasible_cost.empty else 1.0
 
     for col_i, algorithm in enumerate(ALGORITHM_ORDER):
         sub = df[df["algorithm"] == algorithm]
@@ -86,21 +85,20 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
         ax.set_xlabel("")
 
         ax = axes[1, col_i]
-        psub = paired[paired["algorithm"] == algorithm]
         data = [
-            psub.loc[(psub["method"] == method) & psub["both_feasible"], "cost_gap_pct"].dropna().to_numpy()
-            for method in SURROGATE_METHODS
+            sub.loc[(sub["method"] == method) & sub["best_feasible"], "material_cost"].dropna().to_numpy()
+            for method in METHOD_ORDER
         ]
         draw_violin_points(
             ax,
             data,
-            [METHOD_LABELS_SHORT[m] for m in SURROGATE_METHODS],
-            method_colors(SURROGATE_METHODS),
-            ylabel="Cost gap (%)" if col_i == 0 else None,
+            [METHOD_LABELS_SHORT[m] for m in METHOD_ORDER],
+            method_colors(METHOD_ORDER),
+            ylabel="Best feasible\ncost" if col_i == 0 else None,
             point_size=5,
         )
-        ax.axhline(0, color="#777777", linewidth=0.8, linestyle="--")
-        ax.set_ylim(-gap_lim, gap_lim)
+        format_million_axis(ax)
+        ax.set_ylim(0, cost_ymax)
         ax.tick_params(axis="x", bottom=False, labelbottom=False)
         ax.set_xlabel("")
 
@@ -131,9 +129,8 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
             fontsize=10,
             fontweight="bold",
         )
-    fig.suptitle("Optimization Efficiency, Cost Quality, and Feasible Discovery", y=1.015)
     fig.tight_layout(h_pad=0.8, w_pad=0.8)
-    save_figure(fig, "main_01_distribution_summary_3x3.png", out_dir)
+    save_figure(fig, "optimization_benchmark_results.png", out_dir)
 
 
 def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> None:
@@ -168,9 +165,8 @@ def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> N
         ax.grid(True)
         ax.set_ylabel("Qualified ratio among full-feasible cases (%)")
     axes[-1].legend(loc="lower right", frameon=False)
-    fig.suptitle("Efficiency-Quality Qualification Under Cost Tolerance", y=1.02)
     fig.tight_layout()
-    save_figure(fig, "main_02_tolerance_success_curve.png", out_dir)
+    save_figure(fig, "cost_tolerance_analysis.png", out_dir)
 
 
 def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
@@ -190,7 +186,6 @@ def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
     ax.set_xticklabels(col_order, rotation=45, ha="right")
     ax.set_yticks(np.arange(len(layout_order)))
     ax.set_yticklabels(layout_order)
-    ax.set_title("Feasible Solution Success Rate by Layout")
     for i, layout in enumerate(layout_order):
         for j, col in enumerate(col_order):
             value = matrix.loc[layout, col]
@@ -209,7 +204,7 @@ def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
     cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.01)
     cbar.set_label("Success rate")
     fig.tight_layout()
-    save_figure(fig, "main_03_success_heatmap.png", out_dir)
+    save_figure(fig, "layout_difficulty_heatmap.png", out_dir)
 
 
 def _sort_layouts_by_success_pattern(matrix: pd.DataFrame, col_order: list[str]) -> list[str]:
@@ -224,6 +219,9 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
     fig, axes = plt.subplots(len(selected), 3, figsize=(12.0, 2.35 * len(selected)), sharey="row")
     if len(selected) == 1:
         axes = np.asarray([axes])
+    title_size = 13
+    label_size = 11
+    tick_size = 10
 
     for row_i, case in enumerate(selected):
         case_rows = df[
@@ -247,21 +245,30 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
             ax.set_ylim(ymin, ymax)
             format_million_axis(ax)
             if row_i == 0:
-                ax.set_title(METHOD_LABELS[method])
+                ax.set_title(METHOD_LABELS[method], fontsize=title_size)
             if col_i == 0:
-                ax.set_ylabel(f"{case['label']}\n{case['layout_id']} seed {int(case['seed'])}\nMaterial cost")
+                ax.set_ylabel(f"{case['label']}\nMaterial cost", fontsize=label_size, fontweight="bold")
             else:
                 ax.set_ylabel("")
+                ax.tick_params(axis="y", left=False, labelleft=False)
             if row_i == len(selected) - 1:
-                ax.set_xlabel("Evaluated candidate")
+                ax.set_xlabel("Evaluated candidate", fontsize=label_size)
             else:
                 ax.set_xlabel("")
                 ax.tick_params(axis="x", bottom=False, labelbottom=False)
+            ax.tick_params(axis="both", labelsize=tick_size)
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.01))
-    fig.suptitle(f"Representative {algorithm} Search Trajectories", y=1.04)
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        ncol=3,
+        frameon=False,
+        bbox_to_anchor=(0.5, 1.055),
+        fontsize=11,
+    )
     fig.tight_layout()
-    save_figure(fig, "main_04_process_scatter_examples.png", out_dir)
+    save_figure(fig, "optimization_case_examples.png", out_dir)
 
 
 def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:
@@ -292,35 +299,93 @@ def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:
         if ax is axes[0]:
             ax.set_ylabel("Mean candidate fraction")
     axes[-1].legend(loc="upper right", frameon=False)
-    fig.suptitle("Candidate Flow in the Screening + Cost Surrogate Strategy", y=1.02)
     fig.tight_layout()
-    save_figure(fig, "supp_03_screening_funnel.png", out_dir)
+    save_figure(fig, "candidate_flow_analysis.png", out_dir)
 
 
 def select_representative_cases(df: pd.DataFrame, algorithm: str) -> list[dict[str, object]]:
     rows = complete_case_rows(df, algorithm)
     full = rows[rows["method"] == "full"].copy()
-    feasible = full[full["best_feasible"] & full["first_feasible_fea_calls"].notna()].sort_values(
-        "first_feasible_fea_calls"
+    full = add_case_feasibility_stats(full, rows)
+    ranked = full[full["feasible_ratio"].notna()].sort_values(
+        ["mean_feasible_ratio", "min_feasible_count", "best_feasible", "best_objective", "layout_id", "seed"],
+        ascending=[False, False, False, True, True, True],
     )
     selected: list[dict[str, object]] = []
     used_layouts: set[str] = set()
-    if not feasible.empty:
-        easy = feasible.iloc[0]
+
+    if not ranked.empty:
+        easy = ranked.iloc[0]
         selected.append(case_dict(easy, "Easy"))
         used_layouts.add(str(easy["layout_id"]))
-        medium = _pick_distinct_case(feasible, len(feasible) // 2, used_layouts)
+
+        ratio_min = float(ranked["mean_feasible_ratio"].min())
+        ratio_max = float(ranked["mean_feasible_ratio"].max())
+        target_ratio = 0.5 * (ratio_min + ratio_max)
+        medium_pool = ranked[ranked["min_feasible_count"] >= 50].copy()
+        if medium_pool.empty:
+            medium_pool = ranked[ranked["min_feasible_count"] > 0].copy()
+        if medium_pool.empty:
+            medium_pool = ranked
+        medium_ranked = medium_pool.assign(
+            _target_dist=(medium_pool["mean_feasible_ratio"] - target_ratio).abs()
+        ).sort_values(
+            ["_target_dist", "min_feasible_count", "layout_id", "seed"],
+            ascending=[True, False, True, True],
+        )
+        medium = _pick_distinct_case(medium_ranked, 0, used_layouts)
         if medium is not None:
             selected.append(case_dict(medium, "Medium"))
             used_layouts.add(str(medium["layout_id"]))
-    hard = full[~full["best_feasible"]].sort_values("best_objective")
-    if not hard.empty:
-        row = _pick_distinct_case(hard, 0, used_layouts)
-        selected.append(case_dict(row if row is not None else hard.iloc[0], "Hard"))
-    elif len(feasible) >= 3:
-        row = _pick_distinct_case(feasible, len(feasible) - 1, used_layouts)
-        selected.append(case_dict(row if row is not None else feasible.iloc[-1], "Hard"))
+
+        hard_ranked = ranked.sort_values(
+            ["mean_feasible_ratio", "min_feasible_count", "best_feasible", "best_objective", "layout_id", "seed"],
+            ascending=[True, True, True, True, True, True],
+        )
+        hard = _pick_distinct_case(hard_ranked, 0, used_layouts)
+        if hard is not None:
+            selected.append(case_dict(hard, "Hard"))
     return selected[:3]
+
+
+def add_case_feasibility_stats(full: pd.DataFrame, rows: pd.DataFrame) -> pd.DataFrame:
+    full = full.copy()
+    full_ratios: list[float] = []
+    mean_ratios: list[float] = []
+    min_counts: list[int] = []
+    mean_counts: list[float] = []
+    for _, row in full.iterrows():
+        case_rows = rows[(rows["layout_id"] == row["layout_id"]) & (rows["seed"] == row["seed"])]
+        ratios: list[float] = []
+        counts: list[int] = []
+        for method in METHOD_ORDER:
+            method_rows = case_rows[case_rows["method"] == method]
+            if method_rows.empty:
+                continue
+            ratio, count = evaluated_feasible_stats(method_rows.iloc[0])
+            if np.isfinite(ratio):
+                ratios.append(ratio)
+                counts.append(count)
+        full_ratio, _ = evaluated_feasible_stats(row)
+        full_ratios.append(full_ratio)
+        mean_ratios.append(float(np.mean(ratios)) if ratios else float("nan"))
+        min_counts.append(int(min(counts)) if counts else 0)
+        mean_counts.append(float(np.mean(counts)) if counts else 0.0)
+    full["feasible_ratio"] = full_ratios
+    full["mean_feasible_ratio"] = mean_ratios
+    full["min_feasible_count"] = min_counts
+    full["mean_feasible_count"] = mean_counts
+    return full
+
+
+def evaluated_feasible_stats(row: pd.Series) -> tuple[float, int]:
+    path = find_result_json(row)
+    if path is None:
+        return float("nan"), 0
+    points = material_points(read_payload(path).get("history", []))
+    if points.empty:
+        return float("nan"), 0
+    return float(points["feasible"].mean()), int(points["feasible"].sum())
 
 
 def _pick_distinct_case(df: pd.DataFrame, target_idx: int, used_layouts: set[str]) -> pd.Series | None:
@@ -380,20 +445,20 @@ def draw_process_panel(ax: plt.Axes, points: pd.DataFrame, method: str) -> None:
     ax.scatter(
         infeasible["evaluation"],
         infeasible["material_cost"],
-        s=10,
+        s=12,
         color="#b9b9b9",
         edgecolor="none",
-        alpha=0.45,
+        alpha=0.50,
         label="Infeasible",
     )
     ax.scatter(
         feasible["evaluation"],
         feasible["material_cost"],
-        s=12,
+        s=16,
         color="#4e9f65",
         edgecolor="#1f5c35",
-        linewidth=0.2,
-        alpha=0.75,
+        linewidth=0.25,
+        alpha=0.82,
         label="Feasible",
     )
     line = points.dropna(subset=["best_feasible_cost"])
@@ -401,8 +466,8 @@ def draw_process_panel(ax: plt.Axes, points: pd.DataFrame, method: str) -> None:
         ax.plot(
             line["evaluation"],
             line["best_feasible_cost"],
-            color=METHOD_COLORS[method],
-            linewidth=1.4,
+            color="#efbd75",
+            linewidth=1.8,
             label="Best feasible",
         )
     ax.grid(True)
