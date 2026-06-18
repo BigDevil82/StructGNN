@@ -86,11 +86,19 @@ Seismic group & - & - & 1, 2, 3 \\
 \centering
 \caption{Dataset split and design-condition groups.}
 \label{tab:dataset_split}
-\begin{minipage}[c][0.16\textheight][c]{0.92\textwidth}
-\centering
-Placeholder for the dataset split table.\
-Replace this box with the actual table.
-\end{minipage}
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lccc}
+\toprule
+Subset & No. of layouts & No. of samples & Group ratio (Group7-H1 / Group7-H2 / Group8) \\
+\midrule
+Training & 100 & 499,977 & 19.0\% / 38.0\% / 43.0\% \\
+Validation & 21 & 104,999 & 33.3\% / 47.6\% / 19.0\% \\
+Testing & 22 & 109,996 & 31.8\% / 18.2\% / 50.0\% \\
+\midrule
+Total & 143 & 714,972 & 23.1\% / 36.4\% / 40.6\% \\
+\bottomrule
+\end{tabular}
 \end{table*}
 
 \subsection{Global Surrogate Model Training}
