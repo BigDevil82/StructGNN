@@ -533,7 +533,21 @@ $$
 
 图 4.4 比较了 GA、PSO 和 random search 三类优化算法下不同评价策略的 FEA 调用次数、最终造价差异和首次发现可行解所需 FEA 次数。总体来看，代理辅助方法在三类优化算法中均显著减少真实 FEA 调用。对于 GA，`Cost surrogate` 和 `Screen + cost` 的平均 FEA 调用次数分别为 279 和 223，较 full FEA baseline 的 650 次分别减少约 57% 和 66%。对于 PSO，二者分别减少约 54% 和 62%；对于 random search，二者分别减少约 50% 和 66%。这说明 FEA 调用减少并非依赖某一种特定优化器，而是来自代理模型对候选评价预算的重新分配。
 
-在解质量方面，代理辅助方法的可行解发现率整体接近 full FEA baseline。以 GA 为例，full baseline 的可行率为 68.0%，`Screen + cost` 为 65.3%；PSO 中二者分别为 61.3% 和 58.7%；random search 中二者分别为 68.0% 和 66.7%。虽然代理辅助方法略有下降，但其以约 60% 以上的 FEA 减少换取了相对较小的可行率损失。在最终造价方面，`Screen + cost` 相对于 full baseline 的平均目标比在 GA、PSO 和 random search 中分别约为 1.047、1.056 和 1.019，说明在多数可解 case 中，代理筛选并未造成显著的造价劣化。
+表 4.4 汇总了三类优化算法下不同评价策略的主要量化结果。每个算法包含 15 个测试布局和 5 个随机种子，共 75 个 run。`Mean FEA calls` 为真实 FEA 调用次数均值，`FEA reduction` 为相对于同一优化算法下 full FEA baseline 的减少比例，`First feasible FEA` 为成功找到可行解的 run 中首次发现可行解所需的 FEA 调用次数均值，`Cost ratio vs full` 为代理方法与 full FEA baseline 均找到可行解的 case 中材料造价之比。
+
+| Algorithm | Method | Runs | Success rate | Mean FEA calls | FEA reduction | First feasible FEA | Cost ratio vs full |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| GA | Full FEA | 75 | 68.0% | 650.0 | - | 71.8 | - |
+| GA | Cost surrogate | 75 | 60.0% | 279.3 | 57.0% | 24.0 | 1.016 |
+| GA | Screen + cost | 75 | 65.3% | 222.9 | 65.7% | 27.7 | 1.018 |
+| PSO | Full FEA | 75 | 61.3% | 572.6 | - | 105.0 | - |
+| PSO | Cost surrogate | 75 | 57.3% | 261.2 | 54.4% | 55.5 | 1.006 |
+| PSO | Screen + cost | 75 | 58.7% | 215.4 | 62.4% | 51.3 | 1.017 |
+| Random search | Full FEA | 75 | 68.0% | 716.6 | - | 71.5 | - |
+| Random search | Cost surrogate | 75 | 66.7% | 357.8 | 50.1% | 42.1 | 1.000 |
+| Random search | Screen + cost | 75 | 66.7% | 246.6 | 65.6% | 30.8 | 1.002 |
+
+在解质量方面，代理辅助方法的可行解发现率整体接近 full FEA baseline。以 GA 为例，full baseline 的可行率为 68.0%，`Screen + cost` 为 65.3%；PSO 中二者分别为 61.3% 和 58.7%；random search 中二者分别为 68.0% 和 66.7%。虽然代理辅助方法略有下降，但其以约 60% 以上的 FEA 减少换取了相对较小的可行率损失。在最终造价方面，`Screen + cost` 相对于 full baseline 的平均材料造价比分别为 1.018、1.017 和 1.002，说明在双方均找到可行解的 case 中，代理筛选并未造成显著的造价劣化。
 
 不同优化器对代理筛选的响应存在差异。GA 的种群更新机制会在每一代产生一批多样候选，代理模型能够在批量候选之间进行筛选和排序，因此更充分地发挥预算分配作用。PSO 的粒子位置更新较容易在早期向局部区域集中，若尚未积累足够局部校准样本，代理筛选对搜索方向的影响会受到粒子多样性限制。Random search 缺少历史反馈驱动的搜索更新机制，因此代理模型主要体现为减少 FEA 调用，而对可行解发现率和最终造价的改善更依赖随机样本本身的质量。
 
