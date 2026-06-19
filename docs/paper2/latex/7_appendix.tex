@@ -243,7 +243,7 @@ This metric indicates how quickly an optimization strategy reaches the feasible 
 \renewcommand{\thetable}{B.\arabic{table}}
 \renewcommand{\theHtable}{B.\arabic{table}}
 
-This appendix provides the calibration-model selection results used to support the online local calibration experiments in Section~\ref{subsec:local_calibration_results}. For each local sample size, the table reports the best-performing lightweight calibrator among the tested alternatives.
+Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_calibrator} report the calibration-model selection results for feasibility probability calibration and steel-usage residual calibration under different local sample sizes. For each sample size, several lightweight calibrators are trained and the model with the best Brier score is reported together with other evaluation metrics. The results show that the most suitable calibrator varies with the amount of available local calibration data.
 
 \begin{table}[H]
 \centering
