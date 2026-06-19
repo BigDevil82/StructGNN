@@ -49,7 +49,12 @@ def main() -> None:
     fig_dir.mkdir(parents=True, exist_ok=True)
 
     dataset = load_dataset(args.dataset_path)
-    feasibility = load_feasibility_models(args.feasibility_models, dataset, args.screening_target_recall)
+    feasibility = load_feasibility_models(
+        args.feasibility_models,
+        dataset,
+        args.screening_target_recall,
+        display_model=args.feasibility_display_model,
+    )
     steel = load_steel_models(
         args.steel_models,
         dataset,
@@ -106,6 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Model specs as label=artifact_dir. Each artifact needs predictions_test.parquet.",
     )
     p.add_argument("--out-dir", default=str(PLOT_DIR))
+    p.add_argument("--feasibility-display-model", default="Room-graph LayoutParamGNN")
     p.add_argument("--screening-target-recall", type=float, default=0.995)
     p.add_argument("--eval-pairs", type=int, default=200000)
     p.add_argument("--large-gap-kg", type=float, default=10000.0)
@@ -122,17 +128,16 @@ def load_dataset(path: str) -> pd.DataFrame:
 
 
 def load_feasibility_models(
-    specs: list[str], dataset: pd.DataFrame, target_recall: float
+    specs: list[str], dataset: pd.DataFrame, target_recall: float, *, display_model: str | None = None
 ) -> dict[str, pd.DataFrame]:
     rows = []
     curves = []
     layout_rows = []
-    best_df = None
-    best_label = None
-    best_reject = -1.0
+    predictions = {}
 
     for label, model_dir in parse_model_specs(specs):
         pred = load_feasibility_predictions(model_dir, dataset)
+        predictions[label] = pred
         metrics = read_json(model_dir / "metrics.json")
         y = pred["y_true"].to_numpy(dtype=int)
         prob = pred["prob"].to_numpy(dtype=float)
@@ -163,12 +168,12 @@ def load_feasibility_models(
         curves.append(curve)
         layout_rows.append(feasibility_layout_metrics(pred, label))
 
-        if row["reject_rate"] > best_reject:
-            best_df = pred
-            best_label = label
-            best_reject = float(row["reject_rate"])
-
     summary = pd.DataFrame(rows)
+    if display_model and display_model in predictions:
+        best_label = display_model
+    else:
+        best_label = str(summary.sort_values("reject_rate", ascending=False).iloc[0]["model"])
+    best_df = predictions[best_label]
     return {
         "summary": summary,
         "screening_curve": pd.concat(curves, ignore_index=True),
@@ -498,12 +503,12 @@ def plot_feasibility_pr_curve(ax: plt.Axes, df: pd.DataFrame, summary: pd.DataFr
     )
     ax.axhline(base_rate, color="#777777", linewidth=1.0, linestyle="--", label="Base rate")
     ax.text(
-        0.04,
-        0.98,
+        0.03,
+        0.80,
         f"PR-AUC={metrics['pr_auc']:.3f}\nROC-AUC={metrics['roc_auc']:.3f}\nF1={metrics['f1']:.3f}",
         transform=ax.transAxes,
         ha="left",
-        va="top",
+        va="bottom",
         fontsize=8,
         bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#dddddd", "alpha": 0.9},
     )
@@ -512,7 +517,7 @@ def plot_feasibility_pr_curve(ax: plt.Axes, df: pd.DataFrame, summary: pd.DataFr
     ax.set_xlim(0.0, 1.01)
     ax.set_ylim(0.0, 1.02)
     ax.grid(True)
-    ax.legend(loc="upper right", frameon=False)
+    ax.legend(frameon=False)
 
 
 def plot_feasibility_layout_calibration(ax: plt.Axes, layout: pd.DataFrame, label: str) -> None:
