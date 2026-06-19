@@ -59,8 +59,8 @@ Table~\ref{tab:global_feasibility_results} compares the feasibility surrogate un
 Model & ROC-AUC & PR-AUC & F1 & Reject rate & Feasible recall & False reject count \\
 \midrule
 Design-parameter MLP & 0.9117 & 0.6137 & 0.5927 & 0.4787 & 0.9946 & 90 \\
-Design-parameter + layout-statistics MLP & 0.9547 & 0.8163 & 0.7370 & 0.4447 & 0.9994 & 10 \\
-Room-graph LayoutParamGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
+Layout-statistics MLP & 0.9547 & 0.8163 & 0.7370 & 0.4447 & 0.9994 & 10 \\
+LayoutParamGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
 \bottomrule
 \end{tabularx}
 \end{table*}
@@ -80,8 +80,8 @@ The reinforcement usage prediction results are shown in Table~\ref{tab:global_st
 Model & MAE (t) & RMSE (t) & $R^2$ & MAPE & Bias (t) & Pairwise acc. & Spearman & Top-10\% recall \\
 \midrule
 Design-parameter MLP & 32.30 & 45.77 & 0.351 & 0.247 & -13.89 & 0.9586 & 0.9547 & 0.8974 \\
-Design-parameter + layout-statistics MLP & 13.83 & 18.75 & 0.891 & 0.112 & -1.66 & 0.9652 & 0.9628 & 0.9142 \\
-Room-graph LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
+Layout-statistics MLP & 13.83 & 18.75 & 0.891 & 0.112 & -1.66 & 0.9652 & 0.9628 & 0.9142 \\
+LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
 \bottomrule
 \end{tabularx}
 \end{table*}
@@ -94,6 +94,8 @@ Despite these promising results, the global surrogate model still exhibits layou
 \label{subsec:local_calibration_results}
 
 The previous subsection shows that the global surrogate models provide useful cross-layout predictions but still suffer from layout-specific bias. This subsection evaluates whether online local calibration can reduce such bias using FEA-verified samples from the current layout.
+
+Several lightweight calibrators are compared for different local sample sizes. The best feasibility probability calibrator and steel residual calibrator under each calibration size are summarized in Appendix Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_calibrator}, respectively. The main text focuses on representative results using 100 FEA-verified local samples.
 
 Figure~\ref{fig:local_calibration_effect} compares the layout-level performance before and after local calibration using 100 local samples. For feasibility prediction, calibration produces larger improvements on layouts where the original Brier score is high. This indicates that the global probability shift can be effectively corrected using a small number of locally verified samples. Some layouts still deviate from the ideal calibration relationship after correction, which is expected because boundary candidates and difficult layouts remain uncertain. Therefore, the calibrated feasibility model should still be used as a conservative screening tool rather than a final feasibility evaluator.
 
@@ -124,6 +126,7 @@ MAE & 11.48~t & 2.04~t & 82\% \\
 RMSE & 12.30~t & 2.76~t & 78\% \\
 $R^2$ & 0.847 & 0.994 & 17\% \\
 MAPE & 9.26\% & 1.64\% & 82\% \\
+Bias (Kg) & -5023.24 & -1.25 & 99.98\% \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -140,9 +143,39 @@ The calibrated surrogate models are further embedded into optimization procedure
 
 Compared with full FEA optimization, surrogate-assisted strategies substantially reduce the number of true FEA calls for all three optimizers. For GA, the cost-surrogate strategy requires 279 FEA evaluations on average, whereas the screen + cost strategy requires 223 evaluations, compared with 650 evaluations for the full FEA baseline. These correspond to reductions of approximately 57\% and 66\%, respectively. For PSO, the two surrogate-assisted strategies reduce FEA calls by approximately 54\% and 62\%, respectively. For random search, the corresponding reductions are approximately 50\% and 66\%. These results indicate that the reduction in FEA calls mainly comes from surrogate-based budget allocation and does not depend on a specific optimizer.
 
+Table~\ref{tab:optimization_summary_results} summarizes the main quantitative results of the optimization experiments. Each optimizer is tested on 15 layouts with five random seeds, resulting in 75 runs for each evaluation strategy. The mean FEA calls and first feasible FEA calls are reported as integer counts. The cost ratio is computed only for paired cases where both the surrogate-assisted strategy and the corresponding full FEA baseline find feasible solutions.
+
+\begin{table*}[t]
+\centering
+\caption{Optimization efficiency and solution quality under different candidate evaluation strategies.}
+\label{tab:optimization_summary_results}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{}lXrrrrrr@{}}
+\toprule
+Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & First feasible FEA & Cost ratio vs. full \\
+\midrule
+\multirow{3}{*}{GA}
+& Full FEA & 75 & 68.0\% & 650 & -- & 72 & -- \\
+& Cost surrogate & 75 & 60.0\% & 279 & 57.0\% & 24 & 1.016 \\
+& Screen + cost & 75 & 65.3\% & 223 & 65.7\% & 28 & 1.018 \\
+\midrule
+\multirow{3}{*}{PSO}
+& Full FEA & 75 & 61.3\% & 573 & -- & 105 & -- \\
+& Cost surrogate & 75 & 57.3\% & 261 & 54.4\% & 56 & 1.006 \\
+& Screen + cost & 75 & 58.7\% & 215 & 62.4\% & 51 & 1.017 \\
+\midrule
+\multirow{3}{*}{Random search}
+& Full FEA & 75 & 68.0\% & 717 & -- & 71 & -- \\
+& Cost surrogate & 75 & 66.7\% & 358 & 50.1\% & 42 & 1.000 \\
+& Screen + cost & 75 & 66.7\% & 247 & 65.6\% & 31 & 1.002 \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
 The feasible-solution discovery rate remains close to that of the full FEA baseline. For GA, the full FEA baseline achieves a feasible-solution discovery rate of 68.0\%, while the screen + cost strategy achieves 65.3\%. For PSO, the corresponding rates are 61.3\% and 58.7\%. For random search, they are 68.0\% and 66.7\%. Although surrogate-assisted methods may slightly reduce the chance of discovering feasible solutions in some cases, the reduction is relatively small compared with the achieved FEA savings.
 
-The final material cost results show that the surrogate-assisted strategies do not substantially degrade solution quality. For the screen + cost strategy, the average objective ratios relative to the full FEA baseline are approximately 1.047, 1.056, and 1.019 for GA, PSO, and random search, respectively. This means that, in most solvable cases, the surrogate-assisted strategy obtains comparable feasible designs with only a small increase in final material cost. Moreover, surrogate screening generally reduces the number of FEA calls required to find the first feasible solution, indicating that feasibility prediction helps the optimizer avoid obviously infeasible regions in the early search stage.
+The final material cost results show that the surrogate-assisted strategies do not substantially degrade solution quality. For the screen + cost strategy, the average material cost ratios relative to the full FEA baseline are 1.018, 1.017, and 1.002 for GA, PSO, and random search, respectively, among paired cases where both strategies find feasible solutions. This means that, in most solvable cases, the surrogate-assisted strategy obtains comparable feasible designs with only a small increase in final material cost. Moreover, surrogate screening generally reduces the number of FEA calls required to find the first feasible solution, indicating that feasibility prediction helps the optimizer avoid obviously infeasible regions in the early search stage.
 
 Figure~\ref{fig:cost_tolerance_analysis} further evaluates the robustness of solution quality in full-feasible cases. The horizontal axis represents the allowed cost tolerance relative to the full FEA optimum, and the vertical axis represents the proportion of cases that simultaneously satisfy three conditions: a feasible solution is found, the number of FEA calls is reduced, and the final cost is within the specified tolerance. As the tolerance increases from 0\% to about 5\%, the qualified-case ratio increases rapidly and then becomes stable. This trend indicates that, for most cases where full FEA optimization can find feasible solutions, the surrogate-assisted strategy can trade a small cost increase for a substantial reduction in FEA calls.
 
