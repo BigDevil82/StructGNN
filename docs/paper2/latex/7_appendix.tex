@@ -1,4 +1,7 @@
 \appendix
+\setcounter{table}{0}
+\renewcommand{\thetable}{A.\arabic{table}}
+\renewcommand{\theHtable}{A.\arabic{table}}
 
 \section{Definition of Evaluation Metrics}
 \label{app:evaluation_metrics}
@@ -236,15 +239,19 @@ This metric indicates how quickly an optimization strategy reaches the feasible 
 
 \section{Additional Calibration Results}
 \label{app:calibration_results}
-\setcounter{table}{0}
-\renewcommand{\thetable}{A\arabic{table}}
 
 \begin{table}[H]
 \centering
 \caption{Best feasibility probability calibrator under different local sample sizes.}
 \label{tab:appendix_feasibility_calibrator}
-\setlength{\tabcolsep}{5pt}
-\begin{tabularx}{\textwidth}{@{}rXrrrr@{}}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabularx}{\textwidth}{@{}>{\centering\arraybackslash}p{0.12\textwidth}
+>{\raggedright\arraybackslash}X
+>{\centering\arraybackslash}p{0.10\textwidth}
+>{\centering\arraybackslash}p{0.09\textwidth}
+>{\centering\arraybackslash}p{0.13\textwidth}
+>{\centering\arraybackslash}p{0.13\textwidth}@{}}
 \toprule
 Calib. samples & Best feasibility calibrator & Brier & ECE & Screen reject & Screen recall \\
 \midrule
@@ -261,8 +268,14 @@ Calib. samples & Best feasibility calibrator & Brier & ECE & Screen reject & Scr
 \centering
 \caption{Best steel residual calibrator under different local sample sizes.}
 \label{tab:appendix_steel_calibrator}
-\setlength{\tabcolsep}{5pt}
-\begin{tabularx}{\textwidth}{@{}rXrrrr@{}}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabularx}{\textwidth}{@{}>{\centering\arraybackslash}p{0.12\textwidth}
+>{\raggedright\arraybackslash}X
+>{\centering\arraybackslash}p{0.12\textwidth}
+>{\centering\arraybackslash}p{0.12\textwidth}
+>{\centering\arraybackslash}p{0.08\textwidth}
+>{\centering\arraybackslash}p{0.11\textwidth}@{}}
 \toprule
 Calib. samples & Best steel residual model & MAE (kg) & RMSE (kg) & $R^2$ & Pair acc. \\
 \midrule
