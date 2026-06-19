@@ -5,6 +5,7 @@ from typing import Iterable
 
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
+from matplotlib.font_manager import FontProperties
 import numpy as np
 
 
@@ -29,12 +30,14 @@ METHOD_COLORS = {
     "gnn_cost": "#efbd75",
     "gnn_screen_cost": "#e8a69d",
 }
+PANEL_CAPTION_SIZE = 11
+OPTIMA_BOLD_PATH = Path.home() / r"AppData\Local\Microsoft\Windows\Fonts\OPTIMA BOLD.TTF"
 
 
 def register_paper_fonts() -> None:
     font_paths = [
         Path.home() / r"AppData\Local\Microsoft\Windows\Fonts\OPTIMA.OTF",
-        Path.home() / r"AppData\Local\Microsoft\Windows\Fonts\OPTIMA BOLD.TTF",
+        OPTIMA_BOLD_PATH,
         Path(r"C:\Windows\Fonts\OPTIMA.OTF"),
         Path(r"C:\Windows\Fonts\OPTIMA BOLD.TTF"),
     ]
@@ -56,15 +59,17 @@ def set_paper_style() -> None:
                 "Arial",
                 "DejaVu Sans",
             ],
-            "font.size": 9,
-            "axes.titlesize": 11,
-            "axes.labelsize": 9,
-            "xtick.labelsize": 8,
-            "ytick.labelsize": 8,
-            "legend.fontsize": 8,
+            "font.size": 11,
+            "axes.titlesize": 13,
+            "axes.labelsize": 11,
+            "xtick.labelsize": 10,
+            "ytick.labelsize": 10,
+            "xtick.direction": "in",
+            "ytick.direction": "in",
+            "legend.fontsize": 11,
             "figure.titlesize": 13,
-            "axes.spines.top": False,
-            "axes.spines.right": False,
+            "axes.spines.top": True,
+            "axes.spines.right": True,
             "axes.edgecolor": "#222222",
             "grid.color": "#d9d9d9",
             "grid.linestyle": "--",
@@ -74,6 +79,13 @@ def set_paper_style() -> None:
             "savefig.bbox": "tight",
         }
     )
+
+
+def bold_font(size: float | None = None) -> FontProperties:
+    register_paper_fonts()
+    if OPTIMA_BOLD_PATH.exists():
+        return FontProperties(fname=str(OPTIMA_BOLD_PATH), size=size)
+    return FontProperties(family="sans-serif", weight="bold", size=size)
 
 
 def save_figure(fig: plt.Figure, filename: str, out_dir: str | Path | None = None) -> Path:

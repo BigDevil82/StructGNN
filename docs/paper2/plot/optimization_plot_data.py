@@ -21,6 +21,11 @@ DEFAULT_EXPERIMENTS = {
     "PSO": ROOT / "outputs/result/optimization/pso_primary",
     "Random Search": ROOT / "outputs/result/optimization/random_primary_t720_b48",
 }
+SELECTED15_EXPERIMENTS = {
+    "GA": ROOT / "outputs/result/optimization/ga_primary_selected15",
+    "PSO": ROOT / "outputs/result/optimization/pso_primary_selected15",
+    "Random Search": ROOT / "outputs/result/optimization/random_primary_selected15",
+}
 SENTINEL_OBJECTIVE = 1.0e10
 
 

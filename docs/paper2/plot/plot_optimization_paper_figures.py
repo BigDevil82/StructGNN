@@ -6,9 +6,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import ScalarFormatter
 from optimization_plot_data import (
     DEFAULT_EXPERIMENTS,
+    SELECTED15_EXPERIMENTS,
     complete_case_rows,
     find_result_json,
     load_all_summaries,
@@ -25,7 +27,9 @@ from paper_plot_style import (
     METHOD_ORDER,
     PLOT_DIR,
     SURROGATE_METHODS,
+    bold_font,
     draw_violin_points,
+    family_of,
     method_colors,
     save_figure,
     set_paper_style,
@@ -42,10 +46,11 @@ def main() -> None:
     }
     df = load_all_summaries(experiments)
     paired = paired_with_full(df)
+    heatmap_df = load_all_summaries(SELECTED15_EXPERIMENTS)
 
     plot_combined_distribution_summary(df, paired, args.out_dir)
     plot_tolerance_success_curve(paired, args.out_dir)
-    plot_success_heatmap(df, args.out_dir)
+    plot_success_heatmap(heatmap_df, args.out_dir)
     plot_process_examples(df, args.out_dir, args.process_algorithm)
     plot_screening_funnel(df, args.out_dir)
 
@@ -94,7 +99,7 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
             data,
             [METHOD_LABELS_SHORT[m] for m in METHOD_ORDER],
             method_colors(METHOD_ORDER),
-            ylabel="Best feasible\ncost" if col_i == 0 else None,
+            ylabel="Best feasible cost" if col_i == 0 else None,
             point_size=5,
         )
         format_million_axis(ax)
@@ -112,22 +117,21 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
             data,
             [METHOD_LABELS_SHORT[m] for m in METHOD_ORDER],
             method_colors(METHOD_ORDER),
-            ylabel="First feasible\nFEA calls" if col_i == 0 else None,
+            ylabel="First feasible FEA calls" if col_i == 0 else None,
             point_size=5,
         )
         ax.set_ylim(0, first_ymax)
 
     for row_i, label in enumerate(["FEA effort", "Cost quality", "Feasible discovery"]):
         axes[row_i, 0].text(
-            -0.24,
+            -0.19,
             0.5,
             label,
             transform=axes[row_i, 0].transAxes,
             ha="right",
             va="center",
             rotation=90,
-            fontsize=10,
-            fontweight="bold",
+            fontproperties=bold_font(10),
         )
     fig.tight_layout(h_pad=0.8, w_pad=0.8)
     save_figure(fig, "optimization_benchmark_results.png", out_dir)
@@ -136,8 +140,13 @@ def plot_combined_distribution_summary(df: pd.DataFrame, paired: pd.DataFrame, o
 def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> None:
     thresholds = np.array([0, 1, 2, 3, 5, 8, 10, 15], dtype=float)
     fig, axes = plt.subplots(1, 3, figsize=(11.2, 3.8), sharey=False)
-    for ax, algorithm in zip(axes, ALGORITHM_ORDER):
+    curve_colors = {
+        "gnn_cost": "#75b7d8",
+        "gnn_screen_cost": METHOD_COLORS["gnn_screen_cost"],
+    }
+    for i, (ax, algorithm) in enumerate(zip(axes, ALGORITHM_ORDER)):
         sub = paired[(paired["algorithm"] == algorithm) & paired["full_feasible"]].copy()
+        n_full_feasible = sub[["layout_id", "seed"]].drop_duplicates().shape[0]
         for method in SURROGATE_METHODS:
             m = sub[sub["method"] == method]
             rates = []
@@ -152,18 +161,22 @@ def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> N
                 marker="o" if method == "gnn_cost" else "^",
                 markersize=4.5,
                 linewidth=1.8,
-                color=METHOD_COLORS[method],
+                color=curve_colors[method],
                 label=METHOD_LABELS[method],
             )
             for x, y, count in zip(thresholds, 100 * np.asarray(rates, dtype=float), labels):
                 if np.isfinite(y):
                     ax.text(x, y + 1.5, str(count), ha="center", va="bottom", fontsize=6, color="#444444")
-        ax.set_title(algorithm)
+        ax.set_title(f"{algorithm} (n={n_full_feasible})")
         ax.set_xlabel("Allowed cost increase vs full (%)")
         ax.set_ylim(0, 105)
-        ax.set_xlim(thresholds.min(), thresholds.max())
+        ax.set_xlim(thresholds.min() - 0.6, thresholds.max() + 0.6)
         ax.grid(True)
-        ax.set_ylabel("Qualified ratio among full-feasible cases (%)")
+        if i == 0:
+            ax.set_ylabel("Qualified ratio among full-feasible cases (%)")
+        else:
+            ax.set_ylabel("")
+            ax.tick_params(axis="y", left=False, labelleft=False)
     axes[-1].legend(loc="lower right", frameon=False)
     fig.tight_layout()
     save_figure(fig, "cost_tolerance_analysis.png", out_dir)
@@ -180,31 +193,52 @@ def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
     counts = grouped.pivot(index="layout_id", columns="col", values="sum").reindex(layout_order)[col_order]
     totals = grouped.pivot(index="layout_id", columns="col", values="count").reindex(layout_order)[col_order]
 
-    fig, ax = plt.subplots(figsize=(12.5, max(5.0, 0.28 * len(layout_order))))
-    im = ax.imshow(matrix.to_numpy(dtype=float), cmap="YlGnBu", vmin=0, vmax=1, aspect="auto")
+    fig, ax = plt.subplots(figsize=(12.5, max(5.0, 0.30 * len(layout_order))))
+    cmap = LinearSegmentedColormap.from_list(
+        "soft_success",
+        ["#75b7d8", "#f7f7f7", "#f47f72"],
+    )
+    im = ax.imshow(matrix.to_numpy(dtype=float), cmap=cmap, vmin=0, vmax=1, aspect="auto")
     ax.set_xticks(np.arange(len(col_order)))
     ax.set_xticklabels(col_order, rotation=45, ha="right")
     ax.set_yticks(np.arange(len(layout_order)))
-    ax.set_yticklabels(layout_order)
+    ax.set_yticklabels(layout_display_labels(layout_order))
+    ax.set_xticks(np.arange(-0.5, len(col_order), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(layout_order), 1), minor=True)
+    ax.grid(which="minor", color="#ffffff", linestyle="-", linewidth=1.2)
+    ax.tick_params(axis="both", left=False, right=False, length=0)
+    ax.tick_params(which="minor", bottom=False, left=False)
     for i, layout in enumerate(layout_order):
         for j, col in enumerate(col_order):
             value = matrix.loc[layout, col]
             if pd.isna(value):
                 continue
-            text_color = "#ffffff" if value >= 0.65 else "#222222"
+            text_color = "#ffffff" if value >= 0.78 or value <= 0.18 else "#222222"
             ax.text(
                 j,
                 i,
                 f"{int(counts.loc[layout, col])}/{int(totals.loc[layout, col])}",
                 ha="center",
                 va="center",
-                fontsize=6,
+                fontsize=8,
                 color=text_color,
             )
-    cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.01)
-    cbar.set_label("Success rate")
+    cbar = fig.colorbar(im, ax=ax, orientation="horizontal", fraction=0.055, pad=0.20)
+    cbar.set_label("Success rate", labelpad=4)
     fig.tight_layout()
     save_figure(fig, "layout_difficulty_heatmap.png", out_dir)
+
+
+def layout_display_labels(layout_order: list[str]) -> list[str]:
+    prefixes = {"L17": "Group7-H1", "L27": "Group7-H2", "L1L28": "Group8"}
+    counters = {prefix: 0 for prefix in prefixes}
+    labels: list[str] = []
+    for layout_id in layout_order:
+        prefix = family_of(layout_id)
+        group = prefixes.get(prefix, "Group")
+        counters[prefix] = counters.get(prefix, 0) + 1
+        labels.append(f"{group}-{counters[prefix]}")
+    return labels
 
 
 def _sort_layouts_by_success_pattern(matrix: pd.DataFrame, col_order: list[str]) -> list[str]:
@@ -247,7 +281,17 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
             if row_i == 0:
                 ax.set_title(METHOD_LABELS[method], fontsize=title_size)
             if col_i == 0:
-                ax.set_ylabel(f"{case['label']}\nMaterial cost", fontsize=label_size, fontweight="bold")
+                ax.set_ylabel("Material cost", fontsize=label_size)
+                ax.text(
+                    -0.16,
+                    0.5,
+                    str(case["label"]),
+                    transform=ax.transAxes,
+                    ha="right",
+                    va="center",
+                    rotation=90,
+                    fontproperties=bold_font(label_size),
+                )
             else:
                 ax.set_ylabel("")
                 ax.tick_params(axis="y", left=False, labelleft=False)
@@ -274,7 +318,7 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
 def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:
     fig, axes = plt.subplots(1, 3, figsize=(11.4, 3.8), sharey=True)
     flow_colors = ["#e8a69d", "#efbd75", "#8fb6d6"]
-    flow_labels = ["Feasibility rejected", "Cost skipped", "FEA evaluated"]
+    flow_labels = ["FEA evaluated", "Cost skipped", "Feasibility rejected"]
     for ax, algorithm in zip(axes, ALGORITHM_ORDER):
         rows = df[(df["algorithm"] == algorithm) & (df["method"] == "gnn_screen_cost")]
         flow = aggregate_flow(rows)
@@ -284,9 +328,9 @@ def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:
         x = flow["step"].to_numpy()
         ax.stackplot(
             x,
-            flow["screened"],
-            flow["cost_skip"],
             flow["fea"],
+            flow["cost_skip"],
+            flow["screened"],
             colors=flow_colors,
             labels=flow_labels,
             alpha=0.82,
@@ -294,11 +338,23 @@ def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:
         ax.plot(x, flow["feasible"], color="#2f7d32", linewidth=1.6, label="FEA feasible")
         ax.set_title(algorithm)
         ax.set_xlabel("Generation / batch")
+        ax.set_xlim(float(x.min()), float(x.max()))
+        ax.margins(x=0)
         ax.set_ylim(0, 1)
         ax.grid(axis="y")
         if ax is axes[0]:
             ax.set_ylabel("Mean candidate fraction")
-    axes[-1].legend(loc="upper right", frameon=False)
+        else:
+            ax.tick_params(axis="y", left=False, labelleft=False)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        ncol=len(labels),
+        frameon=False,
+        bbox_to_anchor=(0.5, 1.06),
+    )
     fig.tight_layout()
     save_figure(fig, "candidate_flow_analysis.png", out_dir)
 
@@ -339,7 +395,14 @@ def select_representative_cases(df: pd.DataFrame, algorithm: str) -> list[dict[s
             used_layouts.add(str(medium["layout_id"]))
 
         hard_ranked = ranked.sort_values(
-            ["mean_feasible_ratio", "min_feasible_count", "best_feasible", "best_objective", "layout_id", "seed"],
+            [
+                "mean_feasible_ratio",
+                "min_feasible_count",
+                "best_feasible",
+                "best_objective",
+                "layout_id",
+                "seed",
+            ],
             ascending=[True, True, True, True, True, True],
         )
         hard = _pick_distinct_case(hard_ranked, 0, used_layouts)
@@ -454,7 +517,7 @@ def draw_process_panel(ax: plt.Axes, points: pd.DataFrame, method: str) -> None:
     ax.scatter(
         feasible["evaluation"],
         feasible["material_cost"],
-        s=16,
+        s=12,
         color="#4e9f65",
         edgecolor="#1f5c35",
         linewidth=0.25,

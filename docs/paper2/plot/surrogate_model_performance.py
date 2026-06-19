@@ -27,7 +27,7 @@ PLOT_UTILS = ROOT / "docs" / "paper2" / "plot"
 if str(PLOT_UTILS) not in sys.path:
     sys.path.insert(0, str(PLOT_UTILS))
 
-from paper_plot_style import METHOD_COLORS, PLOT_DIR, save_figure, set_paper_style
+from paper_plot_style import METHOD_COLORS, PANEL_CAPTION_SIZE, PLOT_DIR, save_figure, set_paper_style
 
 GROUP_COLS = ["layout_id", "N", "hs", "h_story", "intensity", "site_class", "seismic_group"]
 TARGET_RECALLS = [0.90, 0.95, 0.98, 0.99, 0.995, 0.999]
@@ -467,7 +467,7 @@ def plot_surrogate_summary(
     ]
     for ax, caption in zip(axes.ravel(), captions):
         add_panel_caption(ax, caption)
-    fig.subplots_adjust(left=0.08, right=0.96, bottom=0.11, top=0.98, wspace=0.32, hspace=0.35)
+    fig.subplots_adjust(left=0.08, right=0.98, bottom=0.11, top=0.98, wspace=0.22, hspace=0.35)
     save_figure(fig, "global_surrogate_overview.png", out_dir)
 
 
@@ -479,7 +479,7 @@ def add_panel_caption(ax: plt.Axes, text: str) -> None:
         transform=ax.transAxes,
         ha="center",
         va="top",
-        fontsize=9,
+        fontsize=PANEL_CAPTION_SIZE,
     )
 
 
@@ -499,7 +499,7 @@ def plot_feasibility_pr_curve(ax: plt.Axes, df: pd.DataFrame, summary: pd.DataFr
     ax.axhline(base_rate, color="#777777", linewidth=1.0, linestyle="--", label="Base rate")
     ax.text(
         0.04,
-        0.92,
+        0.98,
         f"PR-AUC={metrics['pr_auc']:.3f}\nROC-AUC={metrics['roc_auc']:.3f}\nF1={metrics['f1']:.3f}",
         transform=ax.transAxes,
         ha="left",
@@ -533,8 +533,8 @@ def plot_feasibility_layout_calibration(ax: plt.Axes, layout: pd.DataFrame, labe
     ax.plot([0, 1], [0, 1], color="#555555", linewidth=1.0, linestyle="--")
     ax.set_xlabel("True feasible rate by layout")
     ax.set_ylabel("Mean predicted probability")
-    ax.set_xlim(-0.02, 1.02)
-    ax.set_ylim(-0.02, 1.02)
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
     ax.grid(True)
     cbar = ax.figure.colorbar(sc, ax=ax, fraction=0.045, pad=0.02)
     cbar.set_label("Brier")
@@ -574,11 +574,12 @@ def plot_steel_pred_true(ax: plt.Axes, df: pd.DataFrame, label: str, sample: int
 def plot_steel_quantile_error(ax: plt.Axes, quantile: pd.DataFrame) -> None:
     labels = quantile["bucket"].tolist()
     x = np.arange(len(labels))
-    ax.bar(x, quantile["mae"] / 1000.0, color="#b7d7c2", edgecolor="#333333", linewidth=0.6, label="MAE")
+    ax.bar(x, quantile["mae"] / 1000.0, color="#81b7ed", edgecolor="#ffffff", linewidth=0.8, label="MAE")
     ax.plot(x, quantile["bias"] / 1000.0, color="#d07c68", marker="o", linewidth=1.6, label="Bias")
     ax.axhline(0, color="#555555", linewidth=0.8)
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
+    ax.set_xlabel("True steel usage quantile")
     ax.set_ylabel("Error (t)")
     ax.grid(axis="y")
     ax.legend(frameon=False)
