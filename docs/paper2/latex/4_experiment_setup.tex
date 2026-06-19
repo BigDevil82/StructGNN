@@ -1,5 +1,3 @@
-
-
 \section{Experimental Setup}
 \label{sec:experimental_setup}
 
@@ -15,45 +13,6 @@ First, the global surrogate models are evaluated on unseen shear wall layouts. T
 Second, the effectiveness of online local calibration is investigated. Since each optimization task is performed for a fixed layout and design condition, FEA-verified samples generated during optimization can provide layout-specific feedback. The calibration experiments therefore examine whether a small number of locally verified samples can improve feasibility probability calibration, reduce reinforcement prediction bias, and improve candidate ranking in the current layout.
 
 Third, the calibrated surrogate models are embedded into optimization procedures. The optimization experiments compare full FEA-based optimization with several surrogate-assisted evaluation strategies. The comparison focuses on the number of true FEA calls, feasible-solution discovery, and final material cost. All compared methods use the same design space and true evaluator, and the final best solution is always determined by FEA-verified results.
-
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{global_surrogate_overview.png}
-\caption{Overall performance and error patterns of the global layout-parameter surrogate model.}
-\label{fig:global_surrogate_overview}
-\end{figure*}
-
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{local_calibration_effect.png}
-\caption{Effect of online local calibration using FEA-verified samples from the current layout.}
-\label{fig:local_calibration_effect}
-\end{figure*}
-
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{calibration_sample_efficiency.png}
-\caption{Sample efficiency of online local calibration under different numbers of local FEA-verified samples.}
-\label{fig:calibration_sample_efficiency}
-\end{figure*}
-
-\subsection{Dataset and Structural Evaluation}
-\label{subsec:dataset_structural_evaluation}
-
-The dataset is constructed from engineering shear wall layouts and a parametric structural evaluation workflow. Each sample corresponds to a layout, a design condition, and a section-material design scheme. The input includes layout information and design parameters, and the supervised labels include the comprehensive feasibility label $y_f$ and the reinforcement usage $m_s$.
-
-The dataset contains 143 shear wall layouts designed by professional engineers. Following the design-condition grouping used in the previous layout-generation study, the layouts are divided into three groups according to seismic intensity and building height. Group7-H1 corresponds to low-demand cases with seismic intensity 7, PGA of 0.10~g, and building height $H \leq 50$~m. Group7-H2 corresponds to medium-demand cases with the same seismic intensity but building height $H>50$~m. Group8 corresponds to high-demand cases with seismic intensity 8 and PGA of 0.20~g. These groups reflect the combined influence of seismic demand and structural height on shear wall section design and material usage.
-
-For each layout, 5000 candidate design schemes are sampled from a predefined parameter space, which is summarized in Table~\ref{tab:parameter_space}. The sampled variables include the number of stories, wall thicknesses in different vertical zones, main and secondary beam dimensions, concrete strength grade, seismic intensity, site class, and seismic group. For parameters defined along the building height, basic engineering constraints are imposed during sampling. For example, upper-zone wall thickness is not allowed to be larger than lower-zone wall thickness.
-
-A true structural evaluator $\mathcal{E}$ is used to generate labels for all sampled candidates. For each candidate, the evaluator automatically constructs the structural model, performs FEA in OpenSees, extracts global structural responses and member forces, and conducts code-based member design and reinforcement calculation. The comprehensive feasibility label $y_f$ is determined by analysis validity, global response limits, and member-level design checks. The reinforcement usage label $m_s$ is obtained from the final member design results.
-
-The resulting dataset contains approximately 715,000 FEA-labeled samples. After removing cases with failed analyses or invalid results, the final dataset contains 714,972 samples. A layout-level split is adopted to evaluate cross-layout generalization. Specifically, 100 layouts are used for training, 21 layouts for validation, and 22 layouts for testing, corresponding to an approximate ratio of 0.70:0.15:0.15. All parameter variants of the same layout are assigned to the same subset to avoid information leakage between training and testing. The test layouts cover the three design-condition groups and are used for global surrogate evaluation, local calibration analysis, and optimization benchmarking.
-
- The detailed distribution of layouts and samples across design-condition groups is given in Table~\ref{tab:dataset_split}.
 
 \begin{table}[t]
 \centering
@@ -87,8 +46,11 @@ Seismic group & - & - & 1, 2, 3 \\
 \caption{Dataset split and design-condition groups.}
 \label{tab:dataset_split}
 \footnotesize
-\setlength{\tabcolsep}{6pt}
-\begin{tabular}{lccc}
+\setlength{\tabcolsep}{5pt}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.18\textwidth}
+>{\centering\arraybackslash}p{0.15\textwidth}
+>{\centering\arraybackslash}p{0.16\textwidth}
+>{\centering\arraybackslash}X@{}}
 \toprule
 Subset & No. of layouts & No. of samples & Group ratio (Group7-H1 / Group7-H2 / Group8) \\
 \midrule
@@ -98,8 +60,111 @@ Testing & 22 & 109,996 & 31.8\% / 18.2\% / 50.0\% \\
 \midrule
 Total & 143 & 714,972 & 23.1\% / 36.4\% / 40.6\% \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table*}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{global_surrogate_overview.png}
+\caption{Overall performance and error patterns of the global layout-parameter surrogate model.}
+\label{fig:global_surrogate_overview}
+\end{figure*}
+
+
+\begin{table*}[t]
+\centering
+\caption{Feasibility prediction performance of different surrogate input settings.}
+\label{tab:global_feasibility_results}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{}Xrrrrrr@{}}
+\toprule
+Model & ROC-AUC & PR-AUC & F1 & Reject rate & Feasible recall & False reject count \\
+\midrule
+Design-parameter MLP & 0.9117 & 0.6137 & 0.5927 & 0.4787 & 0.9946 & 90 \\
+Layout-statistics MLP & 0.9547 & 0.8163 & 0.7370 & 0.4447 & 0.9994 & 10 \\
+LayoutParamGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+
+\begin{table*}[t]
+\centering
+\caption{Reinforcement usage prediction performance of different surrogate input settings.}
+\label{tab:global_steel_results}
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{@{}Xrrrrrrrr@{}}
+\toprule
+Model & MAE (t) & RMSE (t) & $R^2$ & MAPE & Bias (t) & Pairwise acc. & Spearman & Top-10\% recall \\
+\midrule
+Design-parameter MLP & 32.30 & 45.77 & 0.351 & 0.247 & -13.89 & 0.9586 & 0.9547 & 0.8974 \\
+Layout-statistics MLP & 13.83 & 18.75 & 0.891 & 0.112 & -1.66 & 0.9652 & 0.9628 & 0.9142 \\
+LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{local_calibration_effect.png}
+\caption{Effect of online local calibration using FEA-verified samples from the current layout.}
+\label{fig:local_calibration_effect}
+\end{figure*}
+
+
+\begin{table}[t]
+\centering
+\caption{Representative local calibration results using 100 FEA-verified samples.}
+\label{tab:local_calibration_results}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.20\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}@{}}
+\toprule
+Metric & Global & Calib. & Improv. \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Feasibility}} \\
+Brier & 0.0749 & 0.0437 & 42\% \\
+ECE & 0.0895 & 0.0333 & 63\% \\
+Screen reject rate & 0.4708 & 0.5481 & 16\% \\
+Screen recall & 0.9990 & 0.9939 & -1\% \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Steel}} \\
+MAE & 11.48~t & 2.04~t & 82\% \\
+RMSE & 12.30~t & 2.76~t & 78\% \\
+$R^2$ & 0.847 & 0.994 & 17\% \\
+MAPE & 9.26\% & 1.64\% & 82\% \\
+Bias (Kg) & -5023.24 & -1.25 & 99.98\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{calibration_sample_efficiency.png}
+\caption{Sample efficiency of online local calibration under different numbers of local FEA-verified samples.}
+\label{fig:calibration_sample_efficiency}
+\end{figure*}
+
+\subsection{Dataset and Structural Evaluation}
+\label{subsec:dataset_structural_evaluation}
+
+The dataset is constructed from engineering shear wall layouts and a parametric structural evaluation workflow. Each sample corresponds to a layout, a design condition, and a section-material design scheme. The input includes layout information and design parameters, and the supervised labels include the comprehensive feasibility label $y_f$ and the reinforcement usage $m_s$.
+
+The dataset contains 143 shear wall layouts designed by professional engineers. Following the design-condition grouping used in the previous layout-generation study, the layouts are divided into three groups according to seismic intensity and building height. Group7-H1 corresponds to low-demand cases with seismic intensity 7, PGA of 0.10~g, and building height $H \leq 50$~m. Group7-H2 corresponds to medium-demand cases with the same seismic intensity but building height $H>50$~m. Group8 corresponds to high-demand cases with seismic intensity 8 and PGA of 0.20~g. These groups reflect the combined influence of seismic demand and structural height on shear wall section design and material usage.
+
+For each layout, 5000 candidate design schemes are sampled from a predefined parameter space, which is summarized in Table~\ref{tab:parameter_space}. The sampled variables include the number of stories, wall thicknesses in different vertical zones, main and secondary beam dimensions, concrete strength grade, seismic intensity, site class, and seismic group. For parameters defined along the building height, basic engineering constraints are imposed during sampling. For example, upper-zone wall thickness is not allowed to be larger than lower-zone wall thickness.
+
+A true structural evaluator $\mathcal{E}$ is used to generate labels for all sampled candidates. For each candidate, the evaluator automatically constructs the structural model, performs FEA in OpenSees, extracts global structural responses and member forces, and conducts code-based member design and reinforcement calculation. The comprehensive feasibility label $y_f$ is determined by analysis validity, global response limits, and member-level design checks. The reinforcement usage label $m_s$ is obtained from the final member design results.
+
+The resulting dataset contains approximately 715,000 FEA-labeled samples. After removing cases with failed analyses or invalid results, the final dataset contains 714,972 samples. A layout-level split is adopted to evaluate cross-layout generalization. Specifically, 100 layouts are used for training, 21 layouts for validation, and 22 layouts for testing, corresponding to an approximate ratio of 0.70:0.15:0.15. All parameter variants of the same layout are assigned to the same subset to avoid information leakage between training and testing. The test layouts cover the three design-condition groups and are used for global surrogate evaluation, local calibration analysis, and optimization benchmarking.
+
+ The detailed distribution of layouts and samples across design-condition groups is given in Table~\ref{tab:dataset_split}.
+
 
 \subsection{Global Surrogate Model Training}
 \label{subsec:global_surrogate_training}
