@@ -77,10 +77,16 @@ Total & 143 & 714,972 & 23.1\% / 36.4\% / 40.6\% \\
 \caption{Feasibility prediction performance of different surrogate input settings.}
 \label{tab:global_feasibility_results}
 \small
-\setlength{\tabcolsep}{4pt}
-\begin{tabularx}{\textwidth}{@{}Xrrrrrr@{}}
+\setlength{\tabcolsep}{5pt}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X
+>{\centering\arraybackslash}p{0.09\textwidth}
+>{\centering\arraybackslash}p{0.09\textwidth}
+>{\centering\arraybackslash}p{0.07\textwidth}
+>{\centering\arraybackslash}p{0.105\textwidth}
+>{\centering\arraybackslash}p{0.125\textwidth}
+>{\centering\arraybackslash}p{0.145\textwidth}@{}}
 \toprule
-Model & ROC-AUC & PR-AUC & F1 & Reject rate & Feasible recall & False reject count \\
+Model & ROC-AUC & PR-AUC & F1 & \shortstack{Reject\\rate} & \shortstack{Feasible\\recall} & \shortstack{False reject\\count} \\
 \midrule
 Design-parameter MLP & 0.9117 & 0.6137 & 0.5927 & 0.4787 & 0.9946 & 90 \\
 Layout-statistics MLP & 0.9547 & 0.8163 & 0.7370 & 0.4447 & 0.9994 & 10 \\
@@ -95,10 +101,18 @@ LayoutParamGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
 \caption{Reinforcement usage prediction performance of different surrogate input settings.}
 \label{tab:global_steel_results}
 \small
-\setlength{\tabcolsep}{3pt}
-\begin{tabularx}{\textwidth}{@{}Xrrrrrrrr@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X
+>{\centering\arraybackslash}p{0.075\textwidth}
+>{\centering\arraybackslash}p{0.075\textwidth}
+>{\centering\arraybackslash}p{0.06\textwidth}
+>{\centering\arraybackslash}p{0.07\textwidth}
+>{\centering\arraybackslash}p{0.075\textwidth}
+>{\centering\arraybackslash}p{0.105\textwidth}
+>{\centering\arraybackslash}p{0.09\textwidth}
+>{\centering\arraybackslash}p{0.125\textwidth}@{}}
 \toprule
-Model & MAE (t) & RMSE (t) & $R^2$ & MAPE & Bias (t) & Pairwise acc. & Spearman & Top-10\% recall \\
+Model & \shortstack{MAE\\(t)} & \shortstack{RMSE\\(t)} & $R^2$ & MAPE & \shortstack{Bias\\(t)} & \shortstack{Pairwise\\acc.} & Spearman & \shortstack{Top-10\%\\recall} \\
 \midrule
 Design-parameter MLP & 32.30 & 45.77 & 0.351 & 0.247 & -13.89 & 0.9586 & 0.9547 & 0.8974 \\
 Layout-statistics MLP & 13.83 & 18.75 & 0.891 & 0.112 & -1.66 & 0.9652 & 0.9628 & 0.9142 \\
