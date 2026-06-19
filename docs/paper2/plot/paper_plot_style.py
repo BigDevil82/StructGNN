@@ -4,10 +4,9 @@ from pathlib import Path
 from typing import Iterable
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import font_manager
 from matplotlib.font_manager import FontProperties
-import numpy as np
-
 
 ROOT = Path(__file__).resolve().parents[3]
 PLOT_DIR = ROOT / "outputs/result/paper2/all_figs"
@@ -16,13 +15,13 @@ METHOD_ORDER = ["full", "gnn_cost", "gnn_screen_cost"]
 SURROGATE_METHODS = ["gnn_cost", "gnn_screen_cost"]
 METHOD_LABELS = {
     "full": "Full FEA",
-    "gnn_cost": "Cost surrogate",
-    "gnn_screen_cost": "Screen + cost",
+    "gnn_cost": "Cost ranking",
+    "gnn_screen_cost": "Screen & ranking",
 }
 METHOD_LABELS_SHORT = {
     "full": "Full FEA",
-    "gnn_cost": "Cost",
-    "gnn_screen_cost": "Screen + cost",
+    "gnn_cost": "Cost ranking",
+    "gnn_screen_cost": "Screen & ranking",
 }
 ALGORITHM_ORDER = ["GA", "PSO", "Random Search"]
 METHOD_COLORS = {

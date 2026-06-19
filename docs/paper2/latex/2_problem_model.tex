@@ -1,3 +1,18 @@
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{layout_parameter_surrogate.png}
+\caption{Layout-parameter surrogate model for feasibility prediction and reinforcement usage estimation.}
+\label{fig:layout_parameter_surrogate}
+\end{figure*}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{online_local_calibration.png}
+\caption{Online local calibration of global surrogate predictions using FEA-verified samples from the current layout.}
+\label{fig:online_calibration}
+\end{figure*}
+
 \section{Calibrated Surrogate Modeling Method for Shear Wall Structural Optimization}
 \label{sec:problem_surrogate}
 
@@ -130,14 +145,6 @@ The predicted reinforcement usage is recovered by the inverse transformation dur
 
 A schematic illustration of the layout-parameter surrogate model is provided in Fig.~\ref{fig:layout_parameter_surrogate}.
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{layout_parameter_surrogate.png}
-\caption{Layout-parameter surrogate model for feasibility prediction and reinforcement usage estimation.}
-\label{fig:layout_parameter_surrogate}
-\end{figure*}
-
-
 \subsection{Online Local Calibration of Global Surrogates}
 \label{subsec:online_local_calibration}
 
@@ -228,10 +235,3 @@ p_c\tilde{m}_{c}.
 This cost estimate is used only for candidate ranking before true evaluation. The final reinforcement quantity, concrete quantity, material cost, and feasibility of a selected design are always determined by the true evaluator $\mathcal{E}$.
 
 Figure~\ref{fig:online_calibration} illustrates the online local calibration process.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{online_local_calibration.png}
-\caption{Online local calibration of global surrogate predictions using FEA-verified samples from the current layout.}
-\label{fig:online_calibration}
-\end{figure*}

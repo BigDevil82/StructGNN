@@ -1,3 +1,11 @@
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{calibrated_optimization_framework.png}
+\caption{Calibrated surrogate-assisted optimization framework.}
+\label{fig:calibrated_optimization_framework}
+\end{figure*}
+
 \section{Calibrated Surrogate-Assisted Optimization Framework}
 \label{sec:optimization_framework}
 
@@ -8,7 +16,7 @@ The essential feature of the framework is that surrogate predictions are used on
 \subsection{Overall Framework}
 \label{subsec:overall_framework}
 
-For a fixed shear wall layout $L$ and design condition $c$, the optimization task is to search the design space $\mathcal{X}$ for section and material parameters that minimize the material cost while satisfying all structural checks. At iteration $t$, the optimizer $\mathcal{O}$ generates a batch of candidate designs:
+The overall framework is illustrated in Fig.~\ref{fig:calibrated_optimization_framework}. For a fixed shear wall layout $L$ and design condition $c$, the optimization task is to search the design space $\mathcal{X}$ for section and material parameters that minimize the material cost while satisfying all structural checks. At iteration $t$, the optimizer $\mathcal{O}$ generates a batch of candidate designs:
 \begin{equation}
 \mathcal{B}_t=
 \left\{
@@ -53,14 +61,7 @@ The calibrated predictions are then used for candidate screening and priority ra
 \quad x_{t,i}\in\mathcal{S}_t .
 \label{eq:true_eval_framework}
 \end{equation}
-These verified results are used to update the optimizer and to expand the local calibration set. The overall framework is illustrated in Fig.~\ref{fig:calibrated_optimization_framework}.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{calibrated_optimization_framework.png}
-\caption{Calibrated surrogate-assisted optimization framework. The surrogate module pre-evaluates candidates and allocates the FEA budget, while the final feasibility and objective value are determined by the true evaluator.}
-\label{fig:calibrated_optimization_framework}
-\end{figure*}
+These verified results are used to update the optimizer and to expand the local calibration set.
 
 \subsection{Candidate Screening and Priority Ranking}
 \label{subsec:candidate_screening_ranking}
