@@ -54,6 +54,8 @@ def main() -> None:
         prediction_path=Path(args.prediction_path),
         input_mode=args.input_mode,
     )
+    if args.zero_global_pred:
+        df[PRED] = 0.0
     layouts = select_layouts(df, args.layouts, args.max_layouts, args.seed)
     calib_sizes = parse_int_list(args.calib_sizes)
     model_names = parse_str_list(args.models)
@@ -154,6 +156,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--input-mode", choices=["pred", "param", "pred_param"], default="pred_param")
     p.add_argument("--target-space", choices=["kg", "log"], default="kg")
     p.add_argument("--max-gpr-train", type=int, default=300)
+    p.add_argument(
+        "--zero-global-pred",
+        action="store_true",
+        help="Set global steel predictions to 0 before residual calibration.",
+    )
     return p.parse_args()
 
 
@@ -386,7 +393,10 @@ def ranking_metrics(
 
     y_rank = pd.Series(y_true).rank(method="average").to_numpy()
     p_rank = pd.Series(y_pred).rank(method="average").to_numpy()
-    spearman = float(np.corrcoef(y_rank, p_rank)[0, 1]) if len(y_true) >= 3 else float("nan")
+    if len(y_true) >= 3 and np.std(y_rank) > 0.0 and np.std(p_rank) > 0.0:
+        spearman = float(np.corrcoef(y_rank, p_rank)[0, 1])
+    else:
+        spearman = float("nan")
 
     k = max(1, int(np.ceil(len(y_true) * top_frac)))
     true_order = np.argsort(y_true)
@@ -472,6 +482,7 @@ def write_report(result: pd.DataFrame, args: argparse.Namespace, path: Path) -> 
         f"- dataset_path: `{args.dataset_path}`",
         f"- input_mode: `{args.input_mode}`",
         f"- target_space: `{args.target_space}`",
+        f"- zero_global_pred: `{args.zero_global_pred}`",
         f"- repeats: `{args.repeats}`",
         "",
         "## Best Mean Result By Calibration Size",
