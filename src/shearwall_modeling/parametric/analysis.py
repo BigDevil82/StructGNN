@@ -130,6 +130,7 @@ def analyze_parametric_model(
             logger=run_logger,
         ).run()
 
+        period_ratio_available = analysis_result.modal_summary.period_ratio is not None
         return ParametricAnalysisResult(
             converged=True,
             feasible=overall_result.is_passed,
@@ -156,6 +157,15 @@ def analyze_parametric_model(
             max_wall_shear_limit=max_wall_shear_limit,
             max_beam_shear_ratio=max_beam_shear_ratio,
             max_beam_shear_limit=max_beam_shear_limit,
+            period_ratio_available=period_ratio_available,
+            torsion_passed=overall_result.is_torsion_passed,
+            shear_weight_passed=overall_result.is_shear_weight_passed,
+            stiffness_passed=overall_result.is_stiffness_passed,
+            drift_passed=overall_result.is_interstory_drift_passed,
+            period_ratio_passed=overall_result.is_period_ratio_passed,
+            wall_axial_passed=overall_result.is_wall_axial_passed,
+            wall_shear_passed=overall_result.is_wall_shear_pressure_passed,
+            beam_shear_passed=overall_result.is_beam_shear_pressure_passed,
             error="",
         )
     except Exception as exc:
@@ -185,6 +195,15 @@ def analyze_parametric_model(
             max_wall_shear_limit=float("nan"),
             max_beam_shear_ratio=float("nan"),
             max_beam_shear_limit=float("nan"),
+            period_ratio_available=False,
+            torsion_passed=False,
+            shear_weight_passed=False,
+            stiffness_passed=False,
+            drift_passed=False,
+            period_ratio_passed=False,
+            wall_axial_passed=False,
+            wall_shear_passed=False,
+            beam_shear_passed=False,
             error=str(exc),
         )
     finally:

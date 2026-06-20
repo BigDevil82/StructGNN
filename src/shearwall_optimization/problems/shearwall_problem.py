@@ -5,6 +5,7 @@ from typing import Any
 
 from src.misc.parallel import run_batch
 from src.shearwall_modeling.geometry.scaling import load_and_scale_input
+from src.shearwall_modeling.core.constants import MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY
 from src.shearwall_modeling.parametric import (
     DatasetGenerationConfig,
     ParametricModelParams,
@@ -19,6 +20,8 @@ from ..cost_estimation import material_cost
 class ShearWallObjectiveConfig:
     steel_price_per_kg: float = 5
     infeasible_penalty: float = 1e5
+    infeasible_violation_weight: float = 1e7
+    infeasible_cost_weight: float = 0.01
 
 
 @dataclass(frozen=True)
@@ -324,7 +327,7 @@ def _evaluate_decision(
         "torsion_ratio": float(limit_cfg.max_torsion_ratio),
         "max_drift_ratio": float(limit_cfg.max_drift_ratio),
         "period_ratio": float(limit_cfg.max_period_ratio),
-        "min_shear_weight_ratio": float(limit_cfg.min_shear_weight_ratio),
+        "min_shear_weight_ratio": _shear_weight_limit(float(merged["intensity"]), limit_cfg.min_shear_weight_ratio),
         "min_stiffness_ratio": float(limit_cfg.min_stiffness_ratio),
         "wall_axial_ratio": metric_values["wall_axial_limit"],
         "wall_shear_ratio": metric_values["wall_shear_limit"],
@@ -349,9 +352,8 @@ def _evaluate_decision(
         limit = limits[key]
         normalized_violations[key] = max(0.0, (limit - actual) / limit)
 
-    total_violation = (
-        sum(normalized_violations.values()) / len(normalized_violations) if normalized_violations else 0.0
-    )
+    if not analysis_result.period_ratio_available and constraint_cfg.require_analysis_feasible:
+        normalized_violations["period_ratio_unavailable"] = 1.0
 
     constraints: dict[str, float] = {
         "not_converged": 0.0 if analysis_result.converged else 1.0,
@@ -361,18 +363,41 @@ def _evaluate_decision(
         "design_failed": (
             0.0 if (analysis_result.design_passed or not constraint_cfg.require_design_passed) else 1.0
         ),
+        "torsion_failed": _failed(analysis_result.torsion_passed, constraint_cfg.require_analysis_feasible),
+        "shear_weight_failed": _failed(analysis_result.shear_weight_passed, constraint_cfg.require_analysis_feasible),
+        "stiffness_failed": _failed(analysis_result.stiffness_passed, constraint_cfg.require_analysis_feasible),
+        "drift_failed": _failed(analysis_result.drift_passed, constraint_cfg.require_analysis_feasible),
+        "period_ratio_failed": _failed(analysis_result.period_ratio_passed, constraint_cfg.require_analysis_feasible),
+        "wall_axial_failed": _failed(analysis_result.wall_axial_passed, constraint_cfg.require_analysis_feasible),
+        "wall_shear_failed": _failed(analysis_result.wall_shear_passed, constraint_cfg.require_analysis_feasible),
+        "beam_shear_failed": _failed(analysis_result.beam_shear_passed, constraint_cfg.require_analysis_feasible),
     }
     feasible = all(v <= 0.0 for v in constraints.values())
 
-    objective = cost.material_cost * (1.0 + total_violation)
-    if not feasible:
-        objective += objective_cfg.infeasible_penalty
+    violation_sum = sum(normalized_violations.values())
+    max_violation = max(normalized_violations.values()) if normalized_violations else 0.0
+    total_violation = violation_sum / len(normalized_violations) if normalized_violations else 0.0
+    constraint_violation = sum(v for k, v in constraints.items() if k != "analysis_unfeasible")
+    violation_score = violation_sum + constraint_violation
+
+    if feasible:
+        objective = cost.material_cost
+    else:
+        objective = (
+            objective_cfg.infeasible_penalty
+            + objective_cfg.infeasible_violation_weight * violation_score
+            + objective_cfg.infeasible_cost_weight * cost.material_cost
+        )
 
     objectives = {
         "material_cost": cost.material_cost,
         "concrete_cost": cost.concrete_cost,
         "steel_cost": cost.steel_cost,
         "total_violation": total_violation,
+        "violation_sum": violation_sum,
+        "max_violation": max_violation,
+        "constraint_violation": constraint_violation,
+        "violation_score": violation_score,
         "constraints": constraints,
     }
 
@@ -390,3 +415,12 @@ def _evaluate_decision(
             "objective": objective,
         },
     )
+
+
+def _failed(passed: bool, required: bool) -> float:
+    return 0.0 if (passed or not required) else 1.0
+
+
+def _shear_weight_limit(intensity: float, fallback: float) -> float:
+    key = round(float(intensity), 2)
+    return float(MIN_SHEAR_WEIGHT_RATIO_BY_INTENSITY.get(key, fallback))

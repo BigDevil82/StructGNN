@@ -45,6 +45,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p.add_argument("--steel-price-per-kg", type=float, default=5.0)
     p.add_argument("--infeasible-penalty", type=float, default=1e6)
+    p.add_argument("--infeasible-violation-weight", type=float, default=1e7)
+    p.add_argument("--infeasible-cost-weight", type=float, default=0.01)
     p.add_argument("--limit-max-torsion", type=float, default=1.5)
     p.add_argument("--limit-max-drift", type=float, default=1.0 / 1000.0)
     p.add_argument("--limit-min-shear-weight", type=float, default=0.016)
@@ -302,6 +304,8 @@ def main() -> None:
     objective_cfg = ShearWallObjectiveConfig(
         steel_price_per_kg=args.steel_price_per_kg,
         infeasible_penalty=args.infeasible_penalty,
+        infeasible_violation_weight=args.infeasible_violation_weight,
+        infeasible_cost_weight=args.infeasible_cost_weight,
     )
     limit_cfg = ShearWallLimitConfig(
         max_torsion_ratio=args.limit_max_torsion,

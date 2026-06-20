@@ -108,4 +108,13 @@ class ParametricAnalysisResult:
     max_wall_shear_limit: float
     max_beam_shear_ratio: float
     max_beam_shear_limit: float
+    period_ratio_available: bool = True
+    torsion_passed: bool = True
+    shear_weight_passed: bool = True
+    stiffness_passed: bool = True
+    drift_passed: bool = True
+    period_ratio_passed: bool = True
+    wall_axial_passed: bool = True
+    wall_shear_passed: bool = True
+    beam_shear_passed: bool = True
     error: str = ""
