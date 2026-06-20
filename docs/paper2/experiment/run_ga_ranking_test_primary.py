@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = next(p for p in Path(__file__).resolve().parents if (p / "src").exists())
 SITE_CLASSES = ["I0", "I", "II", "III", "IV"]
 SEISMIC_GROUPS = [1, 2, 3]
 INTENSITY_BY_FAMILY = {
@@ -37,7 +37,9 @@ TEST_LAYOUTS = [
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Run primary surrogate-assisted optimization experiment on test layouts.")
+    p = argparse.ArgumentParser(
+        description="Run primary surrogate-assisted optimization experiment on test layouts."
+    )
     p.add_argument("--out-root", default=r"outputs\result\optimization\ranking_test_primary")
     p.add_argument("--algorithm", choices=["ga", "pso", "optuna", "random"], default="ga")
     p.add_argument("--layout-source", choices=["builtin", "split", "all"], default="builtin")
@@ -88,7 +90,9 @@ def main() -> None:
     conditions = _make_conditions(layouts, args.seeds, args.condition_seed)
     layout_path = out_root / "test_layouts.csv"
     condition_path = out_root / "conditions.csv"
-    pd.DataFrame({"layout_id": layouts, "family": [_family(x) for x in layouts]}).to_csv(layout_path, index=False)
+    pd.DataFrame({"layout_id": layouts, "family": [_family(x) for x in layouts]}).to_csv(
+        layout_path, index=False
+    )
     pd.DataFrame(conditions).to_csv(condition_path, index=False)
 
     if args.methods is not None:
@@ -99,7 +103,7 @@ def main() -> None:
         methods = ["full", "gnn_cost", "gnn_screen_cost"]
     cmd = [
         sys.executable,
-        "scripts/experiments/run_ga_ranking_batch.py",
+        "docs/paper2/experiment/run_ga_ranking_batch.py",
         "--algorithm",
         args.algorithm,
         "--layouts",
@@ -237,7 +241,9 @@ def _write_combined_summary(out_root: Path) -> None:
         df.insert(0, "experiment", path.parent.name)
         paired_rows.append(df)
     if paired_rows:
-        pd.concat(paired_rows, ignore_index=True).to_csv(out_root / "combined_paired_summary_by_method.csv", index=False)
+        pd.concat(paired_rows, ignore_index=True).to_csv(
+            out_root / "combined_paired_summary_by_method.csv", index=False
+        )
 
 
 if __name__ == "__main__":

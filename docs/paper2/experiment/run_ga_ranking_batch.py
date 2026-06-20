@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = next(p for p in Path(__file__).resolve().parents if (p / "src").exists())
 
 
 @dataclass(frozen=True)
