@@ -169,6 +169,15 @@ The dataset contains 143 shear wall layouts designed by professional engineers. 
 
 For each layout, 5000 candidate design schemes are sampled from a predefined parameter space, which is summarized in Table~\ref{tab:parameter_space}. The sampled variables include the number of stories, wall thicknesses in different vertical zones, main and secondary beam dimensions, concrete strength grade, seismic intensity, site class, and seismic group. For parameters defined along the building height, basic engineering constraints are imposed during sampling. For example, upper-zone wall thickness is not allowed to be larger than lower-zone wall thickness.
 
+Representative finite element models generated from the same parametric workflow are shown in Fig.~\ref{fig:model_cases}. These cases illustrate how different story numbers, section dimensions, material grades, and seismic design conditions lead to distinct shear wall structural models within the dataset.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{model_cases.png}
+\caption{Representative finite element models of shear wall structures under different sampled design parameters and design conditions.}
+\label{fig:model_cases}
+\end{figure*}
+
 A true structural evaluator $\mathcal{E}$ is used to generate labels for all sampled candidates. For each candidate, the evaluator automatically constructs the structural model, performs FEA in OpenSees, extracts global structural responses and member forces, and conducts code-based member design and reinforcement calculation. The comprehensive feasibility label $y_f$ is determined by analysis validity, global response limits, and member-level design checks. The reinforcement usage label $m_s$ is obtained from the final member design results.
 
 The resulting dataset contains approximately 715,000 FEA-labeled samples. After removing cases with failed analyses or invalid results, the final dataset contains 714,972 samples. A layout-level split is adopted to evaluate cross-layout generalization. Specifically, 100 layouts are used for training, 21 layouts for validation, and 22 layouts for testing, corresponding to an approximate ratio of 0.70:0.15:0.15. All parameter variants of the same layout are assigned to the same subset to avoid information leakage between training and testing. The test layouts cover the three design-condition groups and are used for global surrogate evaluation, local calibration analysis, and optimization benchmarking.
