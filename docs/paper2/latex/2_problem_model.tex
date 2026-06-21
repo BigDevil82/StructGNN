@@ -1,7 +1,7 @@
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{layout_parameter_surrogate.png}
-\caption{Layout-parameter surrogate model for feasibility prediction and reinforcement usage estimation.}
+\caption{Layout-conditioned graph surrogate model for candidate feasibility and reinforcement usage prediction.}
 \label{fig:layout_parameter_surrogate}
 \end{figure*}
 
@@ -16,12 +16,12 @@
 \section{Calibrated Surrogate Modeling Method for Shear Wall Structural Optimization}
 \label{sec:problem_surrogate}
 
-This section defines the shear wall structural optimization problem considered in this study and introduces the calibrated surrogate modeling strategy used for candidate assessment. The proposed surrogate models are not intended to replace finite-element analysis (FEA) or code-based design checking. Instead, they are used as pre-evaluation tools to estimate whether a candidate design is worth being submitted to the true structural evaluator. To this end, the expensive structural evaluation process is reformulated into two surrogate learning tasks: feasibility screening and reinforcement usage estimation. A layout-parameter surrogate model is then constructed to account for both structural layout characteristics and design variables. Finally, an online local calibration mechanism is introduced to correct the global surrogate predictions using FEA-verified samples accumulated during the optimization process.
+To improve the efficiency of shear wall section and material optimization, the proposed method uses surrogate models to assess candidate designs before FEA. It predicts candidate feasibility and reinforcement usage from a joint representation of layout and design parameters, and then calibrates these predictions online with FEA-verified samples from the current optimization task. The calibrated predictions are used to filter clearly low-feasibility candidates and rank promising low-cost candidates for true evaluation.
 
 \subsection{Shear Wall Structural Optimization Problem Formulation}
 \label{subsec:expensive_problem}
 
-For a given shear wall layout, structural optimization aims to determine suitable section and material parameters while satisfying multiple design constraints. These parameters may include wall thicknesses in different vertical zones, beam section dimensions, concrete strength grades, and other design-related variables. Although the layout itself is fixed in this study, different parameter combinations may lead to substantially different structural responses, reinforcement demands, and material costs.
+For a given shear wall layout, structural optimization aims to determine suitable section and material parameters while satisfying multiple design constraints. These parameters include wall thicknesses in different vertical zones, beam section dimensions, concrete strength grades, and other design-related variables. Although the layout of the structure is fixed, different parameter combinations may lead to substantially different structural responses, reinforcement demands, and material costs.
 
 Let $L$ denote a fixed shear wall layout and $c$ denote the corresponding design condition, including seismic intensity, site class, seismic group, load condition, and other external design requirements. The optimization variables are denoted by $x \in \mathcal{X}$, where $\mathcal{X}$ is the discrete or mixed discrete design space formed by section and material parameters.
 
@@ -46,12 +46,12 @@ where $p_s$ and $p_c$ are the unit prices of reinforcement and concrete, respect
 \label{eq:optimization_problem}
 \end{equation}
 
-The main computational difficulty lies in the repeated calls to $\mathcal{E}$. In particular, reinforcement usage is difficult to estimate accurately before FEA because it depends on internal force envelopes, member-level design, and code-based detailing requirements. By contrast, concrete quantity can be approximately obtained from geometric information and section dimensions. Therefore, this study focuses on two surrogate outputs that are most useful before true evaluation: the probability of passing comprehensive design checks and the reinforcement usage used for cost-related ranking.
+The main computational difficulty lies in the repeated calls to $\mathcal{E}$. In particular, reinforcement usage is difficult to estimate accurately before FEA because it depends on internal force envelopes, member-level design, and code-based detailing requirements. Concrete quantity can be approximately obtained from geometric information and section dimensions. Therefore, this study focuses on two surrogate outputs that are most useful before true evaluation: the probability of passing comprehensive design checks and the reinforcement usage used for cost-related ranking.
 
 \subsection{Surrogate Learning Tasks for FEA Budget Allocation}
 \label{subsec:surrogate_tasks}
 
-The surrogate models in this study are designed for candidate assessment rather than final structural evaluation. Their purpose is to support FEA budget allocation by providing two types of information before calling the true evaluator: whether a candidate is likely to be feasible, and whether it is likely to have low material cost.
+The surrogate models in this study support FEA budget allocation by providing two types of information before calling the true evaluator: whether a candidate is likely to be feasible, and whether it is likely to have low material cost.
 
 \subsubsection{Feasibility screening}
 \label{subsubsec:feasibility_task}
@@ -63,7 +63,7 @@ The feasibility surrogate estimates the probability that a candidate design can 
 \end{equation}
 where $\hat{p}_{f}^{G}\in[0,1]$ is the global surrogate prediction of feasibility probability.
 
-Unlike a conventional binary classifier, this model is used as a conservative screening tool. Its main objective is to reject clearly infeasible candidates while retaining most potentially feasible ones. Therefore, the threshold used in optimization is not selected to maximize default classification accuracy. Instead, it is determined under a high feasible-recall requirement, so that the risk of falsely rejecting feasible candidates is controlled.
+This model is used as a conservative screening tool, with the main objective of rejecting clearly infeasible candidates while retaining most potentially feasible ones. Therefore, the threshold used in optimization is determined under a high feasible-recall requirement to control the risk of falsely rejecting feasible candidates.
 
 \subsubsection{Reinforcement usage estimation}
 \label{subsubsec:steel_task}
@@ -75,24 +75,24 @@ The reinforcement surrogate estimates the reinforcement quantity of a candidate 
 \end{equation}
 where $\hat{m}_{s}^{G}$ is the global surrogate prediction of reinforcement usage.
 
-This prediction is not used as the final material quantity. Instead, it provides a relative ranking signal for prioritizing candidates. Since concrete quantity can be rapidly approximated from geometry and section dimensions, a surrogate-based cost estimate can be written as
+This prediction provides a relative ranking signal for prioritizing candidates during pre-evaluation. Since concrete quantity can be rapidly approximated from geometry and section dimensions, a surrogate-based cost estimate can be written as
 \begin{equation}
 \hat{C}^{G}=p_s\hat{m}_{s}^{G}+p_c\tilde{m}_c,
 \label{eq:global_surrogate_cost}
 \end{equation}
-where $\tilde{m}_c$ is the estimated concrete quantity. Candidates with lower surrogate cost are assigned higher priority for true FEA evaluation, while their final feasibility and cost are still determined by $\mathcal{E}$.
+where $\tilde{m}_c$ is the estimated concrete quantity. Candidates with lower surrogate cost are assigned higher priority for true FEA evaluation.
 
-\subsection{Layout-Parameter Representation and Global Surrogate Models}
+\subsection{Layout-Conditioned Surrogate Models}
 \label{subsec:layout_parameter_model}
 
-The feasibility and reinforcement usage of a shear wall structure depend not only on section and material parameters, but also on the spatial organization of the layout. For the same design variables, different shear wall arrangements may result in different stiffness distributions, load paths, and seismic responses. Therefore, a surrogate model using only design parameters is insufficient for cross-layout candidate assessment.
+The feasibility and reinforcement usage of a shear wall structure depend on both section and material parameters and the spatial organization of the layout. For the same design variables, different shear wall arrangements may result in different stiffness distributions, load paths, and seismic responses. Therefore, a surrogate model using only design parameters is insufficient for cross-layout candidate assessment.
 
-This study adopts a layout-parameter representation that combines a room-level graph, global layout statistics, and design parameters. The structural layout is represented as a graph
+This study uses a candidate representation conditioned on the structural layout. It combines a room-level graph, global layout statistics, and design parameters. The structural layout is represented as a graph
 \begin{equation}
 G=(V,E),
 \label{eq:layout_graph}
 \end{equation}
-where rooms or spatial units are treated as nodes, and adjacency relationships between rooms are treated as edges. Node and edge features describe local geometric and spatial relationships. In addition, a vector of global layout statistics $q$ is introduced to encode layout-level information, such as building scale, wall quantity, directional wall ratio, boundary wall ratio, and other geometric or topological descriptors.
+where rooms or spatial units are treated as nodes, and adjacency relationships between rooms are treated as edges. Node and edge features describe local geometric and spatial relationships. In addition, a vector of global layout statistics $q$ is introduced to encode layout-level information, including building scale, wall quantity, directional wall ratio, boundary wall ratio, and other geometric or topological descriptors.
 
 The candidate-specific design vector is denoted by $d$, which encodes the design condition $c$, the section and material parameters. The complete input representation of a candidate is then written as
 \begin{equation}
@@ -100,7 +100,7 @@ z=\left(G,q,d\right)
 \label{eq:candidate_representation}
 \end{equation}
 
-Based on this representation, a layout-parameter graph neural network is constructed as the global surrogate backbone. The graph encoder extracts a layout embedding from $G$, while the design encoder maps $d$ into a design-parameter embedding. These embeddings are fused with the global layout statistics:
+Based on this representation, a layout-conditioned graph surrogate model is used as the common architecture for the global surrogate models. The feasibility surrogate and the reinforcement surrogate are trained as two separate models with independent parameters. In each model, the graph encoder extracts a layout embedding from $G$, while the design encoder maps $d$ into a design-parameter embedding. These embeddings are fused with the global layout statistics:
 \begin{equation}
 h_G = \mathrm{Pool}\left(\mathrm{GNN}(G)\right),
 \label{eq:graph_embedding}
@@ -115,15 +115,15 @@ h = \phi([h_G,q,h_d]),
 \end{equation}
 where $\mathrm{Pool}(\cdot)$ denotes graph-level pooling, $\psi_d(\cdot)$ is the design-parameter encoder, $\phi(\cdot)$ is the fusion network, and $[\cdot]$ denotes feature concatenation.
 
-Two prediction heads are built on the shared representation $h$. The feasibility head outputs the global feasibility probability:
+The two task-specific models use the same representation form but have separate output layers. For the feasibility surrogate, the output layer gives the global feasibility probability:
 \begin{equation}
 \hat{p}_{f}^{G}=\sigma(f_{\theta_f}(h)),
-\label{eq:feasibility_head}
+\label{eq:feasibility_output}
 \end{equation}
-where $\sigma(\cdot)$ is the sigmoid function. The reinforcement head outputs the predicted reinforcement usage:
+where $\sigma(\cdot)$ is the sigmoid function. For the reinforcement surrogate, the output layer gives the predicted reinforcement usage:
 \begin{equation}
 \hat{m}_{s}^{G}=f_{\theta_s}(h).
-\label{eq:steel_head}
+\label{eq:steel_output}
 \end{equation}
 
 In training, the feasibility task is optimized using a weighted binary cross-entropy loss to account for class imbalance:
@@ -136,19 +136,29 @@ where $\omega$ is the class weight. For reinforcement prediction, $m_s$ is trans
 y_s=\frac{\log(1+m_s)-\mu_s}{\sigma_s},
 \label{eq:steel_transform}
 \end{equation}
-where $\mu_s$ and $\sigma_s$ are computed from the training set. The reinforcement head is trained using the Smooth L1 loss in the transformed space:
+where $\mu_s$ and $\sigma_s$ are computed from the training set. The reinforcement surrogate is trained using the Smooth L1 loss in the transformed space:
 \begin{equation}
-\mathcal{L}_s=\mathrm{SmoothL1}(\hat{y}_s,y_s).
+\mathcal{L}_s=\frac{1}{N_s}\sum_{i=1}^{N_s}\rho_\beta(e_i),
+\quad e_i=\hat{y}_{s,i}-y_{s,i},
 \label{eq:steel_loss}
 \end{equation}
-The predicted reinforcement usage is recovered by the inverse transformation during inference.
+\begin{equation}
+\rho_\beta(e_i)=
+\begin{cases}
+\dfrac{e_i^2}{2\beta}, & |e_i|<\beta, \\
+|e_i|-\dfrac{\beta}{2}, & |e_i|\ge\beta,
+\end{cases}
+\label{eq:smooth_l1}
+\end{equation}
+where $N_s$ is the number of reinforcement training samples and $\beta$ controls the transition between the quadratic and linear penalty regions.
+The predicted reinforcement usage is recovered by the inverse transformation of Eqn.\ref{eq:steel_transform} during inference.
 
-A schematic illustration of the layout-parameter surrogate model is provided in Fig.~\ref{fig:layout_parameter_surrogate}.
+A schematic illustration of the model architecture is provided in Fig.~\ref{fig:layout_parameter_surrogate}.
 
 \subsection{Online Local Calibration of Global Surrogates}
 \label{subsec:online_local_calibration}
 
-A global surrogate trained on multiple layouts provides useful prior knowledge for unseen design cases, but it may still exhibit systematic bias for a particular layout or local search region. This issue is especially important in shear wall optimization because the candidate distribution changes during the search. Therefore, using a static global surrogate throughout the optimization process may lead to inappropriate screening or ranking decisions.
+A global surrogate trained on multiple layouts provides useful prior knowledge for unseen design cases, but it may still exhibit systematic bias for a particular layout or local search region. This issue is especially important in shear wall optimization because the candidate distribution of design variable changes during the search. Therefore, using a static global surrogate throughout the optimization process may lead to inappropriate screening or ranking decisions.
 
 To address this problem, this study introduces online local calibration. During optimization, candidates selected for true evaluation naturally produce FEA-verified samples. These samples are accumulated as a local calibration set:
 \begin{equation}
@@ -179,7 +189,7 @@ When the local calibration set contains enough samples and both feasible and inf
 \end{equation}
 where $\hat{p}_{f,i}^{C}$ is the calibrated feasibility probability.
 
-The calibrated probability is used for conservative candidate screening. Given a target feasible recall $r_0$, the raw screening threshold can be determined from the calibrated probabilities of locally verified feasible samples:
+This calibration adjusts the global feasibility probability $\hat{p}_{f}^{G}$ into a layout-specific feasibility score $\hat{p}_{f}^{C}$. The calibrated score is then used for candidate screening in the current layout. To keep the screening conservative, the threshold is chosen from locally verified feasible samples. Given a target recall $r_0$ for feasible candidates, the raw threshold is defined as
 \begin{equation}
 \tau_t^{raw}
 =
@@ -196,7 +206,7 @@ where $Q_{1-r_0}(\cdot)$ denotes the quantile function. A conservative scaling c
 \tau_t^{C}=\alpha \tau_t^{raw}.
 \label{eq:calibrated_threshold}
 \end{equation}
-A candidate with $\hat{p}_{f}^{C}<\tau_t^{C}$ is regarded as low priority for true FEA evaluation. If the local calibration conditions are not satisfied, the framework falls back to the global feasibility probability and a validation-based global threshold.
+A candidate with $\hat{p}_{f}^{C}<\tau_t^{C}$ is regarded as low priority for true FEA evaluation. If there are not enough local samples for calibration, the framework falls back to the global feasibility probability and a validation-based global threshold.
 
 \subsubsection{Reinforcement residual calibration}
 \label{subsubsec:steel_calibration}
@@ -232,6 +242,6 @@ p_s\hat{m}_{s}^{C}
 p_c\tilde{m}_{c}.
 \label{eq:calibrated_cost}
 \end{equation}
-This cost estimate is used only for candidate ranking before true evaluation. The final reinforcement quantity, concrete quantity, material cost, and feasibility of a selected design are always determined by the true evaluator $\mathcal{E}$.
+This calibrated cost estimate is used for candidate ranking before true evaluation.
 
 Figure~\ref{fig:online_calibration} illustrates the online local calibration process.

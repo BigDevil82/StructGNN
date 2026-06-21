@@ -14,6 +14,7 @@ from optimization_plot_data import (
     complete_case_rows,
     find_result_json,
     load_all_summaries,
+    load_summary,
     material_points,
     paired_with_full,
     read_payload,
@@ -26,6 +27,7 @@ from paper_plot_style import (
     METHOD_LABELS_SHORT,
     METHOD_ORDER,
     PLOT_DIR,
+    ROOT,
     SURROGATE_METHODS,
     bold_font,
     draw_violin_points,
@@ -250,6 +252,11 @@ def _sort_layouts_by_success_pattern(matrix: pd.DataFrame, col_order: list[str])
 
 def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str) -> None:
     selected = select_representative_cases(df, algorithm)
+    hard_override = load_hard_case_override(algorithm)
+    hard_override_rows = None
+    if hard_override is not None and len(selected) >= 3:
+        selected = selected[:2] + [hard_override[0]]
+        hard_override_rows = hard_override[1]
     fig, axes = plt.subplots(len(selected), 3, figsize=(12.0, 2.35 * len(selected)), sharey="row")
     if len(selected) == 1:
         axes = np.asarray([axes])
@@ -258,11 +265,14 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
     tick_size = 10
 
     for row_i, case in enumerate(selected):
-        case_rows = df[
-            (df["algorithm"] == algorithm)
-            & (df["layout_id"] == case["layout_id"])
-            & (df["seed"] == case["seed"])
-        ]
+        if case.get("override_source") == "cost_preselect_mixed_ablation" and hard_override_rows is not None:
+            case_rows = hard_override_rows
+        else:
+            case_rows = df[
+                (df["algorithm"] == algorithm)
+                & (df["layout_id"] == case["layout_id"])
+                & (df["seed"] == case["seed"])
+            ]
         ymin, ymax = collect_case_ylim(case_rows)
         for col_i, method in enumerate(METHOD_ORDER):
             ax = axes[row_i, col_i]
@@ -313,6 +323,28 @@ def plot_process_examples(df: pd.DataFrame, out_dir: str | Path, algorithm: str)
     )
     fig.tight_layout()
     save_figure(fig, "optimization_case_examples.png", out_dir)
+
+
+def load_hard_case_override(algorithm: str) -> tuple[dict[str, object], pd.DataFrame] | None:
+    if algorithm != "GA":
+        return None
+    exp_dir = ROOT / "outputs/result/optimization/cost_preselect_mixed_ablation"
+    summary_path = exp_dir / "primary_large" / "summary.csv"
+    if not summary_path.exists():
+        return None
+    rows = load_summary(exp_dir)
+    rows["algorithm"] = algorithm
+    rows["experiment_dir"] = str(exp_dir)
+    case_rows = rows[(rows["layout_id"] == "L27_57") & (rows["seed"] == 2025)].copy()
+    if case_rows["method"].nunique() < len(METHOD_ORDER):
+        return None
+    case = {
+        "layout_id": "L27_57",
+        "seed": 2025,
+        "label": "Hard",
+        "override_source": "cost_preselect_mixed_ablation",
+    }
+    return case, case_rows
 
 
 def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:

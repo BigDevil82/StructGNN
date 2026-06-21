@@ -145,10 +145,10 @@
 %%             country={}}
 
 \author{Hao Leng}
-\author{Ying Zhou}
-\author{Yuqing Gao\corref{cor}}
+\author{Yuqing Gao}
+\author{Ying Zhou\corref{cor}}
 
-\ead{yuqing27@tongji.edu.cn}
+\ead{yingzhou@tongji.edu.cn}
 \cortext[cor]{Corresponding author}
 \address{State Key Laboratory of Disaster Reduction in Civil Engineering, Tongji University, Shanghai 200092, China}
 
@@ -164,7 +164,7 @@
 %             country={Country Two}}
 
 \begin{abstract}
-Shear wall structural optimization for high-rise buildings requires repeated finite-element analysis and code-based design checking, making conventional optimization computationally expensive in preliminary design. Existing surrogate-assisted optimization methods can reduce evaluation cost, but static global surrogates may suffer from layout-specific prediction bias and are unreliable when directly used as substitutes for engineering evaluation. This paper proposes a calibrated surrogate-assisted optimization framework for FEA-efficient shear wall structural design. A layout-parameter surrogate model is first developed to estimate candidate feasibility and reinforcement usage from room-level graph representations, global layout statistics, and design parameters. During optimization, the surrogate predictions are further corrected through online local calibration using FEA-verified samples accumulated from the current layout, enabling layout-specific feasibility probability calibration and reinforcement residual correction. Based on the calibrated predictions, the framework conservatively filters low-feasibility candidates and prioritizes promising low-cost candidates for true FEA evaluation, thereby reallocating the limited analysis budget rather than replacing structural analysis. Experiments on 143 engineering shear wall layouts with approximately 715,000 FEA-labeled samples show that the proposed method improves candidate assessment, reduces local surrogate bias, and substantially decreases true FEA calls while maintaining comparable solution quality. The results demonstrate that online local calibration and surrogate-assisted budget allocation provide an effective strategy for improving the computational efficiency of shear wall structural optimization.
+Shear wall structural optimization for high-rise buildings requires repeated finite-element analysis and code-based design checking, making conventional optimization computationally expensive in preliminary design. Existing surrogate-assisted optimization methods can reduce evaluation cost, but static global surrogates may suffer from layout-specific prediction bias and become unreliable under direct application. This paper proposes a calibrated surrogate-assisted optimization framework for FEA-efficient shear wall structural design. A layout-conditioned surrogate model is first developed to estimate candidate feasibility and reinforcement usage from room-level graph representations, global layout statistics, and design parameters. During optimization, the surrogate predictions are further corrected through online local calibration using FEA-verified samples accumulated from the current layout, enabling layout-specific feasibility probability calibration and reinforcement residual correction. Based on the calibrated predictions, the framework conservatively filters low-feasibility candidates and prioritizes promising low-cost candidates for true FEA evaluation, thereby reallocating the limited analysis budget. Experiments on 143 engineering shear wall layouts with approximately 715,000 FEA-labeled samples show that the proposed method improves candidate assessment, reduces local surrogate bias, and substantially decreases true FEA calls while maintaining comparable solution quality. The results demonstrate that online local calibration and surrogate-assisted budget allocation provide an effective strategy for improving the computational efficiency of shear wall structural optimization.
 \end{abstract}
 
 %%Graphical abstract
@@ -175,15 +175,17 @@ Shear wall structural optimization for high-rise buildings requires repeated fin
 %%Research highlights
 % \begin{strip}
 \begin{highlights}
-\item {Room-level graphs encode spatial semantics and boundary feasibility.}
-\item {FiLM conditioning enables discrete density-controlled wall generation.}
-\item {Dual-stream training improves compliance with sparse paired labels.}
+\item Calibrated surrogates accelerate shear wall structural optimization.
+\item Layout-conditioned surrogates predict feasibility and reinforcement demand.
+\item Online calibration adapts predictions to each layout and search region.
+\item Candidate screening and ranking improve FEA budget allocation.
 \end{highlights}
 % \end{strip}
 
 \begin{keyword}
 %% keywords here, in the form: keyword \sep keyword
-structural design automation \sep  shear wall layout \sep graph neural networks \sep conditional generation \sep room-level representation  
+Shear wall structures \sep Structural optimization \sep Surrogate-assisted optimization \sep Online local calibration \sep FEA budget allocation
+
 %% PACS codes here, in the form: \PACS code \sep code
 % \PACS 0000 \sep 1111
 %% MSC codes here, in the form: \MSC code \sep code
@@ -219,7 +221,7 @@ The authors declare that they have no known competing financial interests or per
 Hao Leng: Conceptualization, Methodology, Software, Formal analysis, Data curation, Writing – original draft \& Visualization. Yuqing Gao: Conceptualization, Methodology, Editing, Review, Supervision. Ying Zhou: Conceptualization, Review, Supervision, Project administration, Funding acquisition. 
 
 \section*{Acknowledgments}
-This work was supported by the National Natural Science Foundation of China (No. 52025083, U2139209), the Shanghai Urban Digital Transformation Special Fund (Grant No. 202201033), the Shanghai Rising-Star Program (Grant No. 24YF2749100) and the Open Recruitment for Leadership Positions Project of Tongji Architectural Design (Group) Co., Ltd. (Grant No. 2024J-JB07) . The authors would like to acknowledge Mr. Zhen Zhang, Mr. Yi Wang, Mr. Zhuoju Huang and Mr. Ming Du from Tongji Architectural Design Institute for providing valuable design drawings used to train the model in this study. We would also like to express our gratitude to Mr. Zhijie Mo and Mr. Boyang Liu for their assistance in annotating the room layout datasets used for model training.
+This work was supported by the National Natural Science Foundation of China (No. 52025083, U2139209), the Shanghai Urban Digital Transformation Special Fund (Grant No. 202201033), the Shanghai Rising-Star Program (Grant No. 24YF2749100) and the Open Recruitment for Leadership Positions Project of Tongji Architectural Design (Group) Co., Ltd. (Grant No. 2024J-JB07) . The authors would like to acknowledge Mr. Zhen Zhang, Mr. Yi Wang, Mr. Zhuoju Huang and Mr. Ming Du from Tongji Architectural Design Institute for providing valuable design drawings used to train the model in this study. The authors also thank Dr. Meiyu Du for his helpful suggestions on improvement of the manuscript.
 
 
 %%%%%%%%%%%%%%%%%%%%%%% appendix %%%%%%%%%%%%%%%%%%%%%%
