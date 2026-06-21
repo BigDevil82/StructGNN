@@ -33,9 +33,9 @@ Main beam width & $b_{b,main}$ & mm & 200, 250, 300, 350 \\
 Secondary beam depth & $h_{b,sec}$ & mm & 300, 400, 450, 500 \\
 Secondary beam width & $b_{b,sec}$ & mm & 200, 250, 300 \\
 Concrete grade & $f_c$ & - & C30, C35, C40, C45, C50 \\
-Seismic intensity & - & - & 6.0, 7.0, 7.5, 8.0 \\
-Site class & - & - & I0, I, II, III, IV \\
-Seismic group & - & - & 1, 2, 3 \\
+Seismic intensity & $S_I$ & - & 6.0, 7.0, 7.5, 8.0 \\
+Site class & $S_C$ & - & I0, I, II, III, IV \\
+Seismic group & $S_G$ & - & 1, 2, 3 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -60,6 +60,14 @@ Total & 143 & 714,972 & 23.1\% / 36.4\% / 40.6\% \\
 \bottomrule
 \end{tabularx}
 \end{table*}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{model_cases.png}
+\caption{Representative finite element models of shear wall structures under different sampled design parameters and design conditions.}
+\label{fig:model_cases}
+\end{figure*}
 
 
 \begin{figure*}[t]
@@ -128,25 +136,25 @@ LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.948
 
 \begin{table}[t]
 \centering
-\caption{Representative local calibration results using 100 FEA-verified samples.}
+\caption{Representative local calibration results and local-only ablation using 100 FEA-verified samples.}
 \label{tab:local_calibration_results}
-\setlength{\tabcolsep}{3pt}
-\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.20\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}@{}}
+\setlength{\tabcolsep}{2pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.14\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.16\columnwidth}>{\centering\arraybackslash}p{0.13\columnwidth}@{}}
 \toprule
-Metric & Global & Calib. & Improv. \\
+Metric & Global & Local only & Calib. & Improv. \\
 \midrule
-\multicolumn{4}{@{}l}{\textit{Feasibility}} \\
-Brier & 0.0749 & 0.0437 & 42\% \\
-ECE & 0.0895 & 0.0333 & 63\% \\
-Screen reject rate & 0.4708 & 0.5481 & 16\% \\
-Screen recall & 0.9990 & 0.9939 & -1\% \\
+\multicolumn{5}{@{}l}{\textit{Feasibility}} \\
+Brier & 0.0749 & 0.0755 & 0.0437 & 42\% \\
+ECE & 0.0895 & 0.0451 & 0.0333 & 63\% \\
+Screen reject rate & 0.4708 & 0.5639 & 0.5481 & 16\% \\
+Screen recall & 0.9990 & 0.7265 & 0.9939 & -1\% \\
 \midrule
-\multicolumn{4}{@{}l}{\textit{Steel}} \\
-MAE & 11.48~t & 2.04~t & 82\% \\
-RMSE & 12.30~t & 2.76~t & 78\% \\
-$R^2$ & 0.847 & 0.994 & 17\% \\
-MAPE & 9.26\% & 1.64\% & 82\% \\
-Bias (Kg) & -5023.24 & -1.25 & 99.98\% \\
+\multicolumn{5}{@{}l}{\textit{Steel}} \\
+MAE & 11.48~t & 4.12~t & 2.04~t & 82\% \\
+RMSE & 12.30~t & 5.64~t & 2.76~t & 78\% \\
+$R^2$ & 0.847 & 0.976 & 0.994 & 17\% \\
+MAPE & 9.26\% & 3.26\% & 1.64\% & 82\% \\
+Bias (kg) & -5023.24 & -466.86 & -1.25 & 99.98\% \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -171,12 +179,6 @@ For each layout, 5000 candidate design schemes are sampled from a predefined par
 
 Representative finite element models generated from the same parametric workflow are shown in Fig.~\ref{fig:model_cases}. These cases illustrate how different story numbers, section dimensions, material grades, and seismic design conditions lead to distinct shear wall structural models within the dataset.
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{model_cases.png}
-\caption{Representative finite element models of shear wall structures under different sampled design parameters and design conditions.}
-\label{fig:model_cases}
-\end{figure*}
 
 A true structural evaluator $\mathcal{E}$ is used to generate labels for all sampled candidates. For each candidate, the evaluator automatically constructs the structural model, performs FEA in OpenSees, extracts global structural responses and member forces, and conducts code-based member design and reinforcement calculation. The comprehensive feasibility label $y_f$ is determined by analysis validity, global response limits, and member-level design checks. The reinforcement usage label $m_s$ is obtained from the final member design results.
 
@@ -232,7 +234,7 @@ For surrogate-assisted strategies, each optimizer first generates a candidate ba
 \subsection{Evaluation Metrics}
 \label{subsec:evaluation_metrics}
 
-The evaluation metrics are grouped according to the three experimental objectives. Since the experiments involve multiple metrics for classification, regression, calibration, ranking, and optimization performance, this subsection only summarizes their roles in the evaluation. The detailed definitions of the key and less common metrics are provided in Appendix~\ref{app:evaluation_metrics}.
+The evaluation metrics are grouped according to the three experimental objectives. Since the experiments involve multiple metrics for classification, regression, calibration, ranking, and optimization performance, this subsection only summarizes their roles in the evaluation. The detailed definitions of the key and less common metrics are provided in \ref{app:evaluation_metrics}.
 
 For the feasibility surrogate, ROC-AUC, PR-AUC, and F1 score are used to evaluate overall classification performance. Since the model is used as a conservative screening tool, feasible recall, reject rate, and false reject count are also reported. Feasible recall measures the proportion of truly feasible candidates retained after screening. Reject rate measures the proportion of candidates filtered before FEA. False reject count measures the number of feasible candidates mistakenly filtered out.
 
