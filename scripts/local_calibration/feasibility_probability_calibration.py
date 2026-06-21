@@ -55,6 +55,8 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_data(Path(args.dataset_path), Path(args.prediction_path), args.input_mode)
+    if args.zero_base_prob:
+        df[PROB] = 0.0
     layouts = select_layouts(df, args.layouts, args.max_layouts, args.seed)
     calib_sizes = parse_int_list(args.calib_sizes)
     method_names = parse_str_list(args.methods)
@@ -168,6 +170,11 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help="Multiply local screening threshold by this factor. Values below 1 are more conservative.",
+    )
+    p.add_argument(
+        "--zero-base-prob",
+        action="store_true",
+        help="Set base feasibility probabilities to 0 before local calibration.",
     )
     return p.parse_args()
 
@@ -543,6 +550,7 @@ def write_report(result: pd.DataFrame, args: argparse.Namespace, path: Path) -> 
         f"- prediction_path: `{args.prediction_path}`",
         f"- dataset_path: `{args.dataset_path}`",
         f"- input_mode: `{args.input_mode}`",
+        f"- zero_base_prob: `{args.zero_base_prob}`",
         f"- repeats: `{args.repeats}`",
         f"- screening_target_recall: `{args.screening_target_recall}`",
         f"- screening_threshold_scale: `{args.screening_threshold_scale}`",
