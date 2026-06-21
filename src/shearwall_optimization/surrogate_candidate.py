@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,6 +27,8 @@ class SurrogateCandidateEvaluator:
         self.local_calibrator = OnlineLocalCalibrator(
             cfg.local_calibration or OnlineLocalCalibrationConfig(enabled=False)
         )
+        self._has_seen_feasible = False
+        self._rng = random.Random(20260621)
 
     @property
     def enabled(self) -> bool:
@@ -145,6 +148,8 @@ class SurrogateCandidateEvaluator:
                 raw_screening[idx],
                 global_cost_preds.get(idx),
             )
+            if res.feasible:
+                self._has_seen_feasible = True
             results[idx] = EvaluationResult(
                 objective=res.objective,
                 objectives=res.objectives,
@@ -214,8 +219,46 @@ class SurrogateCandidateEvaluator:
     ) -> list[int]:
         cfg = self.cfg.cost_preselection or SurrogateCostPreselectionConfig(enabled=False)
         n = len(indices)
-        eval_count = min(n, max(int(cfg.min_eval_count), int(round(n * cfg.eval_ratio))))
-        return sorted(sorted(indices, key=lambda i: preds[i].score)[:eval_count])
+        ratio = cfg.eval_ratio if self._has_seen_feasible else cfg.pre_feasible_eval_ratio
+        eval_count = min(n, max(int(cfg.min_eval_count), int(round(n * ratio))))
+        if eval_count >= n:
+            return sorted(indices)
+        if not self._has_seen_feasible:
+            return sorted(sorted(indices, key=lambda i: preds[i].score)[:eval_count])
+
+        selected: set[int] = set()
+        self._add_quota(
+            selected,
+            sorted(indices, key=lambda i: preds[i].score),
+            eval_count,
+            cfg.cost_quota_ratio,
+        )
+        self._add_quota(
+            selected,
+            sorted(indices, key=lambda i: (preds[i].infeasible_risk, preds[i].score)),
+            eval_count,
+            cfg.feasibility_quota_ratio,
+        )
+        remain = [i for i in indices if i not in selected]
+        self._rng.shuffle(remain)
+        self._add_quota(selected, remain, eval_count, cfg.exploration_quota_ratio)
+
+        if len(selected) < eval_count:
+            for idx in sorted(indices, key=lambda i: preds[i].score):
+                selected.add(idx)
+                if len(selected) >= eval_count:
+                    break
+        return sorted(selected)
+
+    @staticmethod
+    def _add_quota(selected: set[int], ranked: list[int], total: int, ratio: float) -> None:
+        if total <= 0 or ratio <= 0.0:
+            return
+        target = min(total, len(selected) + max(1, int(round(total * ratio))))
+        for idx in ranked:
+            selected.add(idx)
+            if len(selected) >= target:
+                break
 
     def _screened_result(self, decision: ScreeningDecision) -> EvaluationResult:
         cfg = self.cfg.surrogate_screening or SurrogateScreeningConfig(enabled=False)

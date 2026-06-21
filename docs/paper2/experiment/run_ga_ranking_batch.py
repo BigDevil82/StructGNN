@@ -57,6 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--optimizer-workers", type=int, default=4)
     p.add_argument("--job-workers", type=int, default=1, help="Number of GA subprocesses to run concurrently.")
     p.add_argument("--eval-ratio", type=float, default=0.5)
+    p.add_argument("--pre-feasible-eval-ratio", type=float, default=0.8)
     p.add_argument("--min-eval", type=int, default=4)
     p.add_argument("--steel-artifact", default=r"data\parametric\ckpt\steel_gnn_room_lr5e4_b512\gnn_steel.pt")
     p.add_argument("--graph-cache", default=r"data\parametric\cache\gnn_room_graph_cache")
@@ -70,6 +71,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--feasibility-hinge-target", type=float, default=0.5)
+    p.add_argument("--cost-quota-ratio", type=float, default=0.6)
+    p.add_argument("--feasibility-quota-ratio", type=float, default=0.25)
+    p.add_argument("--exploration-quota-ratio", type=float, default=0.15)
     p.add_argument("--local-calibration", action="store_true")
     p.add_argument("--local-calibration-min-samples", type=int, default=25)
     p.add_argument("--local-screening-threshold-scale", type=float, default=0.1)
@@ -253,6 +257,8 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: di
             "--ga-surrogate-cost-preselect",
             "--ga-cost-eval-ratio",
             str(args.eval_ratio),
+            "--ga-cost-pre-feasible-eval-ratio",
+            str(args.pre_feasible_eval_ratio),
             "--ga-cost-min-eval",
             str(args.min_eval),
             "--ga-cost-steel-artifact",
@@ -263,6 +269,12 @@ def _command(args, layout: str, seed: int, method: str, out_path: Path, cond: di
             str(args.feasibility_penalty_cost),
             "--ga-cost-feasibility-hinge-target",
             str(args.feasibility_hinge_target),
+            "--ga-cost-quota-ratio",
+            str(args.cost_quota_ratio),
+            "--ga-cost-feasibility-quota-ratio",
+            str(args.feasibility_quota_ratio),
+            "--ga-cost-exploration-quota-ratio",
+            str(args.exploration_quota_ratio),
         ]
         if args.local_calibration:
             cmd += [

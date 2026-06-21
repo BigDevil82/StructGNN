@@ -90,10 +90,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=r"data\parametric\surrogate_dataset\layout_features.parquet",
     )
     p.add_argument("--ga-cost-eval-ratio", type=float, default=0.4)
+    p.add_argument("--ga-cost-pre-feasible-eval-ratio", type=float, default=0.8)
     p.add_argument("--ga-cost-min-eval", type=int, default=8)
     p.add_argument("--ga-cost-batch-size", type=int, default=512)
     p.add_argument("--ga-cost-feasibility-penalty", type=float, default=1.0e6)
     p.add_argument("--ga-cost-feasibility-hinge-target", type=float, default=0.5)
+    p.add_argument("--ga-cost-quota-ratio", type=float, default=0.6)
+    p.add_argument("--ga-cost-feasibility-quota-ratio", type=float, default=0.25)
+    p.add_argument("--ga-cost-exploration-quota-ratio", type=float, default=0.15)
     p.add_argument("--ga-local-calibration", action="store_true")
     p.add_argument("--ga-local-calibration-min-samples", type=int, default=25)
     p.add_argument("--ga-local-screening-target-recall", type=float, default=0.995)
@@ -172,10 +176,14 @@ def main() -> None:
             graph_cache_dir=args.ga_cost_graph_cache,
             layout_features_path=args.ga_cost_layout_features,
             eval_ratio=args.ga_cost_eval_ratio,
+            pre_feasible_eval_ratio=args.ga_cost_pre_feasible_eval_ratio,
             min_eval_count=args.ga_cost_min_eval,
             batch_size=args.ga_cost_batch_size,
             feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
             feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
+            cost_quota_ratio=args.ga_cost_quota_ratio,
+            feasibility_quota_ratio=args.ga_cost_feasibility_quota_ratio,
+            exploration_quota_ratio=args.ga_cost_exploration_quota_ratio,
         ),
         local_calibration=OnlineLocalCalibrationConfig(
             enabled=args.ga_local_calibration,
@@ -206,10 +214,14 @@ def main() -> None:
             graph_cache_dir=args.ga_cost_graph_cache,
             layout_features_path=args.ga_cost_layout_features,
             eval_ratio=args.ga_cost_eval_ratio,
+            pre_feasible_eval_ratio=args.ga_cost_pre_feasible_eval_ratio,
             min_eval_count=args.ga_cost_min_eval,
             batch_size=args.ga_cost_batch_size,
             feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
             feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
+            cost_quota_ratio=args.ga_cost_quota_ratio,
+            feasibility_quota_ratio=args.ga_cost_feasibility_quota_ratio,
+            exploration_quota_ratio=args.ga_cost_exploration_quota_ratio,
         ),
         local_calibration=OnlineLocalCalibrationConfig(
             enabled=args.ga_local_calibration,
@@ -245,10 +257,14 @@ def main() -> None:
             graph_cache_dir=args.ga_cost_graph_cache,
             layout_features_path=args.ga_cost_layout_features,
             eval_ratio=args.ga_cost_eval_ratio,
+            pre_feasible_eval_ratio=args.ga_cost_pre_feasible_eval_ratio,
             min_eval_count=args.ga_cost_min_eval,
             batch_size=args.ga_cost_batch_size,
             feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
             feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
+            cost_quota_ratio=args.ga_cost_quota_ratio,
+            feasibility_quota_ratio=args.ga_cost_feasibility_quota_ratio,
+            exploration_quota_ratio=args.ga_cost_exploration_quota_ratio,
         ),
         local_calibration=OnlineLocalCalibrationConfig(
             enabled=args.ga_local_calibration,
@@ -281,10 +297,14 @@ def main() -> None:
             graph_cache_dir=args.ga_cost_graph_cache,
             layout_features_path=args.ga_cost_layout_features,
             eval_ratio=args.ga_cost_eval_ratio,
+            pre_feasible_eval_ratio=args.ga_cost_pre_feasible_eval_ratio,
             min_eval_count=args.ga_cost_min_eval,
             batch_size=args.ga_cost_batch_size,
             feasibility_penalty_cost=args.ga_cost_feasibility_penalty,
             feasibility_hinge_target=args.ga_cost_feasibility_hinge_target,
+            cost_quota_ratio=args.ga_cost_quota_ratio,
+            feasibility_quota_ratio=args.ga_cost_feasibility_quota_ratio,
+            exploration_quota_ratio=args.ga_cost_exploration_quota_ratio,
         ),
         local_calibration=OnlineLocalCalibrationConfig(
             enabled=args.ga_local_calibration,

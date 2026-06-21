@@ -71,9 +71,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Methods to run. Overrides --skip-full when provided.",
     )
     p.add_argument("--eval-ratio", type=float, default=0.5)
+    p.add_argument("--pre-feasible-eval-ratio", type=float, default=0.8)
     p.add_argument("--min-eval", type=int, default=8)
     p.add_argument("--feasibility-penalty-cost", type=float, default=1.0e6)
     p.add_argument("--feasibility-hinge-target", type=float, default=0.5)
+    p.add_argument("--cost-quota-ratio", type=float, default=0.6)
+    p.add_argument("--feasibility-quota-ratio", type=float, default=0.25)
+    p.add_argument("--exploration-quota-ratio", type=float, default=0.15)
     p.add_argument("--local-calibration", action="store_true")
     p.add_argument("--skip-full", action="store_true", help="Run only surrogate-assisted methods.")
     p.add_argument("--dry-run", action="store_true")
@@ -122,12 +126,20 @@ def main() -> None:
         str(args.job_workers),
         "--eval-ratio",
         str(args.eval_ratio),
+        "--pre-feasible-eval-ratio",
+        str(args.pre_feasible_eval_ratio),
         "--min-eval",
         str(args.min_eval),
         "--feasibility-penalty-cost",
         str(args.feasibility_penalty_cost),
         "--feasibility-hinge-target",
         str(args.feasibility_hinge_target),
+        "--cost-quota-ratio",
+        str(args.cost_quota_ratio),
+        "--feasibility-quota-ratio",
+        str(args.feasibility_quota_ratio),
+        "--exploration-quota-ratio",
+        str(args.exploration_quota_ratio),
         "--continue-on-error",
         "--skip-existing",
     ]

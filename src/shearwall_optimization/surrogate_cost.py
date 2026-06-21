@@ -18,12 +18,16 @@ class SurrogateCostPreselectionConfig:
     graph_cache_dir: str = r"data\parametric\cache\gnn_room_graph_cache"
     layout_features_path: str = r"data\parametric\surrogate_dataset\layout_features.parquet"
     eval_ratio: float = 0.4
+    pre_feasible_eval_ratio: float = 0.8
     min_eval_count: int = 8
     batch_size: int = 512
     num_workers: int = 0
     skipped_objective: float = 1.0e12
     feasibility_penalty_cost: float = 1.0e6
     feasibility_hinge_target: float = 0.5
+    cost_quota_ratio: float = 0.6
+    feasibility_quota_ratio: float = 0.25
+    exploration_quota_ratio: float = 0.15
 
 
 @dataclass(frozen=True)
