@@ -37,7 +37,7 @@ The material cost of a feasible candidate is defined as
 C(L,c,x)=p_s m_s(L,c,x)+p_c m_c(L,c,x),
 \label{eq:material_cost}
 \end{equation}
-where $p_s$ and $p_c$ are the unit prices of reinforcement and concrete, respectively. The optimization problem can therefore be formulated as
+where $p_s$ and $p_c$ are the unit prices of reinforcement and concrete, respectively. In the experiments, these unit prices are determined according to current market prices. The optimization problem can therefore be formulated as
 \begin{equation}
 \begin{aligned}
 \min_{x\in\mathcal{X}} \quad & C(L,c,x), \
@@ -92,7 +92,14 @@ This study uses a candidate representation conditioned on the structural layout.
 G=(V,E),
 \label{eq:layout_graph}
 \end{equation}
-where rooms or spatial units are treated as nodes, and adjacency relationships between rooms are treated as edges. Node and edge features describe local geometric and spatial relationships. In addition, a vector of global layout statistics $q$ is introduced to encode layout-level information, including building scale, wall quantity, directional wall ratio, boundary wall ratio, and other geometric or topological descriptors.
+where rooms or spatial units are treated as nodes, and adjacency relationships between rooms are treated as edges. 
+For each room node, a 25-dimensional feature vector is constructed by concatenating geometric descriptors and local constraint indicators. 
+The geometric descriptors include the normalized bounding-box coordinates, bounding-box size, area, and centroid of the room, while the constraint indicators describe local buildable or wall-placement availability around the room. 
+For each adjacency edge, an 8-dimensional attribute vector is used to describe the spatial relationship between two neighboring rooms, including the normalized shared-boundary length, the centroid of the shared boundary, relative direction indicators, and a boundary-orientation flag. 
+All geometric quantities are normalized within each layout to reduce scale dependence. 
+This room-level graph representation provides the surrogate model with local spatial organization, adjacency relationships, and potential wall-placement constraints without relying on manually defined room-function labels.
+
+In addition to the room graph, a vector of global layout statistics $q$ is introduced to encode layout-level information, including building scale, wall quantity, directional wall ratio, boundary wall ratio, and other geometric or topological descriptors.
 
 The candidate-specific design vector is denoted by $d$, which encodes the design condition $c$, the section and material parameters. The complete input representation of a candidate is then written as
 \begin{equation}

@@ -59,7 +59,7 @@ The calibrated predictions are then used for candidate screening and priority ra
 \quad x_{t,i}\in\mathcal{S}_t .
 \label{eq:true_eval_framework}
 \end{equation}
-These verified results are used to update the optimizer and to expand the local calibration set.
+These verified results are used to update the optimizer and to expand the local calibration set, while candidates not selected for FEA receive a rejected-objective value for optimizer update.
 
 \subsection{Candidate Screening and Priority Ranking}
 \label{subsec:candidate_screening_ranking}
@@ -79,13 +79,45 @@ x_{t,i}\in\mathcal{B}_t
 \end{equation}
 The threshold $\tau_t$ follows the conservative strategy introduced in Section~\ref{subsec:online_local_calibration}. Its purpose is to avoid removing potentially feasible designs.
 
-Because the optimizers minimize a scalar objective value, candidates that are not submitted to FEA still need a placeholder fitness for optimizer bookkeeping. These candidates, including those rejected by screening or skipped after ranking, are assigned a large rejected objective:
+
+For candidates that pass the feasibility screening, the surrogate cost model is used to further reduce unnecessary FEA evaluations. 
+Instead of imposing a fixed global FEA budget, the method adaptively determines how many candidates in each iteration are submitted to FEA.
+
+Before any feasible design has been observed, a larger per-iteration evaluation quota is used:
 \begin{equation}
-F^{rej}(x_{t,i}) = M_{rej},
-\quad M_{rej}=1.0\times 10^{12}.
-\label{eq:rejected_objective}
+K_t^{pre}
+=
+\max
+\left(
+K_{\min},
+\left\lceil r_{pre}|\mathcal{B}_t^{pass}|\right\rceil
+\right),
 \end{equation}
-This value is much larger than normal material-cost or penalty values, so such candidates are dominated in the minimization process and are effectively skipped by the optimizer. The rejected objective is not a verified infeasibility label and is not used for best-solution comparison or local calibration.
+where $K_{\min}$ is the minimum evaluation candidates. 
+The candidates with the lowest calibrated cost scores are then selected for FEA.
+
+After at least one feasible design has been found, the evaluation quota is reduced:
+\begin{equation}
+K_t
+=
+\max
+\left(
+K_{\min},
+\left\lceil r|\mathcal{B}_t^{pass}|\right\rceil
+\right).
+\end{equation}
+and the selected candidates are composed of three parts: low-cost candidates, low-risk candidates, and randomly sampled candidates. 
+In the experiments, these three parts account for 60\%, 25\%, and 15\% of the FEA budget, respectively. 
+This design preserves exploitation toward low-cost feasible regions while retaining a small amount of exploration.
+
+
+Through this two-stage mechanism, the feasibility surrogate and the reinforcement surrogate have different but complementary functions. The feasibility surrogate reduces the probability that clearly infeasible candidates consume FEA calls, whereas the reinforcement surrogate ranks the remaining candidates by material economy. The output of this module is the selected subset $\mathcal{S}_t$, which is submitted to FEA in the current iteration.
+
+
+\subsection{Optimizer and Surrogate Update after Candidate Evaluation}
+\label{subsec:online_update_framework}
+
+After candidate screening and priority ranking, only the selected candidates $\mathcal{S}_t$ are evaluated by the true evaluator. The optimizer is updated using two types of objective values: verified fitness values for candidates in $\mathcal{S}_t$ and rejected-objective values for candidates in $\mathcal{B}_t\setminus\mathcal{S}_t$. Because the optimizers minimize a scalar objective value, smaller values indicate better candidates.
 
 For a truly evaluated candidate design ${x}_{t,i}$, the scalar fitness used by the optimizer is defined as
 \begin{equation}
@@ -99,7 +131,7 @@ P_0+\lambda_v V({x}_{t,i})+\lambda_c C({x}_{t,i}),
 \end{cases}
 \label{eq:true_fitness}
 \end{equation}
-where $C({x}_{t,i})$ is the material cost, $\Omega_f$ denotes the feasible domain, $P_0$ is a base infeasibility penalty, and $\lambda_v$ and $\lambda_c$ are the violation and cost weights for infeasible candidates. The violation measure is
+where $C({x}_{t,i})$ is the material cost computed from the verified reinforcement and concrete quantities, $\Omega_f$ denotes the feasible domain, $P_0$ is a base infeasibility penalty, and $\lambda_v$ and $\lambda_c$ are the violation and cost weights for infeasible candidates. The violation measure is
 \begin{equation}
 \begin{aligned}
 V({x}_{t,i})
@@ -120,88 +152,17 @@ V({x}_{t,i})
 \end{aligned}
 \label{eq:violation_score}
 \end{equation}
-where $g_r$ denotes upper-bound constraints, $h_s$ denotes lower-bound constraints, and $b_q\in\{0,1\}$ indicates whether a discrete code-check item fails. Therefore, infeasible candidates are primarily ranked by their degree of code violation, while feasible candidates are ranked directly by material cost.
+where $g_r$ denotes upper-bound constraints, $h_s$ denotes lower-bound constraints, and $b_q\in\{0,1\}$ indicates whether a discrete code-check item fails. Thus, feasible candidates are ranked by material cost, while infeasible evaluated candidates are assigned a penalty according to their code-violation level.
 
-
-For a candidate that is not rejected by the feasibility screener, The surrogate ranking score is then defined as
+Candidates not submitted to FEA do not have verified feasibility or cost values. To keep the optimizer update well defined, these candidates are assigned a large rejected objective:
 \begin{equation}
-S_{t,i}^{C}
-=
-\hat{C}_{t,i}^{C}
-+
-\eta
-\max(0,p_0-\hat{p}_{f,t,i}^{C}),
-\label{eq:ranking_score}
+F^{rej}(x_{t,i}) = M_{rej},
+\quad M_{rej}=1.0\times 10^{12}.
+\label{eq:rejected_objective}
 \end{equation}
-where $\hat{p}_{f,t,i}^{C}$ is the calibrated feasibility probability, $p_0$ is the feasibility hinge threshold, and $\eta$ is the risk-penalty coefficient.
+This value is much larger than normal material-cost or penalty values, so these candidates are dominated in the minimization process and are effectively skipped.
 
-
-The FEA budget at iteration $t$ is adaptive. Before any feasible design has been observed, a larger budget is used:
-\begin{equation}
-K_t^{pre}
-=
-\max
-\left(
-K_{\min},
-\left\lceil r_{pre}|\mathcal{B}_t^{pass}|\right\rceil
-\right),
-\label{eq:pre_feasible_budget}
-\end{equation}
-where $r_{pre}=0.8$ in the experiments. The selected set is obtained by the lowest surrogate scores:
-\begin{equation}
-\mathcal{S}_t
-=
-\mathrm{TopK}
-\left(
-\mathcal{B}_t^{pass}, S_{t,i}^{C}, K_t^{pre}
-\right).
-\label{eq:pre_feasible_selection}
-\end{equation}
-
-After at least one feasible design has been found, the selection switches to a mixed strategy:
-\begin{equation}
-K_t
-=
-\max
-\left(
-K_{\min},
-\left\lceil r|\mathcal{B}_t^{pass}|\right\rceil
-\right),
-\label{eq:post_feasible_budget}
-\end{equation}
-and
-\begin{equation}
-\mathcal{S}_t
-=
-\mathcal{S}_t^{cost}
-\cup
-\mathcal{S}_t^{risk}
-\cup
-\mathcal{S}_t^{div},
-\label{eq:mixed_selection}
-\end{equation}
-where $\mathcal{S}_t^{cost}$ contains the candidates with the lowest surrogate cost scores, $\mathcal{S}_t^{risk}$ contains candidates with the lowest feasibility risk, and $\mathcal{S}_t^{div}$ is a randomly sampled exploration subset. In the experiments, the three quotas are set to 60\%, 25\%, and 15\% of $K_t$, respectively. If the union contains fewer than $K_t$ candidates, the remaining budget is filled by the lowest-score candidates not yet selected.
-
-
-
-Through this two-stage mechanism, the feasibility surrogate and the reinforcement surrogate have different but complementary functions. The feasibility surrogate reduces the probability that clearly infeasible candidates consume FEA calls, whereas the reinforcement surrogate ranks the remaining candidates by material economy. Online local calibration improves both decisions by adapting the global surrogate predictions to the current layout and search region.
-
-\subsection{Online Update with FEA-Verified Samples}
-\label{subsec:online_update_framework}
-
-After the selected candidates $\mathcal{S}_t$ are evaluated by the true evaluator, their verified results are used in two ways. First, they are used by the optimizer to update the search state. For a feasible candidate, the true material cost is calculated from the verified reinforcement and concrete quantities:
-\begin{equation}
-C_{t,i}
-=
-\pi_s m_{s,t,i}
-+
-\pi_c m_{c,t,i},
-\quad y_{f,t,i}=1 .
-\label{eq:true_cost_framework}
-\end{equation}
-This value is used as the true objective value for optimizer update and best-solution comparison. Infeasible candidates are handled according to the constraint-handling strategy of the optimizer.
-
-Second, the same verified samples are added to the local calibration set:
+For surrogate update, the FEA-verified samples are added to the local calibration set:
 \begin{equation}
 \begin{aligned}
 \mathcal{D}_{t+1}^{loc}
@@ -219,7 +180,7 @@ m_{s,t,i})
 \end{aligned}
 \label{eq:local_set_update}
 \end{equation}
-The stored global predictions and verified labels allow the calibration module to learn layout-specific probability shifts and reinforcement residuals. Candidates that are not evaluated by FEA have no verified labels and are therefore not used for calibration.
+The stored global predictions and verified labels allow the calibration module to learn layout-specific probability shifts and reinforcement residuals.
 
 At the beginning of optimization, $\mathcal{D}_{t}^{loc}$ may be empty or too small for reliable calibration, and the framework mainly relies on global surrogate predictions with conservative screening. As more FEA-verified samples are accumulated, the local calibration module becomes active and progressively corrects the global surrogate bias. This online update process allows the surrogate module to become more consistent with the current optimization task without retraining the full global graph model.
 
@@ -232,7 +193,7 @@ The complete calibrated surrogate-assisted optimization procedure is summarized 
 \caption{Calibrated surrogate-assisted optimization}
 \label{alg:csa_optimization}
 \begin{algorithmic}[1]
-\REQUIRE Layout $L$, design condition $c$, design space $\mathcal{X}$, optimizer $\mathcal{O}$, global surrogates $SM_f$ and $SM_s$, true evaluator $\mathcal{E}$, rejected objective $M_{rej}$, initial local calibration set $\mathcal{D}_{0}^{loc}=\emptyset$, FEA budget.
+\REQUIRE Layout $L$, design condition $c$, design space $\mathcal{X}$, optimizer $\mathcal{O}$, global surrogates $SM_f$ and $SM_s$, true evaluator $\mathcal{E}$, rejected objective $M_{rej}$, initial local calibration set $\mathcal{D}_{0}^{loc}=\emptyset$.
 \ENSURE Best feasible design verified by $\mathcal{E}$.
 \FOR{$t=0,1,\ldots,T-1$}
 \STATE Generate a candidate batch $\mathcal{B}_t$ using optimizer $\mathcal{O}$.
@@ -247,8 +208,9 @@ The complete calibrated surrogate-assisted optimization procedure is summarized 
 \STATE Rank the retained candidates using the score $S_{t,i}^{C}$.
 \STATE Select $\mathcal{S}_t$ for true FEA and code-based checking.
 \STATE Evaluate each $x_{t,i}\in\mathcal{S}_t$ using $\mathcal{E}$ to obtain $(y_{f,t,i},m_{s,t,i},m_{c,t,i},r_{t,i})$.
-\STATE Assign $M_{rej}$ to candidates in $\mathcal{B}_t\setminus\mathcal{S}_t$.
-\STATE Update optimizer $\mathcal{O}$ using FEA-verified results and rejected-objective values.
+\STATE Compute the verified fitness $F(x_{t,i})$ for each $x_{t,i}\in\mathcal{S}_t$.
+\STATE Assign $M_{rej}$ to candidates not in $\mathcal{S}_t$.
+\STATE Update optimizer $\mathcal{O}$ using verified fitness values and rejected-objective values.
 \STATE Update the local calibration set $\mathcal{D}_{t+1}^{loc}$.
 \ENDFOR
 \STATE \RETURN The best feasible design verified by $\mathcal{E}$.
