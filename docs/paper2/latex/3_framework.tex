@@ -9,7 +9,7 @@
 \section{Calibrated Surrogate-Assisted Optimization Framework}
 \label{sec:optimization_framework}
 
-This section further describes how these models are embedded into an optimization process. 
+This section describes how the surrogate predictions defined in Section~\ref{sec:problem_surrogate} are used to allocate FEA evaluations during optimization.
 
 \subsection{Overall Framework}
 \label{subsec:overall_framework}
@@ -24,34 +24,14 @@ x_{t,1},x_{t,2},\ldots,x_{t,N_b}
 \end{equation}
 where $N_b$ is the batch size.
 
-For each candidate $x_{t,i}$, the corresponding input representation is constructed as a structured tuple:
+For each candidate $x_{t,i}$, the surrogate input follows the representation defined in Section~\ref{subsec:layout_parameter_model}:
 \begin{equation}
 z_{t,i}=\left(G,q,d_{t,i}\right),
 \label{eq:candidate_input_framework}
 \end{equation}
-where $G$ is the room-level layout graph, $q$ is the vector of global layout statistics, and $d_{t,i}$ is the design-parameter vector formed by $x_{t,i}$ and the design condition $c$. This notation indicates that graph features, global layout statistics, and design parameters are passed to the surrogate model as separate input components and fused inside the model. Since the layout and design condition remain fixed in a single optimization task, $G$ and $q$ are constant, while $d_{t,i}$ varies among candidates.
+where the layout-related terms $G$ and $q$ remain fixed in a single optimization task, while the design vector $d_{t,i}$ varies among candidates. The global surrogate models and the online calibration module then provide the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and calibrated reinforcement estimate $\hat{m}_{s,t,i}^{C}$ according to Section~\ref{subsec:online_local_calibration}.
 
-The global surrogate models first provide feasibility and reinforcement predictions for all candidates:
-\begin{equation}
-\hat{p}_{f,t,i}^{G}=SM_f(z_{t,i}),
-\label{eq:global_feasibility_framework}
-\end{equation}
-\begin{equation}
-\hat{m}_{s,t,i}^{G}=SM_s(z_{t,i}).
-\label{eq:global_steel_framework}
-\end{equation}
-If the local calibration set $\mathcal{D}_{t}^{loc}$ contains enough verified samples to fit the calibration models, the global predictions are corrected by the online calibration module:
-\begin{equation}
-\hat{p}_{f,t,i}^{C}=\mathcal{C}_{f,t}(\hat{p}_{f,t,i}^{G}),
-\label{eq:calibrated_feasibility_framework}
-\end{equation}
-\begin{equation}
-\hat{m}_{s,t,i}^{C}=\mathcal{C}_{s,t}(z_{t,i},\hat{m}_{s,t,i}^{G}),
-\label{eq:calibrated_steel_framework}
-\end{equation}
-where $\mathcal{C}_{f,t}$ and $\mathcal{C}_{s,t}$ denote the feasibility probability calibration model and the reinforcement residual calibration model at iteration $t$, respectively.
-
-The calibrated predictions are then used for candidate screening and priority ranking. The candidate subset selected for true evaluation is denoted by $\mathcal{S}_t\subseteq \mathcal{B}_t$. For each candidate in $\mathcal{S}_t$, the true evaluator produces FEA-verified results:
+These calibrated predictions are used only to decide which candidates should receive true evaluation. The selected subset is denoted by $\mathcal{S}_t\subseteq \mathcal{B}_t$. For each candidate in $\mathcal{S}_t$, the true evaluator produces FEA-verified results:
 \begin{equation}
 \mathcal{E}(L,c,x_{t,i})
 \rightarrow
@@ -59,12 +39,12 @@ The calibrated predictions are then used for candidate screening and priority ra
 \quad x_{t,i}\in\mathcal{S}_t .
 \label{eq:true_eval_framework}
 \end{equation}
-These verified results are used to update the optimizer and to expand the local calibration set, while candidates not selected for FEA receive a rejected-objective value for optimizer update.
+These verified results are used to update the optimizer and to expand the local calibration set. Candidates not selected for FEA receive a rejected-objective value so that the optimizer can still be updated with a complete batch.
 
 \subsection{Candidate Screening and Priority Ranking}
 \label{subsec:candidate_screening_ranking}
 
-The surrogate-based pre-evaluation module consists of two consecutive operations, feasibility screening and priority ranking. The first operation aims to reduce unnecessary FEA calls for candidates that are very unlikely to satisfy the structural checks. The second operation prioritizes candidates that are more likely to achieve low material cost under the limited FEA budget.
+The surrogate-based pre-evaluation module consists of two consecutive operations: feasibility screening and priority ranking. The first operation removes candidates with very low calibrated feasibility probability. The second operation selects a subset of the remaining candidates for FEA according to calibrated material cost, feasibility risk, and random exploration.
 
 Given the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and the screening threshold $\tau_t$, the candidates passing the feasibility screening are defined as
 \begin{equation}
@@ -80,34 +60,57 @@ x_{t,i}\in\mathcal{B}_t
 The threshold $\tau_t$ follows the conservative strategy introduced in Section~\ref{subsec:online_local_calibration}. Its purpose is to avoid removing potentially feasible designs.
 
 
-For candidates that pass the feasibility screening, the surrogate cost model is used to further reduce unnecessary FEA evaluations. 
-Instead of imposing a fixed global FEA budget, the method adaptively determines how many candidates in each iteration are submitted to FEA.
+For each candidate that passes the feasibility screening, a priority score is computed as
+\begin{equation}
+S_{t,i}^{C}
+=
+\hat{C}_{t,i}^{C}
++
+\eta
+\max
+\left(
+0,
+p_0-\hat{p}_{f,t,i}^{C}
+\right),
+\label{eq:calibrated_priority_score}
+\end{equation}
+where $\hat{C}_{t,i}^{C}$ is the calibrated surrogate cost defined in Eqn.~\ref{eq:calibrated_cost}. The second term penalizes candidates whose calibrated feasibility probability is below the reference level $p_0$. Thus, lower scores indicate candidates that are both economical and less risky.
 
-Before any feasible design has been observed, a larger per-iteration evaluation quota is used:
+The method does not impose a fixed total number of FEA calls. Instead, it adaptively determines how many candidates in each iteration are submitted to FEA.
+
+Before any feasible design has been observed, a larger per-iteration evaluation quota is used to maintain exploration:
 \begin{equation}
 K_t^{pre}
 =
+\min
+\left(
+|\mathcal{B}_t^{pass}|,
 \max
 \left(
 K_{\min},
 \left\lceil r_{pre}|\mathcal{B}_t^{pass}|\right\rceil
+\right)
 \right),
 \end{equation}
-where $K_{\min}$ is the minimum evaluation candidates. 
+where $K_{\min}$ is the minimum number of evaluated candidates. 
 The candidates with the lowest calibrated cost scores are then selected for FEA.
 
 After at least one feasible design has been found, the evaluation quota is reduced:
 \begin{equation}
 K_t
 =
+\min
+\left(
+|\mathcal{B}_t^{pass}|,
 \max
 \left(
 K_{\min},
 \left\lceil r|\mathcal{B}_t^{pass}|\right\rceil
+\right)
 \right).
 \end{equation}
-and the selected candidates are composed of three parts: low-cost candidates, low-risk candidates, and randomly sampled candidates. 
-In the experiments, these three parts account for 60\%, 25\%, and 15\% of the FEA budget, respectively. 
+The selected candidates are composed of three parts: low-cost candidates, low-risk candidates, and randomly sampled candidates. 
+In the experiments, these three parts account for 60\%, 25\%, and 15\% of the per-iteration evaluation quota, respectively. 
 This design preserves exploitation toward low-cost feasible regions while retaining a small amount of exploration.
 
 
@@ -187,7 +190,7 @@ At the beginning of optimization, $\mathcal{D}_{t}^{loc}$ may be empty or too sm
 \subsection{Algorithm Summary}
 \label{subsec:algorithm_summary}
 
-The complete calibrated surrogate-assisted optimization procedure is summarized in Algorithm~\ref{alg:csa_optimization}. The algorithm takes a fixed layout, design condition, design space, optimizer, global surrogate models, true evaluator, rejected objective, and FEA budget as inputs. It outputs the best feasible design found within the FEA budget.
+The complete calibrated surrogate-assisted optimization procedure is summarized in Algorithm~\ref{alg:csa_optimization}. The algorithm takes a fixed layout, design condition, design space, optimizer, global surrogate models, true evaluator, rejected objective, and per-iteration evaluation quota settings as inputs. It outputs the best feasible design verified during the search.
 
 \begin{algorithm}[t]
 \caption{Calibrated surrogate-assisted optimization}
