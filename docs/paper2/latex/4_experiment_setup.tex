@@ -26,10 +26,10 @@ Story height & $h_{story}$ & m & 2.9 \\
 Bottom wall thickness & $t_{w,b}$ & mm & 200, 250, 300, 350, 400 \\
 Middle wall thickness & $t_{w,m}$ & mm & 160, 180, 200, 250, 300 \\
 Top wall thickness & $t_{w,t}$ & mm & 160, 180, 200, 250 \\
-Main beam depth & $h_{b,main}$ & mm & 400, 500, 550, 600, 650, 700 \\
-Main beam width & $b_{b,main}$ & mm & 200, 250, 300, 350 \\
-Secondary beam depth & $h_{b,sec}$ & mm & 300, 400, 450, 500 \\
-Secondary beam width & $b_{b,sec}$ & mm & 200, 250, 300 \\
+Main beam depth & $h_{m}$ & mm & 400, 500, 550, 600, 650, 700 \\
+Main beam width & $b_{m}$ & mm & 200, 250, 300, 350 \\
+Secondary beam depth & $h_{s}$ & mm & 300, 400, 450, 500 \\
+Secondary beam width & $b_{s}$ & mm & 200, 250, 300 \\
 Concrete grade & $f_c$ & - & C30, C35, C40, C45, C50 \\
 Seismic intensity & $S_I$ & - & 6.0, 7.0, 7.5, 8.0 \\
 Site class & $S_C$ & - & I0, I, II, III, IV \\
@@ -227,7 +227,7 @@ The cost-ranking uses an evaluation ratio of 0.8 before the first feasible desig
 \subsection{Evaluation Metrics}
 \label{subsec:evaluation_metrics}
 
-Details of the full set of metrics used in this study are provided in \ref{app:evaluation_metrics}.
+Definitions of the full set of metrics used in this study are provided in \ref{app:evaluation_metrics}.
 
 The feasibility surrogate is assessed using ROC-AUC, PR-AUC, and F1 score to characterize overall classification performance. Because it is used as a conservative screening tool, feasible recall, reject rate, and false reject count are also reported to quantify the retained feasible candidates, the candidates filtered before FEA, and the feasible candidates mistakenly rejected by the screen.
 

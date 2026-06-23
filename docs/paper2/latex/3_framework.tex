@@ -1,10 +1,5 @@
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{calibrated_optimization_framework.png}
-\caption{Calibrated surrogate-assisted optimization framework.}
-\label{fig:calibrated_optimization_framework}
-\end{figure*}
+
 
 \section{Calibrated Surrogate-Assisted Optimization Framework}
 \label{sec:optimization_framework}
@@ -120,7 +115,7 @@ Through this two-stage mechanism, the feasibility surrogate and the reinforcemen
 \subsection{Optimizer and Surrogate Update after Candidate Evaluation}
 \label{subsec:online_update_framework}
 
-After candidate screening and priority ranking, only the selected candidates $\mathcal{S}_t$ are evaluated by the true evaluator. The optimizer is updated using two types of objective values: verified fitness values for candidates in $\mathcal{S}_t$ and rejected-objective values for candidates in $\mathcal{B}_t\setminus\mathcal{S}_t$. Because the optimizers minimize a scalar objective value, smaller values indicate better candidates.
+After candidate screening and priority ranking, only the selected candidates $\mathcal{S}_t$ are evaluated by the true evaluator. The optimizer is updated using two types of objective values: verified fitness values for candidates in $\mathcal{S}_t$ and rejected-objective values for the others. Because the optimizers minimize a scalar objective value, smaller values indicate better candidates.
 
 For a truly evaluated candidate design ${x}_{t,i}$, the scalar fitness used by the optimizer is defined as
 \begin{equation}

@@ -225,7 +225,7 @@ def plot_success_heatmap(df: pd.DataFrame, out_dir: str | Path) -> None:
                 fontsize=8,
                 color=text_color,
             )
-    cbar = fig.colorbar(im, ax=ax, orientation="horizontal", fraction=0.055, pad=0.20)
+    cbar = fig.colorbar(im, ax=ax, orientation="horizontal", fraction=0.055, pad=0.25)
     cbar.set_label("Success rate", labelpad=4)
     fig.tight_layout()
     save_figure(fig, "layout_difficulty_heatmap.png", out_dir)
