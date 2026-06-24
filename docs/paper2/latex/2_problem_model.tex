@@ -32,7 +32,7 @@ For a given shear wall layout, structural optimization aims to determine suitabl
 
 Let $L$ denote a fixed shear wall layout and $c$ denote the corresponding design condition, including seismic intensity, site class, seismic group, load condition, and other external design requirements. The optimization variables are denoted by $x \in \mathcal{X}$, where $\mathcal{X}$ is the discrete or mixed discrete design space formed by section and material parameters.
 
-For each candidate design $(L,c,x)$, a true structural evaluator $\mathcal{E}$ is required to perform parametric modeling, FEA, structural response extraction, member design, and code-based checking. The evaluation output is written as
+For each candidate design $(L,c,x)$, a true structural evaluator $\mathcal{E}$ is required to perform parametric modeling, FEA, structural response extraction, member design, and code-based checking\cite{GB500112010,GB500102010}. The evaluation output is written as
 \begin{equation}
 \mathcal{E}(L,c,x) \rightarrow (y_f,m_s,m_c,r),
 \label{eq:true_evaluator}
@@ -94,7 +94,7 @@ where $\tilde{m}_c$ is the estimated concrete quantity. Candidates with lower su
 
 The feasibility and reinforcement usage of a shear wall structure depend on both section and material parameters and the spatial organization of the layout. For the same design variables, different shear wall arrangements may result in different stiffness distributions, load paths, and seismic responses. Therefore, a surrogate model using only design parameters is insufficient for cross-layout candidate assessment.
 
-This study uses a candidate representation conditioned on the structural layout. It combines a room-level graph, global layout statistics, and design parameters. The structural layout is represented as a graph
+This study uses a candidate representation conditioned on the structural layout. It combines a room-level graph, global layout statistics, and design parameters\cite{Zhao2023}. The structural layout is represented as a graph
 \begin{equation}
 G=(V,E),
 \label{eq:layout_graph}
@@ -114,7 +114,7 @@ z=\left(G,q,d\right)
 \label{eq:candidate_representation}
 \end{equation}
 
-Based on this representation, a layout-conditioned graph surrogate model is used as the common architecture for the global surrogate models. The feasibility surrogate and the reinforcement surrogate are trained as two separate models with independent parameters. In each model, the graph encoder extracts a layout embedding from $G$, while the design encoder maps $d$ into a design-parameter embedding. These embeddings are fused with the global layout statistics:
+Based on this representation, a layout-conditioned graph surrogate model is used as the common architecture for the global surrogate models. A schematic illustration of the model architecture is provided in Fig.~\ref{fig:layout_parameter_surrogate}. The feasibility surrogate and the reinforcement surrogate are trained as two separate models with independent parameters. In each model, the graph encoder extracts a layout embedding from $G$, while the design encoder maps $d$ into a design-parameter embedding. These embeddings are fused with the global layout statistics:
 \begin{equation}
 h_G = \mathrm{Pool}\left(\mathrm{GNN}(G)\right),
 \label{eq:graph_embedding}
@@ -150,7 +150,7 @@ where $\omega$ is the class weight. For reinforcement prediction, $m_s$ is trans
 y_s=\frac{\log(1+m_s)-\mu_s}{\sigma_s},
 \label{eq:steel_transform}
 \end{equation}
-where $\mu_s$ and $\sigma_s$ are computed from the training set. The reinforcement surrogate is trained using the Smooth L1 loss in the transformed space:
+where $\mu_s$ and $\sigma_s$ are computed from the training set. The reinforcement surrogate is trained using the Smooth L1 loss in the transformed space\cite{Huber1964}:
 \begin{equation}
 \mathcal{L}_s=\frac{1}{N_s}\sum_{i=1}^{N_s}\rho_\beta(e_i),
 \quad e_i=\hat{y}_{s,i}-y_{s,i},
@@ -167,14 +167,16 @@ where $\mu_s$ and $\sigma_s$ are computed from the training set. The reinforceme
 where $N_s$ is the number of reinforcement training samples and $\beta$ controls the transition between the quadratic and linear penalty regions.
 The predicted reinforcement usage is recovered by the inverse transformation of Eqn.\ref{eq:steel_transform} during inference.
 
-A schematic illustration of the model architecture is provided in Fig.~\ref{fig:layout_parameter_surrogate}.
+
 
 \subsection{Online Local Calibration of Global Surrogates}
 \label{subsec:online_local_calibration}
 
 A global surrogate trained on multiple layouts provides useful prior knowledge for unseen design cases, but it may still exhibit systematic bias for a particular layout or local search region. This issue is especially important in shear wall optimization because the candidate distribution of design variable changes during the search. Therefore, using a static global surrogate throughout the optimization process may lead to inappropriate screening or ranking decisions.
 
-To address this problem, this study introduces online local calibration. During optimization, candidates selected for true evaluation naturally produce FEA-verified samples. These samples are accumulated as a local calibration set:
+To address this problem, this study introduces online local calibration. 
+Figure~\ref{fig:online_calibration} illustrates the online local calibration process.
+During optimization, candidates selected for true evaluation naturally produce FEA-verified samples. These samples are accumulated as a local calibration set:
 \begin{equation}
 \mathcal{D}_{t}^{loc}
 =
@@ -188,7 +190,7 @@ where $t$ denotes the current optimization iteration and $n_t$ is the number of 
 \subsubsection{Feasibility probability calibration}
 \label{subsubsec:feasibility_calibration}
 
-For feasibility prediction, the goal of calibration is to adjust the global surrogate probability so that it better reflects the observed feasible rate in the current layout and local search region. The global probability is first converted into a logit value:
+For feasibility prediction, the goal of calibration is to adjust the global surrogate probability so that it better reflects the observed feasible rate in the current layout and local search region\cite{Zadrozny2002}. The global probability is first converted into a logit value:
 \begin{equation}
 \ell_i^{G}
 =
@@ -257,5 +259,3 @@ p_c\tilde{m}_{c}.
 \label{eq:calibrated_cost}
 \end{equation}
 This calibrated cost estimate is used for candidate ranking before true evaluation.
-
-Figure~\ref{fig:online_calibration} illustrates the online local calibration process.
