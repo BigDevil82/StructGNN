@@ -5,14 +5,14 @@ This study proposed a calibrated surrogate-assisted optimization framework for c
 
 The experimental results lead to the following conclusions:
 
-\begin{enumerate}
-\item Layout information is important for surrogate modeling of shear wall structures. The room-graph LayoutParamGNN outperformed models using only design parameters or global layout statistics, achieving a feasibility PR-AUC of 0.8593 and a reinforcement prediction $R^2$ of 0.924 on the test layouts.
+\begin{enumerate}[(\arabic*)]
+\item Layout information improves surrogate accuracy. The room-graph LayoutParamGNN achieved a feasibility PR-AUC of 0.8593 and a reinforcement prediction $R^2$ of 0.924 on the test layouts, outperforming models based only on design parameters or global layout statistics.
 
-\item Online local calibration improves the layout-specific reliability of the global surrogates. With 100 locally verified FEA samples, the feasibility Brier score decreased from 0.0749 to 0.0437, and the reinforcement MAE decreased from 11.48~t to 2.04~t.
+\item Online local calibration reduced layout-specific prediction bias. With 100 local FEA samples, the feasibility Brier score decreased from 0.0749 to 0.0437, and the reinforcement MAE decreased from 11.48~t to 2.04~t.
 
-\item The calibrated surrogate-assisted strategy substantially reduced FEA calls while maintaining comparable solution quality. Across 15 test layouts and five random seeds, the Screen \& ranking strategy reduced true FEA evaluations by approximately 64.6\% on average, with only a 1.19\% average cost increase in paired feasible cases.
+\item The calibrated surrogate-assisted strategy reduced FEA demand with limited cost penalty. Across 15 test layouts and five random seeds, the Screen \& ranking strategy reduced true FEA evaluations by 64.6\% on average, with a 1.19\% average cost increase in paired feasible cases.
 
-\item The method is most suitable when feasible candidates exist but FEA evaluations are expensive and limited. If the predefined section-material design space contains few or no feasible solutions, surrogate assistance can reduce ineffective evaluations but cannot remove the underlying layout- or design-space limitation.
+\item The method is most effective when feasible candidates exist but FEA evaluations are limited. It can reduce ineffective evaluations, but it cannot overcome an infeasible layout or an overly restrictive design space.
 \end{enumerate}
 
-These findings demonstrate the potential of calibrated surrogate assistance for improving the efficiency of structural design optimization. At the same time, this study is limited to section and material optimization under given shear wall layouts. When the feasible region is extremely small or absent within the predefined design space, surrogate assistance can reduce ineffective evaluations but cannot resolve layout-level infeasibility. In addition, the effectiveness of local calibration depends on the availability and representativeness of FEA-verified samples accumulated during optimization. Future work will extend the framework to joint layout and section optimization, incorporate uncertainty-aware screening to better control false rejection risk, and further validate the method on more complex structural systems and design codes.
+These results show that calibrated surrogate assistance can improve structural optimization efficiency under fixed shear wall layouts. The main limitations are the fixed-layout setting, the dependence of local calibration on representative FEA samples, and the inability of surrogate screening to resolve absent feasible regions. Future work will consider joint layout--section optimization, uncertainty-aware screening, and validation on more complex structural systems and design codes.

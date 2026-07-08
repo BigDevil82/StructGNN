@@ -14,6 +14,7 @@ data/*
 outputs/*
 docs/paper/latex/build/*
 %TEMP%
+docs/paper2/latex/old_png_figs
 
 ## Core latex/pdflatex auxiliary files:
 *.aux

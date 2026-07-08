@@ -90,7 +90,7 @@ def bold_font(size: float | None = None) -> FontProperties:
 def save_figure(fig: plt.Figure, filename: str, out_dir: str | Path | None = None) -> Path:
     out = Path(out_dir) if out_dir else PLOT_DIR
     out.mkdir(parents=True, exist_ok=True)
-    path = out / filename
+    path = out / filename.replace(".png", ".pdf").replace(".jpg", ".pdf")
     fig.savefig(path, dpi=300, bbox_inches="tight")
     print(f"[plot] saved: {path}")
     return path

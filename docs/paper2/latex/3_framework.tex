@@ -21,7 +21,7 @@ where $N_b$ is the batch size.
 
 For each candidate $x_{t,i}$, the surrogate input follows the representation defined in Section~\ref{subsec:layout_parameter_model}:
 \begin{equation}
-z_{t,i}=\left(G,q,d_{t,i}\right),
+z_{t,i}=\left(G,d_{t,i},q\right),
 \label{eq:candidate_input_framework}
 \end{equation}
 where the layout-related terms $G$ and $q$ remain fixed in a single optimization task, while the design vector $d_{t,i}$ varies among candidates. The global surrogate models and the online calibration module then provide the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and calibrated reinforcement estimate $\hat{m}_{s,t,i}^{C}$ according to Section~\ref{subsec:online_local_calibration}.
@@ -191,11 +191,11 @@ The complete calibrated surrogate-assisted optimization procedure is summarized 
 \caption{Calibrated surrogate-assisted optimization}
 \label{alg:csa_optimization}
 \begin{algorithmic}[1]
-\REQUIRE Layout $L$, design condition $c$, design space $\mathcal{X}$, optimizer $\mathcal{O}$, global surrogates $SM_f$ and $SM_s$, true evaluator $\mathcal{E}$, rejected objective $M_{rej}$, initial local calibration set $\mathcal{D}_{0}^{loc}=\emptyset$.
+\REQUIRE Layout $L$, design condition $c$, design space $\mathcal{X}$, optimizer $\mathcal{O}$, global surrogates ${SM}_f$ and ${SM}_s$, true evaluator $\mathcal{E}$, screening threshold $\tau_t$, rejected objective $M_{rej}$, initial local calibration set $\mathcal{D}_{0}^{loc}=\emptyset$.
 \ENSURE Best feasible design verified by $\mathcal{E}$.
 \FOR{$t=0,1,\ldots,T-1$}
 \STATE Generate a candidate batch $\mathcal{B}_t$ using optimizer $\mathcal{O}$.
-\STATE Construct candidate representations $z_{t,i}=\left(G,q,d_{t,i}\right)$ for all $x_{t,i}\in\mathcal{B}_t$.
+\STATE Construct candidate representations $z_{t,i}=\left(G,d_{t,i},q\right)$ for all $x_{t,i}\in\mathcal{B}_t$.
 \STATE Obtain global predictions $\hat{p}_{f,t,i}^{G}=SM_f(z_{t,i})$ and $\hat{m}_{s,t,i}^{G}=SM_s(z_{t,i})$.
 \IF{$\mathcal{D}_{t}^{loc}$ contains enough verified samples for calibration}
 \STATE Compute calibrated predictions $\hat{p}_{f,t,i}^{C}$ and $\hat{m}_{s,t,i}^{C}$.
