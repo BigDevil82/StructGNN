@@ -110,7 +110,7 @@ The resulting 16-dimensional vector $\mathbf{y}_i$ provides a continuous represe
 Because adjacent rooms $v_i$ and $v_j$ each independently predict coverage on their shared boundary, their predictions may be mutually inconsistent.
 During inference, this is resolved by taking the element-wise maximum of the two predictions for the corresponding boundary entries:
 \begin{equation}
-\hat{y}_{shared} = \max\!\left(\hat{\mathbf{y}}_i^{(side_j)},\; \hat{\mathbf{y}}_j^{(side_i)}\right),
+\hat{y}_{shared} = \max\!\left(\hat{\mathbf{y}}_i^{(side_j)},\; \hat{\mathbf{y}}_j^{(side_i)}\right)
 \label{eq:boundary_union}
 \end{equation}
 where $side_j$ denotes the boundary slots of room $v_i$ that face room $v_j$, and vice versa.
@@ -370,13 +370,13 @@ The total loss is organized into three groups: (1) supervised reconstruction los
 (1) Supervised reconstruction. Given the ground-truth layout under the real condition, a classification loss is used to learn the existence of walls, while a regression loss is used to fit the continuous wall-length ratios on buildable segments that contain ground-truth wall coverage.
 Concretely, the binary cross-entropy for the classification head is defined as:
 \begin{equation}
-\mathcal{L}_{BCE} = -\frac{1}{N \cdot 16}\sum_{i,j}\left[\tilde{y}_{ij}\log(\hat{y}_{ij}^{\text{cls}}) + (1-\tilde{y}_{ij})\log(1-\hat{y}_{ij}^{\text{cls}})\right],
+\mathcal{L}_{BCE} = -\frac{1}{N \cdot 16}\sum_{i,j}\left[\tilde{y}_{ij}\log(\hat{y}_{ij}^{\text{cls}}) + (1-\tilde{y}_{ij})\log(1-\hat{y}_{ij}^{\text{cls}})\right]
 \label{eq:loss_bce}
 \end{equation}
 where $\tilde{y}_{ij} = \mathbb{I}(\mathbf{Y}_{gt}[i,j])$ is the binarized ground-truth label for the \(j\)-th segment of the \(i\)-th node, i.e., \(\tilde{y}_{ij}=1\) if this segment contains a shear wall in the ground-truth layout (wall-length ratio \(>0.1\)), and \(\tilde{y}_{ij}=0\) otherwise. Here, \(\hat{y}_{ij}^{\text{cls}}\) denotes the predicted probability of wall existence for that segment, and $N$ is the total number of rooms in a layout.
 The regression head is optimized by mean squared error:
 \begin{equation}
-\mathcal{L}_{MSE} = \frac{1}{|S^+|}\sum_{(i,j) \in S^+}(\hat{y}_{ij}^{\text{reg}} - y_{ij})^2,
+\mathcal{L}_{MSE} = \frac{1}{|S^+|}\sum_{(i,j) \in S^+}(\hat{y}_{ij}^{\text{reg}} - y_{ij})^2
 \label{eq:loss_mse}
 \end{equation}
 where $S^+ = \{(i,j) : \mathbf{M}[i,j] = 1 \text{ and } y_{ij} > 0\}$ restricts the loss to buildable segments with ground-truth wall coverage, preventing the regression head from being dominated by trivial zero targets, and \(y_{ij}\) denotes the ground-truth length ratio of the shear-wall segment (i.e., the proportion of shear-wall length on the \(j\)-th segment of node \(i\)).
@@ -384,13 +384,13 @@ where $S^+ = \{(i,j) : \mathbf{M}[i,j] = 1 \text{ and } y_{ij} > 0\}$ restricts 
 (2) Geometric regularization. In addition to point-wise regression, global overlap and boundary consistency are encouraged so that predicted layouts form coherent wall patterns aligned with room geometry.
 First, a vector-level IoU loss is adopted to optimize holistic overlap between predicted and ground-truth parameter vectors, following the broader use of overlap-based losses in structured prediction and segmentation \cite{huangBatchingSoftIoU2020,zhaoRethinkingDiceLoss2020}:
 \begin{equation}
-\mathcal{L}_{IoU} = 1 - \frac{\sum_{i,j}\min(\hat{y}_{ij}^{\text{reg}}, y_{ij})}{\sum_{i,j}\max(\hat{y}_{ij}^{\text{reg}}, y_{ij}) + \epsilon}.
+\mathcal{L}_{IoU} = 1 - \frac{\sum_{i,j}\min(\hat{y}_{ij}^{\text{reg}}, y_{ij})}{\sum_{i,j}\max(\hat{y}_{ij}^{\text{reg}}, y_{ij}) + \epsilon}
 \label{eq:loss_iou}
 \end{equation}
 Here $\epsilon$ denotes a small constant for numerical stability.
 Second, a topological consistency term is introduced to discourage contradictory predictions on shared room boundaries:
 \begin{equation}
-\mathcal{L}_{cons} = \sum_{(u,v) \in \mathcal{E}} \left\|\hat{\mathbf{y}}_u^{(side_v)} - \hat{\mathbf{y}}_v^{(side_u)}\right\|^2,
+\mathcal{L}_{cons} = \sum_{(u,v) \in \mathcal{E}} \left\|\hat{\mathbf{y}}_u^{(side_v)} - \hat{\mathbf{y}}_v^{(side_u)}\right\|^2
 \label{eq:loss_cons}
 \end{equation}
 where $side_v$ indicates the boundary of room $u$ adjacent to room $v$.
@@ -398,19 +398,19 @@ where $side_v$ indicates the boundary of room $u$ adjacent to room $v$.
 (3) Condition-aware density constraint. To encourage generated layouts to respond to the target design condition, a density-alignment loss is imposed on both the supervised and cross-condition streams.
 In this study, density is not defined as a normalized area ratio in $[0,1]$. Instead, it is defined directly from the 16-dimensional room output. For each room, the four boundaries are divided into eight half-segments, and each half-segment is represented by two coverage ratios. The room-level density score is therefore computed as the sum of the 16 predicted ratio values after masking out non-buildable positions:
 \begin{equation}
-d_i = \sum_{j=1}^{16}\hat{y}_{ij}^{\text{reg}} \cdot m_{ij},
+d_i = \sum_{j=1}^{16}\hat{y}_{ij}^{\text{reg}} \cdot m_{ij}
 \label{eq:room_density}
 \end{equation}
 where $d_i$ is the effective wall-quantity score of room $i$. Because the 16 entries are summed directly, the maximum possible value of $d_i$ is not 1.0; it depends on how many output slots are buildable and can in principle approach 16 when all masked positions are active with full coverage.
 The graph-level density estimate is then defined as the mean room-level score over all rooms in the graph:
 \begin{equation}
 \bar{\rho}_{\text{pred}} = \frac{1}{N}\sum_{i=1}^{N} d_i
-= \frac{1}{N}\sum_{i=1}^{N}\sum_{j=1}^{16}\hat{y}_{ij}^{\text{reg}} \cdot m_{ij}.
+= \frac{1}{N}\sum_{i=1}^{N}\sum_{j=1}^{16}\hat{y}_{ij}^{\text{reg}} \cdot m_{ij}
 \label{eq:graph_density}
 \end{equation}
 This estimated density is compared against the condition-dependent target $\rho(c)$, which is computed from training-set statistics:
 \begin{equation}
-\mathcal{L}_{density} = \left(\bar{\rho}_{\text{pred}} - \rho(c)\right)^2,
+\mathcal{L}_{density} = \left(\bar{\rho}_{\text{pred}} - \rho(c)\right)^2
 \label{eq:loss_density}
 \end{equation}
 where $m_{ij}$ is the $(i,j)$-th entry of $\mathbf{M}$, and $\rho(c)$ denotes the target average graph-level density score for condition $c$. In the experiments reported in Section~\ref{subsec:conditional_analysis}, the target densities are 3.62, 4.89, and 8.71 for the low-, medium-, and high-density groups, respectively. \textcolor{red}{These values are computed as fixed group-level averages from the available layouts after condition grouping and are used consistently for the corresponding training losses and controllability evaluation.}

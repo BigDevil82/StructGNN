@@ -181,26 +181,26 @@ For the room-based method, a vector-level IoU is additionally reported on the 16
 \begin{align*}
 \text{Precision}&=\frac{TP}{TP+FP}, \quad
 \text{Recall}=\frac{TP}{TP+FN}, \quad
-\text{F1}=\frac{2PR}{P+R}.
+\text{F1}=\frac{2PR}{P+R}
 \end{align*}
 where $TP$, $FP$, and $FN$ denote true positives, false positives, and false negatives, respectively, and $P$ and $R$ denote precision and recall.
 For correctly identified positive segments, MAE is used to evaluate the error of predicted length ratios \cite{Chai_2014}:
 \begin{equation}
-\text{MAE}=\frac{1}{|S^+|}\sum_{(i,j)\in S^+}|\hat y_{ij}-y_{ij}|.
+\text{MAE}=\frac{1}{|S^+|}\sum_{(i,j)\in S^+}|\hat y_{ij}-y_{ij}|
 \end{equation}
 Here, $S^+$ denotes the set of buildable segments with positive ground-truth wall coverage.
 
 (2) Conditional generation. Standard supervised metrics require matched ground-truth layouts and therefore cannot directly evaluate mismatched conditions (e.g., generating a high-density layout for a plan labeled as low-density). To characterize conditional behavior across all conditions, the Conditional Generation Score (CGS) is defined as
 \begin{equation}
-\text{CGS}=w_1 S_{\text{den}}+w_2 S_{\text{IoU}}+w_3 S_{\text{uni}}.
+\text{CGS}=w_1 S_{\text{den}}+w_2 S_{\text{IoU}}+w_3 S_{\text{uni}}
 \end{equation}
 Here, $S_{\text{den}}$ measures agreement with target density statistics:
 \begin{equation}
-S_{\text{den}}=1-\frac{|\bar\rho_{\text{pred}}-\bar\rho_{\text{target}}|}{\bar\rho_{\text{target}}}.
+S_{\text{den}}=1-\frac{|\bar\rho_{\text{pred}}-\bar\rho_{\text{target}}|}{\bar\rho_{\text{target}}}
 \end{equation}
 $S_{\text{IoU}}$ corresponds to Image IoU when the generated condition matches the ground-truth label. $S_{\text{uni}}$ summarizes spatial rationality by combining global variation, local smoothness across adjacent rooms, and penalties for extreme outliers:
 \begin{equation}
-S_{\text{uni}}=\alpha_1(1-c_v)+\alpha_2 s+\alpha_3(1-o).
+S_{\text{uni}}=\alpha_1(1-c_v)+\alpha_2 s+\alpha_3(1-o)
 \end{equation}
 Here, $c_v$ is the coefficient of variation, $s$ is the local smoothness score, and $o$ is the outlier ratio. \textcolor{red}{In the main ablation analysis, the CGS weights are set to $(w_1,w_2,w_3)=(0.4,0.4,0.2)$. This setting gives comparable emphasis to density compliance and matched-condition geometric agreement, while assigning a smaller but non-negligible weight to spatial uniformity. The rationale is that the first two terms directly measure whether the generated layout follows the specified design condition and matches the engineer-designed layout under the true condition, whereas $S_{\text{uni}}$ acts mainly as a regularity check that penalizes highly uneven or locally erratic distributions. CGS is therefore used as a descriptive composite score rather than as a code-prescribed engineering index. To check that the ablation conclusions are not overly dependent on this particular choice, Table~\ref{tab:cgs_sensitivity} reports CGS values under several alternative component weights. The relative trends remain largely stable: the full model stays among the strongest variants, and it consistently outperforms the variants without dual-stream training and without density loss.} The coefficients in $S_{\text{uni}}$ are set to $(\alpha_1,\alpha_2,\alpha_3)=(0.4,0.4,0.2)$ to place comparable emphasis on global variation and local smoothness, while assigning a smaller but non-negligible weight to the outlier penalty.
 
