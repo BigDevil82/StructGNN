@@ -15,7 +15,7 @@ In this study, the feasibility surrogate is used as a conservative screening mod
 
 Let $y_i \in {0,1}$ denote the true feasibility label of candidate $i$, where $y_i=1$ indicates a feasible candidate. Let $\hat{p}_{f,i}$ denote the predicted or calibrated feasibility probability, and let $\tau$ denote the screening threshold. A candidate is retained for potential FEA evaluation if
 \begin{equation}
-\hat{p}_{f,i} \geq \tau .
+\hat{p}_{f,i} \geq \tau
 \end{equation}
 
 The feasible recall is defined as
@@ -28,7 +28,7 @@ R_{\mathrm{fea}}
 }{
 \sum_{i=1}^{N}
 \mathbb{I}(y_i=1)
-},
+}
 \label{eq:app_feasible_recall}
 \end{equation}
 where $\mathbb{I}(\cdot)$ is the indicator function. This metric measures the proportion of truly feasible candidates retained after surrogate screening. A high feasible recall is required because falsely filtering out feasible candidates may reduce the chance of finding a valid optimal design.
@@ -40,7 +40,7 @@ R_{\mathrm{rej}}
 \frac{
 \sum_{i=1}^{N}
 \mathbb{I}(\hat{p}_{f,i}<\tau)
-}{N}.
+}{N}
 \label{eq:app_reject_rate}
 \end{equation}
 It measures the proportion of candidates rejected before true FEA evaluation. A higher reject rate indicates greater potential for reducing FEA calls, but it is meaningful only when feasible recall remains sufficiently high.
@@ -50,7 +50,7 @@ The false reject count is defined as
 N_{\mathrm{fr}}
 =
 \sum_{i=1}^{N}
-\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}_{f,i}<\tau).
+\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}_{f,i}<\tau)
 \label{eq:app_false_reject}
 \end{equation}
 It directly counts the number of truly feasible candidates incorrectly rejected by the screening rule. This metric is reported because even a small false reject rate may be important when the number of feasible candidates is limited.
@@ -66,7 +66,7 @@ The Brier score is used to measure the mean squared error between predicted prob
 =
 \frac{1}{N}
 \sum_{i=1}^{N}
-(\hat{p}_{f,i}-y_i)^2.
+(\hat{p}_{f,i}-y_i)^2
 \label{eq:app_brier}
 \end{equation}
 A lower Brier score indicates better probabilistic prediction.
@@ -77,7 +77,7 @@ Expected calibration error (ECE) measures the discrepancy between predicted prob
 =
 \frac{1}{|B_m|}
 \sum_{i\in B_m}
-\hat{p}_{f,i},
+\hat{p}_{f,i}
 \label{eq:app_confidence}
 \end{equation}
 \begin{equation}
@@ -85,7 +85,7 @@ Expected calibration error (ECE) measures the discrepancy between predicted prob
 =
 \frac{1}{|B_m|}
 \sum_{i\in B_m}
-y_i.
+y_i
 \label{eq:app_frequency}
 \end{equation}
 The ECE is then calculated as
@@ -98,7 +98,7 @@ The ECE is then calculated as
 \mathrm{freq}(B_m)
 -
 \mathrm{conf}(B_m)
-\right|.
+\right|
 \label{eq:app_ece}
 \end{equation}
 A smaller ECE indicates that the predicted feasibility probabilities are more consistent with the observed feasible frequencies.
@@ -110,7 +110,7 @@ The reinforcement surrogate is mainly used to rank candidates by material econom
 
 Pairwise ranking accuracy evaluates whether the surrogate correctly predicts the relative order of reinforcement usage between candidate pairs. Given two candidates $i$ and $j$, the ordering is correctly predicted if
 \begin{equation}
-(m_{s,i}-m_{s,j})(\hat{m}_{s,i}-\hat{m}_{s,j}) > 0 .
+(m_{s,i}-m_{s,j})(\hat{m}_{s,i}-\hat{m}_{s,j}) > 0
 \end{equation}
 The pairwise ranking accuracy is defined as
 \begin{equation}
@@ -124,7 +124,7 @@ A_{\mathrm{rank}}
 \right]
 }{
 \binom{N}{2}
-}.
+}
 \label{eq:app_pairwise_ranking}
 \end{equation}
 A higher value indicates that the surrogate better preserves the relative material economy of candidates.
@@ -139,7 +139,7 @@ Spearman's rank correlation coefficient is also used to measure the monotonic ag
 6\sum_{i=1}^{N} d_i^2
 }{
 N(N^2-1)
-},
+}
 \label{eq:app_spearman}
 \end{equation}
 where $d_i$ is the difference between the true rank and predicted rank of candidate $i$. A value closer to 1 indicates better rank consistency.
@@ -152,7 +152,7 @@ R_{\mathrm{top}\text{-}k}
 |\mathcal{T}_k \cap \hat{\mathcal{T}}_k|
 }{
 |\mathcal{T}_k|
-}.
+}
 \label{eq:app_topk_recall}
 \end{equation}
 This metric is particularly relevant for optimization because only a small subset of promising candidates is selected for true FEA evaluation.
@@ -163,7 +163,7 @@ The prediction bias of reinforcement usage is defined as
 =
 \frac{1}{N}
 \sum_{i=1}^{N}
-(\hat{m}_{s,i}-m_{s,i}).
+(\hat{m}_{s,i}-m_{s,i})
 \label{eq:app_bias}
 \end{equation}
 A positive value indicates overestimation, while a negative value indicates underestimation. Bias is reported because systematic overestimation or underestimation may affect candidate ranking and FEA budget allocation.
@@ -176,7 +176,7 @@ In the optimization experiments, the primary computational metric is the number 
 N_{\mathrm{FEA}}
 =
 \sum_{t}
-|\mathcal{S}_t|,
+|\mathcal{S}_t|
 \label{eq:app_fea_calls}
 \end{equation}
 where $\mathcal{S}_t$ is the set of candidates submitted to the true evaluator at iteration $t$.
@@ -191,7 +191,7 @@ R_{\mathrm{FEA}}
 N_{\mathrm{FEA}}^{\mathrm{sur}}
 }{
 N_{\mathrm{FEA}}^{\mathrm{full}}
-},
+}
 \label{eq:app_fea_reduction}
 \end{equation}
 where $N_{\mathrm{FEA}}^{\mathrm{sur}}$ and $N_{\mathrm{FEA}}^{\mathrm{full}}$ are the numbers of true FEA calls used by the surrogate-assisted strategy and the full FEA baseline, respectively.
@@ -204,7 +204,7 @@ R_{\mathrm{succ}}
 N_{\mathrm{runs}}^{\mathrm{feasible}}
 }{
 N_{\mathrm{runs}}
-}.
+}
 \label{eq:app_success_rate}
 \end{equation}
 This metric reflects whether surrogate screening reduces the chance of discovering feasible solutions.
@@ -217,7 +217,7 @@ R_{\mathrm{obj}}
 C_{\mathrm{best}}^{\mathrm{sur}}
 }{
 C_{\mathrm{best}}^{\mathrm{full}}
-},
+}
 \label{eq:app_objective_ratio}
 \end{equation}
 where $C_{\mathrm{best}}^{\mathrm{sur}}$ and $C_{\mathrm{best}}^{\mathrm{full}}$ are the best verified feasible costs obtained by the surrogate-assisted method and the full FEA baseline, respectively. A value close to 1 indicates that the surrogate-assisted method achieves comparable solution quality.
@@ -231,7 +231,7 @@ N_{\mathrm{first}}
 n
 \mid
 \exists i \leq n,\ y_{f,i}=1
-\right\}.
+\right\}
 \label{eq:app_first_feasible}
 \end{equation}
 This metric indicates how quickly an optimization strategy reaches the feasible region under a limited FEA budget.

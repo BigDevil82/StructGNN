@@ -14,14 +14,14 @@ The overall framework is illustrated in Fig.~\ref{fig:calibrated_optimization_fr
 \mathcal{B}_t=
 \left\{
 x_{t,1},x_{t,2},\ldots,x_{t,N_b}
-\right\},
+\right\}
 \label{eq:candidate_batch}
 \end{equation}
 where $N_b$ is the batch size.
 
 For each candidate $x_{t,i}$, the surrogate input follows the representation defined in Section~\ref{subsec:layout_parameter_model}:
 \begin{equation}
-z_{t,i}=\left(G,d_{t,i},q\right),
+z_{t,i}=\left(G,d_{t,i},q\right)
 \label{eq:candidate_input_framework}
 \end{equation}
 where the layout-related terms $G$ and $q$ remain fixed in a single optimization task, while the design vector $d_{t,i}$ varies among candidates. The global surrogate models and the online calibration module then provide the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and calibrated reinforcement estimate $\hat{m}_{s,t,i}^{C}$ according to Section~\ref{subsec:online_local_calibration}.
@@ -31,7 +31,7 @@ These calibrated predictions are used only to decide which candidates should rec
 \mathcal{E}(L,c,x_{t,i})
 \rightarrow
 (y_{f,t,i},m_{s,t,i},m_{c,t,i},r_{t,i}),
-\quad x_{t,i}\in\mathcal{S}_t .
+\quad x_{t,i}\in\mathcal{S}_t
 \label{eq:true_eval_framework}
 \end{equation}
 These verified results are used to update the optimizer and to expand the local calibration set. Candidates not selected for FEA receive a rejected-objective value so that the optimizer can still be updated with a complete batch.
@@ -49,7 +49,7 @@ Given the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and the scree
 x_{t,i}\in\mathcal{B}_t
 \mid
 \hat{p}_{f,t,i}^{C}\ge \tau_t
-\right\}.
+\right\}
 \label{eq:pass_set}
 \end{equation}
 The threshold $\tau_t$ follows the conservative strategy introduced in Section~\ref{subsec:online_local_calibration}. Its purpose is to avoid removing potentially feasible designs.
@@ -66,7 +66,7 @@ S_{t,i}^{C}
 \left(
 0,
 p_0-\hat{p}_{f,t,i}^{C}
-\right),
+\right)
 \label{eq:calibrated_priority_score}
 \end{equation}
 where $\hat{C}_{t,i}^{C}$ is the calibrated surrogate cost defined in Eqn.~\ref{eq:calibrated_cost}. The second term penalizes candidates whose calibrated feasibility probability is below the reference level $p_0$. Thus, lower scores indicate candidates that are both economical and less risky.
@@ -85,7 +85,7 @@ K_t^{pre}
 K_{\min},
 \left\lceil r_{pre}|\mathcal{B}_t^{pass}|\right\rceil
 \right)
-\right),
+\right)
 \end{equation}
 where $K_{\min}$ is the minimum number of evaluated candidates. 
 The candidates with the lowest calibrated cost scores are then selected for FEA.
@@ -102,7 +102,7 @@ K_t
 K_{\min},
 \left\lceil r|\mathcal{B}_t^{pass}|\right\rceil
 \right)
-\right).
+\right)
 \end{equation}
 The selected candidates are composed of three parts: low-cost candidates, low-risk candidates, and randomly sampled candidates. 
 In the experiments, these three parts account for 60\%, 25\%, and 15\% of the per-iteration evaluation quota, respectively. 
@@ -125,7 +125,7 @@ F({x}_{t,i})
 C({x}_{t,i}), 
 & {x}_{t,i}\in\Omega_f,\\[3pt]
 P_0+\lambda_v V({x}_{t,i})+\lambda_c C({x}_{t,i}),
-& {x}_{t,i}\notin\Omega_f,
+& {x}_{t,i}\notin\Omega_f
 \end{cases}
 \label{eq:true_fitness}
 \end{equation}
@@ -146,7 +146,7 @@ V({x}_{t,i})
 \frac{h_s^{\lim}-h_s({x}_{t,i})}{h_s^{\lim}}
 \right) \\
 &+
-\sum_{q} b_q({x}_{t,i}),
+\sum_{q} b_q({x}_{t,i})
 \end{aligned}
 \label{eq:violation_score}
 \end{equation}
@@ -155,7 +155,7 @@ where $g_r$ denotes upper-bound constraints, $h_s$ denotes lower-bound constrain
 Candidates not submitted to FEA do not have verified feasibility or cost values. To keep the optimizer update well defined, these candidates are assigned a large rejected objective:
 \begin{equation}
 F^{rej}(x_{t,i}) = M_{rej},
-\quad M_{rej}=1.0\times 10^{12}.
+\quad M_{rej}=1.0\times 10^{12}
 \label{eq:rejected_objective}
 \end{equation}
 This value is much larger than normal material-cost or penalty values, so these candidates are dominated in the minimization process and are effectively skipped.
@@ -174,7 +174,7 @@ For surrogate update, the FEA-verified samples are added to the local calibratio
 y_{f,t,i},
 m_{s,t,i})
 &\mid x_{t,i}\in\mathcal{S}_t
-\bigr\}.
+\bigr\}
 \end{aligned}
 \label{eq:local_set_update}
 \end{equation}

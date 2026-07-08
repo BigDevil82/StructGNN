@@ -66,7 +66,7 @@ where $G$ is the room-level graph representation of the layout, $d$ is the candi
 
 The first component of $z$ is the layout graph
 \begin{equation}
-G=(V,E),
+G=(V,E)
 \label{eq:layout_graph}
 \end{equation}
 where rooms or spatial units are treated as nodes, and adjacency relationships between rooms are treated as edges\cite{Zhao2023}. Each room node is described by a 25-dimensional feature vector that concatenates geometric descriptors and local constraint indicators. The geometric descriptors include normalized bounding-box coordinates, bounding-box size, area, and centroid, while the constraint indicators describe local buildable or wall-placement availability around the room. Each adjacency edge is assigned an 8-dimensional attribute vector that describes the spatial relationship between two neighboring rooms, including normalized shared-boundary length, shared-boundary centroid, relative direction indicators, and a boundary-orientation flag. All geometric quantities are normalized within each layout to reduce scale dependence.
@@ -102,25 +102,25 @@ where $\tilde{m}_c$ is the estimated concrete quantity. Candidates with lower su
 
 The two surrogate models are trained with task-specific losses. The feasibility model is optimized using a weighted binary cross-entropy loss to account for class imbalance:
 \begin{equation}
-\mathcal{L}_f = -\omega y_f \log \hat{p}_{f}^{G} - (1-y_f)\log(1-\hat{p}_{f}^{G}),
+\mathcal{L}_f = -\omega y_f \log \hat{p}_{f}^{G} - (1-y_f)\log(1-\hat{p}_{f}^{G})
 \label{eq:feasibility_loss}
 \end{equation}
 where $\omega$ is the class weight. For reinforcement prediction, the target $m_s$ is first transformed using logarithmic scaling and standardization:
 \begin{equation}
-y_s=\frac{\log(1+m_s)-\mu_s}{\sigma_s},
+y_s=\frac{\log(1+m_s)-\mu_s}{\sigma_s}
 \label{eq:steel_transform}
 \end{equation}
 where $\mu_s$ and $\sigma_s$ are computed from the training set. The reinforcement surrogate is trained using the Smooth L1 loss in the transformed space\cite{Huber1964}:
 \begin{equation}
 \mathcal{L}_s=\frac{1}{N_s}\sum_{i=1}^{N_s}\rho_\beta(e_i),
-\quad e_i=\hat{y}_{s,i}-y_{s,i},
+\quad e_i=\hat{y}_{s,i}-y_{s,i}
 \label{eq:steel_loss}
 \end{equation}
 \begin{equation}
 \rho_\beta(e_i)=
 \begin{cases}
 \dfrac{e_i^2}{2\beta}, & |e_i|<\beta, \\
-|e_i|-\dfrac{\beta}{2}, & |e_i|\ge\beta,
+|e_i|-\dfrac{\beta}{2}, & |e_i|\ge\beta
 \end{cases}
 \label{eq:smooth_l1}
 \end{equation}
@@ -139,7 +139,7 @@ During optimization, candidates selected for true evaluation naturally produce F
 =
 \left\{
 (z_i,\hat{p}_{f,i}^{G},\hat{m}_{s,i}^{G},y_{f,i},m_{s,i})
-\right\}_{i=1}^{n_t},
+\right\}_{i=1}^{n_t}
 \label{eq:local_dataset}
 \end{equation}
 where $t$ denotes the current optimization iteration and $n_t$ is the number of locally verified samples. The local set stores both global surrogate predictions and true FEA-based ground truth, enabling the calibration module to learn the prediction bias of the global surrogate under the current layout.
@@ -152,13 +152,13 @@ For feasibility prediction, the goal of calibration is to adjust the global surr
 \ell^{G}
 =
 \log
-\frac{\hat{p}_{f}^{G}}{1-\hat{p}_{f}^{G}} .
+\frac{\hat{p}_{f}^{G}}{1-\hat{p}_{f}^{G}}
 \label{eq:global_logit}
 \end{equation}
 
 When the local calibration set contains enough samples and both feasible and infeasible cases, a lightweight calibration function $g_t(\cdot)$ is fitted:
 \begin{equation}
-\hat{p}_{f}^{C}=g_t(\ell^{G}),
+\hat{p}_{f}^{C}=g_t(\ell^{G})
 \label{eq:calibrated_probability}
 \end{equation}
 where $\hat{p}_{f}^{C}$ is the calibrated feasibility probability.
@@ -172,12 +172,12 @@ Q_{1-r_0}
 \left\{
 \hat{p}_{f}^{C}\mid y_{f}=1
 \right\}
-\right),
+\right)
 \label{eq:raw_threshold}
 \end{equation}
 where $Q_{1-r_0}(\cdot)$ denotes the quantile function. A conservative scaling coefficient $\alpha\in(0,1]$ is then applied:
 \begin{equation}
-\tau_t^{C}=\alpha \tau_t^{raw}.
+\tau_t^{C}=\alpha \tau_t^{raw}
 \label{eq:calibrated_threshold}
 \end{equation}
 
@@ -190,13 +190,13 @@ For reinforcement usage, the main purpose of calibration is to correct the syste
 \begin{equation}
 \Delta m_{s}
 =
-m_{s}-\hat{m}_{s}^{G}.
+m_{s}-\hat{m}_{s}^{G}
 \label{eq:steel_residual}
 \end{equation}
 
 A local residual model $r_t(\cdot)$ is fitted using the local calibration set:
 \begin{equation}
-\widehat{\Delta m}_{s}=r_t(z,\hat{m}_{s}^{G}).
+\widehat{\Delta m}_{s}=r_t(z,\hat{m}_{s}^{G})
 \label{eq:residual_model}
 \end{equation}
 
@@ -206,7 +206,7 @@ The calibrated reinforcement prediction is then obtained by
 =
 \hat{m}_{s}^{G}
 +
-\widehat{\Delta m}_{s}.
+\widehat{\Delta m}_{s}
 \label{eq:calibrated_steel}
 \end{equation}
 
@@ -216,7 +216,7 @@ Compared with retraining the full graph surrogate model, this residual calibrati
 =
 p_s\hat{m}_{s}^{C}
 +
-p_c\tilde{m}_{c}.
+p_c\tilde{m}_{c}
 \label{eq:calibrated_cost}
 \end{equation}
 This calibrated cost estimate is used for candidate ranking before true evaluation.
