@@ -69,7 +69,7 @@ p_0-\hat{p}_{f,t,i}^{C}
 \right)
 \label{eq:calibrated_priority_score}
 \end{equation}
-where $\hat{C}_{t,i}^{C}$ is the calibrated surrogate cost defined in Eqn.~\ref{eq:calibrated_cost}. The second term penalizes candidates whose calibrated feasibility probability is below the reference level $p_0$. Thus, lower scores indicate candidates that are both economical and less risky.
+where $\hat{C}_{t,i}^{C}$ is the calibrated surrogate cost defined in Eqn.~\ref{eq:calibrated_cost}, $p_0$ is the reference feasibility probability, and $\eta$ is the feasibility-risk penalty coefficient. The coefficient $\eta$ converts the probability deficit below $p_0$ into an equivalent cost penalty, so a larger value makes the ranking more conservative with respect to feasibility. Thus, lower scores indicate candidates that are both economical and less risky.
 
 The method does not impose a fixed total number of FEA calls. Instead, it adaptively determines how many candidates in each iteration are submitted to FEA.
 
