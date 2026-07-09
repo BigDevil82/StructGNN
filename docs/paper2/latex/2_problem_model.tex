@@ -62,7 +62,7 @@ The surrogate input combines layout information and design parameters. Because s
 z=(G,d,q)
 \label{eq:candidate_representation}
 \end{equation}
-where $G$ is the room-level graph representation of the layout, $d$ is the candidate-specific design vector formed from the design condition $c$ and the optimization variables $x$, and $q$ is the vector of global layout statistics. Thus, $z$ serves as the standard input for both surrogate tasks in this study. Fig. ~\ref{fig:layout_parameter_surrogate} shows how this representation is encoded by the global surrogate models and used to predict candidate feasibility and reinforcement usage.
+where $G$ is the room-level graph representation of the layout, $d$ is the candidate-specific design vector formed from the design condition $c$ and the optimization variables $x$, and $q$ is the vector of global layout statistics. Thus, $z$ serves as the standard input for both surrogate tasks in this study. Fig.~\ref{fig:layout_parameter_surrogate} shows how this representation is encoded by the global surrogate models and used to predict candidate feasibility and reinforcement usage.
 
 The first component of $z$ is the layout graph
 \begin{equation}
@@ -76,7 +76,7 @@ The second component, $d$, encodes the seismic design condition, site informatio
 \subsection{Global Surrogate Models and Learning Outputs}
 \label{subsec:surrogate_tasks}
 
-Given the candidate representation $z=(G,d,q)$, the global surrogate models use a layout-conditioned graph architecture to map each candidate to pre-FEA predictions. Fig. ~\ref{fig:layout_parameter_surrogate}(c) shows the model architecture. The feasibility surrogate and the reinforcement surrogate are trained as two separate models with independent parameters, but they share the same input form and the same representation-learning pipeline.
+Given the candidate representation $z=(G,d,q)$, the global surrogate models use a layout-conditioned graph architecture to map each candidate to pre-FEA predictions. Fig.~\ref{fig:layout_parameter_surrogate}(c) shows the model architecture. The feasibility surrogate and the reinforcement surrogate are trained as two separate models with independent parameters, but they share the same input form and the same representation-learning pipeline.
 
 The model first encodes the three components of $z$ into fixed-dimensional embeddings. The graph component $G$ is processed by a graph neural network followed by graph-level pooling, while the design vector $d$ and the global layout statistics $q$ are mapped by separate tabular encoders. The three embeddings are then concatenated into a fused candidate representation $h$. This representation is used by the separately trained feasibility and reinforcement surrogate models to produce their respective predictions.
 
@@ -132,7 +132,7 @@ where $N_s$ is the number of reinforcement training samples and $\beta$ controls
 A global surrogate trained on multiple layouts provides useful prior knowledge for unseen design cases, but it may still exhibit systematic bias for a particular layout or local search region. This issue is especially important in shear wall optimization because the candidate distribution of design variable changes during the search. Therefore, using a static global surrogate throughout the optimization process may lead to inappropriate screening or ranking decisions.
 
 To address this problem, this study introduces online local calibration. 
-Fig. ~\ref{fig:online_calibration} illustrates the online local calibration process.
+Fig.~\ref{fig:online_calibration} illustrates the online local calibration process.
 During optimization, candidates selected for true evaluation naturally produce FEA-verified samples. These samples are accumulated as a local calibration set:
 \begin{equation}
 \mathcal{D}_{t}^{loc}
