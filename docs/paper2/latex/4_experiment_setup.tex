@@ -124,18 +124,15 @@ LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.948
 \end{table*}
 
 
-\begin{figure*}[t]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{local_calibration_effect.pdf}
 \caption{Effect of online local calibration using FEA-verified samples from the current layout.}
 \label{fig:local_calibration_effect}
-\end{figure*}
 
-\FloatBarrier
-
-\begin{table}[t]
-\centering
-\caption{Representative local calibration results and local-only ablation using 100 FEA-verified samples.}
+\vspace{0.8em}
+\begin{minipage}{\columnwidth}
+\captionof{table}{Representative local calibration results and local-only ablation using 100 FEA-verified samples.}
 \label{tab:local_calibration_results}
 \setlength{\tabcolsep}{2pt}
 \begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.14\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.16\columnwidth}>{\centering\arraybackslash}p{0.13\columnwidth}@{}}
@@ -155,8 +152,8 @@ $R^2$ & 0.847 & 0.976 & 0.994 & 17\% \\
 MAPE & 9.26\% & 3.26\% & 1.64\% & 82\% \\
 \bottomrule
 \end{tabularx}
-\end{table}
-
+\end{minipage}
+\end{figure*}
 
 \begin{figure*}[t]
 \centering
