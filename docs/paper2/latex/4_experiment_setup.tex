@@ -129,30 +129,6 @@ LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.948
 \includegraphics[width=\textwidth]{local_calibration_effect.pdf}
 \caption{Effect of online local calibration using FEA-verified samples from the current layout.}
 \label{fig:local_calibration_effect}
-
-\vspace{0.8em}
-\begin{minipage}{\columnwidth}
-\captionof{table}{Representative local calibration results and local-only ablation using 100 FEA-verified samples.}
-\label{tab:local_calibration_results}
-\setlength{\tabcolsep}{2pt}
-\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.14\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.16\columnwidth}>{\centering\arraybackslash}p{0.13\columnwidth}@{}}
-\toprule
-Metric & Global & Local only & Calib. & Improv. \\
-\midrule
-\multicolumn{5}{@{}l}{\textit{Feasibility}} \\
-Brier & 0.0749 & 0.0755 & 0.0437 & 42\% \\
-ECE & 0.0895 & 0.0451 & 0.0333 & 63\% \\
-Screen reject rate & 0.4708 & 0.5639 & 0.5481 & 16\% \\
-Screen recall & 0.9990 & 0.7265 & 0.9939 & -1\% \\
-\midrule
-\multicolumn{5}{@{}l}{\textit{Steel}} \\
-MAE & 11.48~t & 4.82~t & 2.04~t & 82\% \\
-RMSE & 12.30~t & 5.64~t & 2.76~t & 78\% \\
-$R^2$ & 0.847 & 0.976 & 0.994 & 17\% \\
-MAPE & 9.26\% & 3.26\% & 1.64\% & 82\% \\
-\bottomrule
-\end{tabularx}
-\end{minipage}
 \end{figure*}
 
 \begin{figure*}[t]

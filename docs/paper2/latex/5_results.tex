@@ -20,6 +20,7 @@ Fig.~\ref{fig:global_surrogate_overview} shows that the global LayoutParamGNN pr
 
 \begin{table*}[t]
 \centering
+\setcounter{table}{5}
 \caption{Optimization efficiency and solution quality under different candidate evaluation strategies.}
 \label{tab:optimization_summary_results}
 \small
@@ -97,6 +98,32 @@ The same figure also explains why a static global surrogate is not sufficient fo
 
 \subsection{Effectiveness of Online Local Calibration}
 \label{subsec:local_calibration_results}
+
+\begin{table}[H]
+\centering
+\setcounter{table}{4}
+\caption{Representative local calibration results and local-only ablation using 100 FEA-verified samples.}
+\label{tab:local_calibration_results}
+\setlength{\tabcolsep}{2pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.14\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.16\columnwidth}>{\centering\arraybackslash}p{0.13\columnwidth}@{}}
+\toprule
+Metric & Global & Local only & Calib. & Improv. \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{Feasibility}} \\
+Brier & 0.0749 & 0.0755 & 0.0437 & 42\% \\
+ECE & 0.0895 & 0.0451 & 0.0333 & 63\% \\
+feasibility recall & 0.9990 & 0.7265 & 0.9939 & -1\% \\
+reject rate & 0.4708 & 0.5639 & 0.5481 & 16\% \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{Steel}} \\
+MAE & 11.48~t & 4.82~t & 2.04~t & 82\% \\
+RMSE & 12.30~t & 5.64~t & 2.76~t & 78\% \\
+$R^2$ & 0.847 & 0.976 & 0.994 & 17\% \\
+MAPE & 9.26\% & 3.26\% & 1.64\% & 82\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\setcounter{table}{6}
 
 Fig.~\ref{fig:local_calibration_effect} shows that 100 FEA-verified samples are sufficient to improve surrogate reliability for most test layouts. The paired layout-wise comparisons in Fig.~\ref{fig:local_calibration_effect}(a) and Fig.~\ref{fig:local_calibration_effect}(b) indicate a consistent leftward shift after calibration, meaning lower Brier scores for feasibility prediction and lower MAE for reinforcement estimation. The largest gains occur on layouts where the global surrogate has larger original errors, which supports the role of local calibration as a bias-correction mechanism rather than a replacement for the global model.
 
