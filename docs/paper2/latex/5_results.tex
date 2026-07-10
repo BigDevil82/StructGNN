@@ -1,21 +1,43 @@
 \section{Experimental Results and Discussions}
 \label{sec:results_discussion}
 
-This section presents the experimental results and discusses the effectiveness of the proposed calibrated surrogate-assisted optimization framework. 
-
 \subsection{Global Surrogate Model Performance}
 \label{subsec:global_surrogate_results}
 
-Fig.~\ref{fig:global_surrogate_overview} shows that the global LayoutParamGNN provides strong feasibility separation and reinforcement ranking ability on unseen layouts, but it also exposes two important limitations: layout-dependent probability bias and systematic underestimation in high-reinforcement regions. The precision--recall curve in Fig.~\ref{fig:global_surrogate_overview}(a) supports the feasibility-screening capability, whereas the layout-wise probability comparison in Fig.~\ref{fig:global_surrogate_overview}(b) and the reinforcement error distribution in Fig.~\ref{fig:global_surrogate_overview}(d) reveal the need for local calibration. Tables~\ref{tab:global_feasibility_results} and~\ref{tab:global_steel_results} further compare the proposed graph-based surrogate with two reduced input settings to examine the contribution of layout information.
+Tables~\ref{tab:global_feasibility_results} and~\ref{tab:global_steel_results} present the prediction results of the three surrogate models with different input settings. As shown in Table~\ref{tab:global_feasibility_results}, the Param-MLP achieves a PR-AUC of 0.6137 and an F1 score of 0.5927 on unseen layouts. After global layout statistics are added, the PR-AUC increases to 0.8163 and the F1 score increases to 0.7370, corresponding to relative improvements of 33.0\% and 24.3\%, respectively. This result indicates that layout-level geometric information, such as shear wall ratio, total wall length, and centroid-related measures, is important for feasibility prediction. The proposed LayoutParamGNN further improves the ROC-AUC and PR-AUC to 0.9693 and 0.8593, respectively, with an F1 score of 0.7688. Compared with the Stat-MLP, the PR-AUC and F1 score are further improved by 5.3\% and 4.3\%, respectively. This suggests that the room-level graph representation captures spatial organization information that is difficult to fully describe using manually defined layout statistics.
+
+For surrogate-assisted optimization, the feasibility model is mainly used to remove low-potential candidates before FEA. Under the selected screening threshold, the LayoutParamGNN filters out approximately 47.36\% of candidate samples while maintaining a feasibility recall of 0.9998. Only 3 truly feasible samples are falsely rejected. In contrast, the Param-MLP produces more false rejections under a similar reject rate. The Stat-MLP reduces the false reject count to 10, but its overall PR-AUC and F1 score are still lower than those of the LayoutParamGNN. These results indicate that the graph-based feasibility surrogate is more suitable for conservative candidate screening.
+
+Table~\ref{tab:global_steel_results} shows a similar trend for reinforcement usage prediction. The Param-MLP obtains an MAE of 32.30~t and an $R^2$ of 0.351, indicating that section and material parameters alone are insufficient to estimate reinforcement demand across different layouts. After adding global layout statistics, the MAE decreases to 13.83~t and the $R^2$ increases to 0.891. The LayoutParamGNN further reduces the MAE to 11.48~t and improves the $R^2$ to 0.924. The ranking metrics also show strong performance, with a pairwise ranking accuracy of 0.9787, a Spearman correlation of 0.9779, and a top-10\% recall of 0.9483. Since the reinforcement surrogate is mainly used to rank candidates before FEA, these results show that the proposed model can reliably compare the relative reinforcement demand of candidate designs within the same layout.
+
+Fig.~\ref{fig:global_surrogate_overview} further illustrates the prediction behavior of the LayoutParamGNN. The precision--recall curve in Fig.~\ref{fig:global_surrogate_overview}(a) shows that the graph-based feasibility model achieves a much better precision--recall trade-off than the baseline feasible rate. However, the layout-wise probability comparison in Fig.~\ref{fig:global_surrogate_overview}(b) reveals that prediction bias still exists for some layouts. Several layouts with low true feasible rates are assigned overly optimistic feasibility probabilities. The reinforcement error distribution in Fig.~\ref{fig:global_surrogate_overview}(d) also shows that the prediction error becomes more biased in high-reinforcement regions. In the highest 20\% reinforcement-usage interval, the MAE increases to approximately 20.7~t and the bias reaches about $-17.4$~t. Therefore, although the global LayoutParamGNN provides effective feasibility screening and reinforcement ranking, its layout and demand dependent errors make it insufficient for direct optimization without further calibration.
 
 
-\begin{figure*}[t]
+\begin{table}[!t]
 \centering
-\includegraphics[width=\textwidth]{optimization_benchmark_results.pdf}
-\caption{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
-\label{fig:optimization_benchmark_results}
-\end{figure*}
-
+\setcounter{table}{4}
+\caption{Representative local calibration results and local-only ablation using 100 FEA-verified samples.}
+\label{tab:local_calibration_results}
+\setlength{\tabcolsep}{2pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.14\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.16\columnwidth}>{\centering\arraybackslash}p{0.13\columnwidth}@{}}
+\toprule
+Metric & Global & Local only & Calib. & Improv. \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{Feasibility}} \\
+Brier & 0.0749 & 0.0755 & 0.0437 & 42\% \\
+ECE & 0.0895 & 0.0451 & 0.0333 & 63\% \\
+feasibility recall & 0.9990 & 0.7265 & 0.9939 & -1\% \\
+reject rate & 0.4708 & 0.5639 & 0.5481 & 16\% \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{Steel}} \\
+MAE & 11.48~t & 4.82~t & 2.04~t & 82\% \\
+RMSE & 12.30~t & 5.64~t & 2.76~t & 78\% \\
+$R^2$ & 0.847 & 0.976 & 0.994 & 17\% \\
+MAPE & 9.26\% & 3.26\% & 1.64\% & 82\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\setcounter{table}{6}
 
 
 \begin{table*}[t]
@@ -54,7 +76,12 @@ Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & Firs
 \end{tabularx}
 \end{table*}
 
-
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{optimization_benchmark_results.pdf}
+\caption{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
+\label{fig:optimization_benchmark_results}
+\end{figure*}
 
 \begin{figure*}[t]
 \centering
@@ -62,7 +89,6 @@ Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & Firs
 \caption{Cost-tolerance analysis of surrogate-assisted strategies in full-feasible cases.}
 \label{fig:cost_tolerance_analysis}
 \end{figure*}
-
 
 \begin{figure*}[t]
 \centering
@@ -84,96 +110,49 @@ Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & Firs
 \label{fig:layout_difficulty_heatmap}
 \end{figure*}
 
-Table~\ref{tab:global_feasibility_results} compares the feasibility surrogate under three input settings. When only design parameters are used, the model achieves a PR-AUC of 0.6137 and an F1 score of 0.5927 on the test layouts. Adding global layout statistics improves the PR-AUC to 0.8163 and the F1 score to 0.7370, indicating that layout-level geometric and topological descriptors provide important information for feasibility judgment. The proposed LayoutParamGNN further improves the ROC-AUC and PR-AUC to 0.9693 and 0.8593, respectively, with an F1 score of 0.7688. The corresponding precision--recall curve in Fig.~\ref{fig:global_surrogate_overview}(a) also shows that the graph-based feasibility model separates feasible and infeasible candidates substantially better than the baseline feasible rate. This improvement suggests that the room-level graph representation captures additional spatial organization information that cannot be fully represented by manually defined layout statistics alone.
 
-
-From the perspective of optimization, the feasibility surrogate mainly supports conservative screening. Under the selected screening threshold, the LayoutParamGNN rejects approximately 47.36\% of candidate samples while maintaining a feasible recall of 0.9998, with only 3 truly feasible samples being falsely rejected. In comparison, the design-parameter-only model produces more false rejections under a similar reject rate. The layout-statistics model reduces the false reject count to 10, but its overall PR-AUC and F1 score remain lower than those of the LayoutParamGNN. These results support the use of the room-level graph model as the global feasibility surrogate in the subsequent optimization experiments.
-
-The reinforcement usage prediction results are shown in Table~\ref{tab:global_steel_results}. The design-parameter-only MLP obtains an MAE of 32.30~t and an $R^2$ of 0.351, which is insufficient for reliable candidate ranking. After adding global layout statistics, the MAE decreases to 13.83~t and the $R^2$ increases to 0.891. The LayoutParamGNN further reduces the MAE to 11.48~t and improves the $R^2$ to 0.924. The consistent improvement in both feasibility prediction and reinforcement estimation confirms that shear wall structural performance and reinforcement demand are strongly affected by layout characteristics.
-
-
-Since the reinforcement surrogate is mainly used to rank candidates before FEA, ranking quality is also important. The LayoutParamGNN achieves a pairwise ranking accuracy of 0.9787, a Spearman correlation of 0.9779, and a top-10\% recall of 0.9483. These results indicate that the model can reliably compare the relative reinforcement demand of different candidates within the same layout, even if the exact reinforcement quantity still contains prediction error.
-
-The same figure also explains why a static global surrogate is not sufficient for direct optimization. In Fig.~\ref{fig:global_surrogate_overview}(b), several layouts with low true feasible rates still receive over-optimistic feasibility probabilities. In Fig.~\ref{fig:global_surrogate_overview}(d), the reinforcement error becomes increasingly biased for high-demand candidates; in the highest 20\% reinforcement-usage interval, the MAE increases to approximately 20.7~t and the bias reaches about $-17.4$~t. These layout- and demand-dependent errors motivate the online local calibration strategy analyzed in the next subsection.
 
 \subsection{Effectiveness of Online Local Calibration}
 \label{subsec:local_calibration_results}
 
-\begin{table}[H]
-\centering
-\setcounter{table}{4}
-\footnotesize
-\renewcommand{\arraystretch}{0.9}
-\caption{Representative local calibration results and local-only ablation using 100 FEA-verified samples.}
-\label{tab:local_calibration_results}
-\setlength{\tabcolsep}{2pt}
-\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.14\columnwidth}>{\centering\arraybackslash}p{0.17\columnwidth}>{\centering\arraybackslash}p{0.16\columnwidth}>{\centering\arraybackslash}p{0.13\columnwidth}@{}}
-\toprule
-Metric & Global & Local only & Calib. & Improv. \\
-\midrule
-\multicolumn{5}{@{}l}{\textit{Feasibility}} \\
-Brier & 0.0749 & 0.0755 & 0.0437 & 42\% \\
-ECE & 0.0895 & 0.0451 & 0.0333 & 63\% \\
-feasibility recall & 0.9990 & 0.7265 & 0.9939 & -1\% \\
-reject rate & 0.4708 & 0.5639 & 0.5481 & 16\% \\
-\midrule
-\multicolumn{5}{@{}l}{\textit{Steel}} \\
-MAE & 11.48~t & 4.82~t & 2.04~t & 82\% \\
-RMSE & 12.30~t & 5.64~t & 2.76~t & 78\% \\
-$R^2$ & 0.847 & 0.976 & 0.994 & 17\% \\
-MAPE & 9.26\% & 3.26\% & 1.64\% & 82\% \\
-\bottomrule
-\end{tabularx}
-\end{table}
-\setcounter{table}{6}
+The online local calibration experiment evaluates whether a small number of FEA-verified samples from the current layout can correct the bias of the global surrogate. Fig.~\ref{fig:local_calibration_effect} compares the layout-wise prediction errors before and after calibration using 100 local samples. The paired comparisons in Fig.~\ref{fig:local_calibration_effect}(a) and Fig.~\ref{fig:local_calibration_effect}(b) show a consistent shift toward lower error values after calibration, corresponding to lower Brier scores for feasibility prediction and lower MAE for reinforcement estimation. The largest improvements are observed on layouts where the uncalibrated global surrogate has larger errors, indicating that local calibration mainly acts as a bias-correction mechanism rather than replacing the global model.
 
-Fig.~\ref{fig:local_calibration_effect} shows that 100 FEA-verified samples are sufficient to improve surrogate reliability for most test layouts. The paired layout-wise comparisons in Fig.~\ref{fig:local_calibration_effect}(a) and Fig.~\ref{fig:local_calibration_effect}(b) indicate a consistent leftward shift after calibration, meaning lower Brier scores for feasibility prediction and lower MAE for reinforcement estimation. The largest gains occur on layouts where the global surrogate has larger original errors, which supports the role of local calibration as a bias-correction mechanism rather than a replacement for the global model.
+Table~\ref{tab:local_calibration_results} summarizes the representative results with 100 local calibration samples. Three settings are compared. \textit{Global} denotes the uncalibrated global surrogate. \textit{Local only} denotes a local model fitted directly from current-layout samples and design variables, without using the global prediction as the reference. \textit{Calib.} denotes the proposed local calibration of the global surrogate. The \textit{Improv.} column reports the relative change from \textit{Global} to \textit{Calib.}.
 
-Table~\ref{tab:local_calibration_results} summarizes representative results using 100 local calibration samples. Three settings are compared: \textit{Global} denotes the uncalibrated global surrogate, \textit{Local only} denotes a local model fitted directly from current-layout samples and design variables rather than from global-model residuals, and \textit{Calib.} denotes the proposed local calibration of the global surrogate. The \textit{Improv.} column reports the relative change from \textit{Global} to \textit{Calib.} model.
+For the feasibility surrogate, the local-only ablation reduces ECE but does not improve the Brier score, and its feasibility recall is only 0.7265. This result suggests that a model trained only on limited current-layout samples lacks sufficient reliability for conservative screening. In contrast, calibrating the global feasibility probability decreases the Brier score from 0.0749 to 0.0437 and the expected calibration error from 0.0895 to 0.0333. The reject rate increases from 0.4708 to 0.5481, while feasibility recall only slightly decreases from 0.9990 to 0.9939. This indicates that calibration improves filtering efficiency while retaining most truly feasible candidates.
 
-For the feasibility surrogate, the local-only ablation reduces ECE but does not improve the Brier score and leads to a screen recall of only 0.7265, indicating that local samples alone are insufficient for conservative screening. In contrast, calibrating the global feasibility probability decreases the Brier score from 0.0749 to 0.0437 and the expected calibration error from 0.0895 to 0.0333. The screening reject rate increases from 0.4708 to 0.5481, while the screen recall only slightly decreases from 0.9990 to 0.9939, showing that calibration improves filtering efficiency while retaining most feasible candidates.
+For the reinforcement surrogate, the local-only ablation already achieves an MAE of 4.82~t, showing that the mapping from design variables to reinforcement demand can be learned reasonably well within a fixed layout using a small number of samples. Nevertheless, residual calibration of the global prediction further improves both accuracy and bias. The MAE decreases from 11.48~t to 2.04~t, the RMSE decreases from 12.30~t to 2.76~t, and the $R^2$ increases from 0.847 to 0.994. These results confirm that the residual calibration model effectively corrects the systematic error of the global reinforcement surrogate for the current layout.
 
-For the reinforcement surrogate, the local-only ablation already achieves a relatively low MAE of 4.82~t, showing that the mapping from design variables to reinforcement demand can be learned effectively within a fixed layout using a small number of samples. Nevertheless, local residual calibration of the global prediction further improves both accuracy and bias. The MAE decreases from 11.48~t to 2.04~t, the RMSE decreases from 12.30~t to 2.76~t, and the $R^2$ increases from 0.847 to 0.994. These results confirm that the residual calibration model effectively corrects the systematic error of the global reinforcement surrogate in the current layout.
+Fig.~\ref{fig:calibration_sample_efficiency} further examines the sample efficiency of local calibration. The calibration benefit appears with a small number of local samples and then gradually saturates. The feasibility-related results in Fig.~\ref{fig:calibration_sample_efficiency}(a) and Fig.~\ref{fig:calibration_sample_efficiency}(b) show improved probability calibration and screening behavior, while the reinforcement-related results in Fig.~\ref{fig:calibration_sample_efficiency}(c) and Fig.~\ref{fig:calibration_sample_efficiency}(d) show that MAE and bias can be corrected with limited local data. This sample efficiency is important for optimization because the local calibration set is accumulated online from candidates that have already been evaluated by FEA.
 
-Fig.~\ref{fig:calibration_sample_efficiency} further shows that the calibration benefit appears with a small number of local samples and then gradually saturates. The feasibility-related subplots, Fig.~\ref{fig:calibration_sample_efficiency}(a) and Fig.~\ref{fig:calibration_sample_efficiency}(b), show improved probability calibration and screening capacity, while Fig.~\ref{fig:calibration_sample_efficiency}(c) and Fig.~\ref{fig:calibration_sample_efficiency}(d) show that reinforcement MAE and bias are corrected with limited local data. This is important for optimization, because the local calibration set is accumulated online from candidates that have already been evaluated by FEA.
-
-These results match the intended role of online local calibration in the optimization loop. The global graph model provides the initial cross-layout prediction, and the lightweight local calibrators then adjust its probability and residual estimates using samples verified on the current fixed layout. As a result, the surrogate module can be updated during optimization without retraining the full graph model.
-
-The best feasibility probability calibrator and steel residual calibrator under each calibration size are summarized in Appendix Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_calibrator}, respectively.
+Overall, these results are consistent with the intended role of online local calibration in the optimization loop. The global graph model provides cross-layout prior predictions, while the lightweight local calibrators adjust its probability and residual estimates using FEA-verified samples from the current fixed layout. Therefore, the surrogate module can be updated during optimization without retraining the full graph model. Detailed selections of the feasibility probability calibrator and steel residual calibrator under different calibration sample sizes are provided in Appendix Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_calibrator}, respectively.
 
 \subsection{Optimization Efficiency and Solution Quality}
 \label{subsec:optimization_results}
 
-The calibrated surrogate models are further embedded into optimization procedures to evaluate their practical effect on FEA efficiency and solution quality. Fig.~\ref{fig:optimization_benchmark_results} and Table~\ref{tab:optimization_summary_results} show that surrogate-assisted evaluation substantially reduces true FEA calls across GA, PSO, and random search. The cost-ranking strategy reduces FEA calls by about 50\%--57\%, while adding feasibility screening increases the reduction to about 62\%--66\%. This consistent reduction across three optimizers indicates that the efficiency gain mainly comes from surrogate-based candidate allocation rather than from a specific search algorithm.
+The calibrated surrogate models are further embedded into optimization procedures to evaluate their practical effect on FEA efficiency and solution quality. 
 
-Table~\ref{tab:optimization_summary_results} summarizes the main quantitative results of the optimization experiments. Each optimizer is tested on 15 layouts with five random seeds, resulting in 75 runs for each evaluation strategy. The cost ratio is computed only for paired cases where both the surrogate-assisted strategy and the corresponding full FEA baseline find feasible solutions.
+Table~\ref{tab:optimization_summary_results} summarizes the main quantitative results of the optimization experiments. The cost ratio is computed only for paired cases where both the surrogate-assisted strategy and the corresponding full-FEA baseline find feasible solutions. The results show that surrogate-assisted evaluation substantially reduces true FEA calls across all three optimizers. The cost-ranking strategy reduces FEA calls by about 50\%--57\%, while adding feasibility screening increases the reduction to about 62\%--66\%. This consistent reduction indicates that the efficiency gain mainly comes from surrogate-based candidate allocation rather than from a specific search algorithm.
 
+The feasible solution discovery rate remains close to that of the full-FEA baseline. With the Screen \& ranking strategy, the success rate decreases only slightly for GA and PSO and remains nearly unchanged for random search. Although surrogate-assisted methods may miss feasible designs in some cases, the loss in success rate is small compared with the achieved FEA savings.
 
-The feasible-solution discovery rate remains close to that of the full FEA baseline. With the Screen \& ranking strategy, the success rate decreases only slightly for GA and PSO and remains nearly unchanged for random search. Although surrogate-assisted methods may miss feasible designs in some cases, the loss in success rate is small compared with the achieved FEA savings.
+Fig.~\ref{fig:optimization_benchmark_results} further compares the distributions of optimization performance. The final material cost results in the second row show that the surrogate-assisted strategies do not substantially degrade solution quality. For the Screen \& ranking strategy, the average material cost increase relative to the full-FEA baseline is about 0\%--2\% among paired cases where both strategies find feasible solutions. The first-feasible distributions also show that screening generally reduces the number of FEA calls required to find the first feasible solution, indicating that feasibility prediction helps the optimizer avoid obviously infeasible regions in the early search stage.
 
-The final material cost results indicate that the surrogate-assisted strategies do not substantially degrade solution quality, as shown in the second row of Fig.~\ref{fig:optimization_benchmark_results}. For the Screen \& ranking strategy, the average material cost increase relative to the full FEA baseline is about 0\%--2\% among paired cases where both strategies find feasible solutions. The first-feasible distributions further show that screening generally reduces the number of FEA calls required to find the first feasible solution, indicating that feasibility prediction helps the optimizer avoid obviously infeasible regions in the early search stage.
-
-Fig.~\ref{fig:cost_tolerance_analysis} further evaluates the robustness of solution quality in full-feasible cases. The horizontal axis represents the allowed cost tolerance relative to the full FEA optimum, and the vertical axis represents the proportion of cases that simultaneously satisfy three conditions: a feasible solution is found, the number of FEA calls is reduced, and the final cost is within the specified tolerance. As the tolerance increases from 0\% to about 5\%, the qualified-case ratio increases rapidly and then becomes stable. This trend indicates that, for most cases where full FEA optimization can find feasible solutions, the surrogate-assisted strategy can trade a small cost increase for a substantial reduction in FEA calls.
-
+Fig.~\ref{fig:cost_tolerance_analysis} evaluates the robustness of solution quality among cases where the full-FEA baseline finds a solution. The horizontal axis represents the allowed cost tolerance relative to the baseline optimum, and the vertical axis represents the proportion of cases that simultaneously satisfy three conditions: a feasible solution is found, the number of FEA calls is reduced, and the final cost is within the specified tolerance. As the tolerance increases from 0\% to about 5\%, the qualified-case ratio increases rapidly and then becomes stable. This trend indicates that, for most cases where full-FEA optimization can find feasible solutions, the surrogate-assisted strategy can trade a small cost increase for a substantial reduction in FEA calls.
 
 Different optimizers respond differently to surrogate-assisted evaluation. GA benefits from the batch-based candidate generation and population update mechanism, which allows the surrogate module to compare and filter diverse candidates in each generation. PSO tends to concentrate particles earlier in the search process, so the benefit of surrogate screening may depend more strongly on whether enough local calibration samples have been accumulated. Random search does not use historical feedback to guide search directions; therefore, the surrogate module mainly acts as a pre-evaluation filter. The consistent FEA reduction across all three optimizers suggests that the proposed framework improves efficiency primarily by reallocating the evaluation budget from low-value candidates to more promising ones.
 
 \subsection{Mechanism and Practical Implications}
 \label{subsec:mechanism_discussion}
 
-This subsection further discusses why this effect occurs and under what conditions the proposed framework is most useful.
-
-Fig.~\ref{fig:candidate_flow_analysis} illustrates the flow of candidates during the surrogate-assisted optimization process. In each generation, candidates can be divided into three groups: candidates rejected by feasibility screening, candidates that pass screening but are skipped by cost-based ranking, and candidates that are finally submitted to true FEA. On average, about 60\% of generated candidates are filtered before FEA. This candidate flow is the direct reason for the reduction in true evaluation calls.
-
+To further explain where the FEA reduction comes from, the candidate allocation process is first analyzed. Fig.~\ref{fig:candidate_flow_analysis} illustrates how candidates flow through the surrogate-assisted optimization process. At each generation, the feasibility surrogate first removes candidates that are unlikely to satisfy the design constraints. The remaining candidates are then ranked by the calibrated cost score, and only the most promising subset is submitted to the true FEA evaluator. As a result, approximately 60\% of the generated candidates are screened out before FEA on average, which directly reduces the number of expensive true evaluations.
 
 It is worth noting that some candidates submitted to FEA are still infeasible. This is not a failure of the framework, but a consequence of the conservative screening strategy. The feasibility surrogate is designed to avoid rejecting potentially feasible candidates, so it intentionally retains uncertain or boundary candidates for true verification.
 
-Fig.~\ref{fig:optimization_case_examples} provides representative optimization histories for three layouts with different difficulty levels. The representative cases are selected according to the feasible-candidate ratio observed in the optimization histories, with higher ratios indicating easier cases and lower ratios indicating more difficult cases. In the full FEA baseline, all generated candidates are evaluated, including many high-cost candidates and clearly infeasible candidates. When the reinforcement surrogate is used, evaluations are more concentrated in the low-cost region. However, cost-based ranking alone may still select low-cost but infeasible candidates. After feasibility screening is added, fewer infeasible candidates enter FEA, and the evaluated candidates are more concentrated around promising feasible regions. The best feasible costs remain close to those obtained by full FEA optimization in most cases.
-
+Representative optimization histories are then examined to show how the surrogate modules affect the search trajectory under different layout difficulties. Fig.~\ref{fig:optimization_case_examples} presents three layouts with different feasible candidate ratios, where a higher ratio indicates an easier layout and a lower ratio indicates a more difficult one. In the full FEA baseline, all generated candidates are evaluated, including many high-cost candidates and clearly infeasible candidates. When the reinforcement surrogate is used, evaluations become more concentrated in the low-cost region. However, cost-based ranking alone may still select low-cost but infeasible candidates. After feasibility screening is added, fewer infeasible candidates enter FEA, and the evaluated candidates are more concentrated around promising feasible regions. The best feasible costs remain close to those obtained by full FEA optimization in most cases.
 
 The two surrogate tasks therefore play complementary roles. The reinforcement surrogate reduces evaluations of obviously high-cost candidates and guides the search toward economical designs. The feasibility surrogate reduces evaluations of low-cost but clearly infeasible candidates. Online local calibration further adapts both predictions to the current layout, reducing the influence of global surrogate bias on candidate selection.
 
-For the difficult case, feasible designs are not located in the lowest-cost region; instead, the search needs to move toward larger sections and higher material costs to reach the feasible domain. This trend is observed in the full FEA baseline, where evaluated candidates gradually shift to higher-cost regions and feasible solutions eventually appear. In contrast, the cost-surrogate strategy overemphasizes low-cost candidates, which are mostly infeasible for this layout, and therefore fails to provide useful feedback for moving the search toward feasibility. After feasibility screening is introduced, the screen \& cost ranking strategy filters out low-cost but low-feasibility candidates and retains candidates with higher passing potential. As a result, the search direction becomes closer to the full FEA baseline, enabling feasible solutions to be found with fewer true evaluations.
+The difficult case further reveals why feasibility screening is necessary rather than using cost ranking alone. For this layout, feasible designs are not located in the lowest-cost region; instead, the search needs to move toward larger sections and higher material costs to reach the feasible domain. This trend is observed in the full FEA baseline, where evaluated candidates gradually shift to higher-cost regions and feasible solutions eventually appear. In contrast, the cost-surrogate strategy overemphasizes low-cost candidates, which are mostly infeasible for this layout, and therefore fails to provide useful feedback for moving the search toward feasibility. After feasibility screening is introduced, the screen \& cost ranking strategy filters out low-cost but low-feasibility candidates and retains candidates with higher passing potential. As a result, the search direction becomes closer to the full FEA baseline, enabling feasible solutions to be found with fewer true evaluations.
 
-
-Fig.~\ref{fig:layout_difficulty_heatmap} shows that layout difficulty is a key factor in feasible-solution discovery. Layouts that remain difficult even under full FEA optimization are likely limited by the layout itself or by the section-material design space, rather than by surrogate screening. Therefore, the proposed method is most useful when feasible candidates exist but FEA evaluations are expensive and limited: in such cases, calibrated surrogate assistance can reduce unnecessary evaluations with limited impact on final design quality.
+Finally, layout-level difficulty is analyzed to clarify the applicable scope of the proposed framework. Fig.~\ref{fig:layout_difficulty_heatmap} shows that layout difficulty is a key factor in feasible-solution discovery. Layouts that remain difficult even under full FEA optimization are likely limited by the layout itself or by the section-material design space, rather than by surrogate screening. Therefore, the proposed method is most useful when feasible candidates exist but FEA evaluations are expensive and limited. In such cases, calibrated surrogate assistance can reduce unnecessary evaluations with limited impact on final design quality.

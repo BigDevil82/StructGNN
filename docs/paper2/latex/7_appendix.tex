@@ -18,7 +18,7 @@ Let $y_i \in {0,1}$ denote the true feasibility label of candidate $i$, where $y
 \hat{p}_{f,i} \geq \tau
 \end{equation}
 
-The feasible recall is defined as
+The feasibility recall is defined as
 \begin{equation}
 R_{\mathrm{fea}}
 =
@@ -31,7 +31,7 @@ R_{\mathrm{fea}}
 }
 \label{eq:app_feasible_recall}
 \end{equation}
-where $\mathbb{I}(\cdot)$ is the indicator function. This metric measures the proportion of truly feasible candidates retained after surrogate screening. A high feasible recall is required because falsely filtering out feasible candidates may reduce the chance of finding a valid optimal design.
+where $\mathbb{I}(\cdot)$ is the indicator function. This metric measures the proportion of truly feasible candidates retained after surrogate screening. A high feasibility recall is required because falsely filtering out feasible candidates may reduce the chance of finding a valid optimal design.
 
 The reject rate is defined as
 \begin{equation}
@@ -43,7 +43,7 @@ R_{\mathrm{rej}}
 }{N}
 \label{eq:app_reject_rate}
 \end{equation}
-It measures the proportion of candidates rejected before true FEA evaluation. A higher reject rate indicates greater potential for reducing FEA calls, but it is meaningful only when feasible recall remains sufficiently high.
+It measures the proportion of candidates rejected before true FEA evaluation. A higher reject rate indicates greater potential for reducing FEA calls, but it is meaningful only when feasibility recall remains sufficiently high.
 
 The false reject count is defined as
 \begin{equation}

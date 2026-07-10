@@ -170,12 +170,12 @@ def plot_tolerance_success_curve(paired: pd.DataFrame, out_dir: str | Path) -> N
                 if np.isfinite(y):
                     ax.text(x, y + 1.5, str(count), ha="center", va="bottom", fontsize=6, color="#444444")
         ax.set_title(f"{algorithm} (n={n_full_feasible})")
-        ax.set_xlabel("Allowed cost increase vs full (%)")
+        ax.set_xlabel("Allowed cost increase vs baseline (%)")
         ax.set_ylim(0, 105)
         ax.set_xlim(thresholds.min() - 0.6, thresholds.max() + 0.6)
         ax.grid(True)
         if i == 0:
-            ax.set_ylabel("Qualified ratio among full-feasible cases (%)")
+            ax.set_ylabel("Qualified ratio (%)")
         else:
             ax.set_ylabel("")
             ax.tick_params(axis="y", left=False, labelleft=False)

@@ -18,9 +18,9 @@ In addition, the surrogate outputs used in optimization should be reliable for t
 Based on the above considerations, this study proposes a calibrated surrogate-assisted optimization framework for shear wall structural design with improved FEA efficiency.
 For a given shear wall layout, the framework first uses global surrogate models to quickly estimate candidate feasibility and reinforcement demand, so that clearly low-value candidates can be filtered and more promising candidates can be prioritized. The selected candidates are then submitted to high-fidelity FEA and code-based checking, and the verified results are reused to calibrate the surrogate predictions for the current layout during optimization. In this way, the framework reallocates the limited FEA budget toward candidates that are more likely to be feasible and economical, while the final best design is always selected from FEA-verified feasible candidates.
 
-The main innovations and contributions of this study are summarized as follows:
+The main contributions of this study are summarized as follows:
 \begin{enumerate}[(\arabic*)]
-\item A layout-conditioned surrogate modeling strategy is developed for shear wall section-material optimization. It enables candidate feasibility and reinforcement demand to be estimated before expensive FEA while explicitly incorporating layout information.
-\item An online local calibration mechanism is introduced to adapt global surrogate predictions to the current layout. FEA-verified samples generated during optimization are reused to calibrate feasibility probabilities and correct reinforcement residuals without retraining the full surrogate model.
-\item A calibrated surrogate-assisted candidate assessment strategy is established for FEA budget allocation. By combining conservative feasibility screening with cost-oriented priority ranking, the framework reduces unnecessary FEA calls while keeping high-fidelity FEA and code checking as the final verification basis.
+\item A layout-conditioned surrogate model is proposed for shear wall section-material optimization, which incorporates layout information to estimate candidate feasibility and reinforcement demand prior to FEA.
+\item An online local calibration mechanism is introduced to adapt global surrogate predictions to the current layout, using FEA-verified samples to calibrate feasibility probabilities and correct reinforcement residuals.
+\item A screening and ranking strategy is developed to allocate FEA evaluations by filtering low feasibility candidates and prioritizing promising low-cost ones.
 \end{enumerate}

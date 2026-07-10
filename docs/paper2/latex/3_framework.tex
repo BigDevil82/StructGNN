@@ -1,6 +1,3 @@
-
-
-
 \section{Calibrated Surrogate-Assisted Optimization Framework}
 \label{sec:optimization_framework}
 
@@ -13,7 +10,7 @@ The overall framework is illustrated in Fig.~\ref{fig:calibrated_optimization_fr
 \begin{equation}
 \mathcal{B}_t=
 \left\{
-x_{t,1},x_{t,2},\ldots,x_{t,N_b}
+x_{t,1},x_{t,2},\ldots,x_{t,i},\ldots,x_{t,N_b}
 \right\}
 \label{eq:candidate_batch}
 \end{equation}
@@ -39,9 +36,9 @@ These verified results are used to update the optimizer and to expand the local 
 \subsection{Candidate Screening and Priority Ranking}
 \label{subsec:candidate_screening_ranking}
 
-The surrogate-based pre-evaluation module consists of two consecutive operations: feasibility screening and priority ranking. The first operation removes candidates with very low calibrated feasibility probability. The second operation selects a subset of the remaining candidates for FEA according to calibrated material cost, feasibility risk, and random exploration.
+The surrogate-based candidate assessment follows a two-stage procedure. First, candidates predicted to be clearly infeasible are removed through probability-based screening. The remaining candidates are then prioritized using their predicted material cost and feasibility risk, from which a limited subset is selected for true FEA and code-based evaluation. The number and composition of the selected candidates are adjusted according to the current search stage.
 
-Given the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and the screening threshold $\tau_t$, the candidates passing the feasibility screening are defined as
+Given the candidate batch $\mathcal{B}_t$ generated at iteration $t$, the calibrated feasibility model first predicts $\hat{p}_{f,t,i}^{C}$ for each candidate. Candidates whose probabilities fall below the screening threshold $\tau_t$ are excluded from further consideration, while the retained set is defined as
 \begin{equation}
 \mathcal{B}_{t}^{pass}
 =
@@ -52,37 +49,36 @@ x_{t,i}\in\mathcal{B}_t
 \right\}
 \label{eq:pass_set}
 \end{equation}
-The threshold $\tau_t$ follows the conservative strategy introduced in Section~\ref{subsec:online_local_calibration}. Candidates outside $\mathcal{B}_{t}^{pass}$ are not submitted to FEA in the current iteration. This step is not intended to make a final feasibility decision, but to avoid spending FEA calls on candidates that are clearly unlikely to pass the design checks.
+Thus, the number of candidates removed at this stage is determined by the predicted feasibility distribution rather than by a prescribed screening ratio. The threshold is selected conservatively so that candidates with uncertain but potentially feasible responses are not prematurely discarded.
 
-
-For each candidate that passes the feasibility screening, the calibrated reinforcement estimate is first converted into a material-cost estimate. A priority score is then computed as
+For each candidate in $\mathcal{B}_{t}^{\mathrm{pass}}$, the calibrated reinforcement estimate is combined with the rapidly estimated concrete quantity to obtain the surrogate material cost $\hat{C}_{t,i}^{C}$ defined in Eqn.~\ref{eq:calibrated_cost}. A feasibility-risk term is further introduced as
 \begin{equation}
-S_{t,i}^{C}
-=
-\hat{C}_{t,i}^{C}
-+
-\eta
-\max
+R_{t,i}=\max
 \left(
 0,
 p_0-\hat{p}_{f,t,i}^{C}
-\right)
+\right),
+\label{eq:feasibility_risk}
+\end{equation}
+where $p_0$ is a reference probability. The overall priority score is then calculated as
+\begin{equation}
+S_{t,i}^{C}=\hat{C}_{t,i}^{C}
++
+\eta R_{t,i},
 \label{eq:calibrated_priority_score}
 \end{equation}
-where $\hat{C}_{t,i}^{C}$ is the calibrated surrogate cost defined in Eqn.~\ref{eq:calibrated_cost}, $p_0$ is the reference feasibility probability, and $\eta$ is the penalty coefficient. The coefficient $\eta$ converts the probability deficit below $p_0$ into an equivalent cost penalty. Thus, lower scores indicate candidates that are both economical and less risky.
+where $\eta$ converts the probability deficit into an equivalent cost penalty. A lower value of $S_{t,i}^{C}$ therefore indicates a candidate with a more favorable balance between material economy and predicted feasibility.
 
-The method does not impose a fixed total number of FEA calls. At each iteration, only a subset of candidates that pass feasibility screening is submitted to the true evaluator. Before any feasible design is found, a larger subset is evaluated to maintain exploration and improve the chance of finding an initial feasible solution. In this stage, the retained candidates are ordered by the priority score, and the lowest-score candidates are selected for FEA.
+The number of candidates submitted to FEA is determined from the size of the retained set rather than from the original candidate batch. A larger proportion is evaluated during the early search stage, when no feasible solution has yet been confirmed and broader evaluation is needed to identify the feasible region. After feasible solutions have been found, the evaluation quota is reduced so that the FEA budget can be concentrated on more competitive candidates.
 
-After a feasible design has been identified, the evaluation subset is reduced so that FEA is focused on the most promising candidates. The selected candidates include low-score candidates, low-risk candidates, and a small number of randomly sampled candidates. Low-score candidates guide the search toward economical feasible regions, low-risk candidates reduce the chance of selecting low-cost but uncertain designs, and random candidates retain limited exploration. This adaptive allocation strategy reduces unnecessary FEA calls while avoiding an overly greedy search.
+Within the available quota, candidate selection is primarily guided by the ascending order of $S_{t,i}^{C}$. Most evaluations are assigned to candidates with low risk-adjusted costs. In addition, a limited number of candidates with high feasibility confidence or candidates sampled from the remaining pool are also retained. The former reduces the possibility that promising feasible designs are overlooked because of cost-prediction errors, while the latter preserves exploration and prevents the optimization process from becoming completely dependent on the current surrogate ranking.
 
-
-Through this two-stage mechanism, the feasibility surrogate and the reinforcement surrogate have different but complementary functions. The feasibility surrogate reduces the probability that clearly infeasible candidates consume FEA calls, whereas the reinforcement surrogate ranks the remaining candidates by material economy. The output of this module is the selected subset $\mathcal{S}_t$, which is submitted to FEA in the current iteration.
-
+Through this sequential assessment, clearly unfavorable candidates are first removed by the feasibility model, and the remaining candidates are then prioritized mainly according to predicted material cost with an additional feasibility-risk correction. Only the selected subset is evaluated by FEA and code checking, whereas all final feasible solutions are determined exclusively from the high-fidelity evaluation results.
 
 \subsection{Optimizer and Surrogate Update after Candidate Evaluation}
 \label{subsec:online_update_framework}
 
-After candidate screening and priority ranking, only the selected candidates $\mathcal{S}_t$ are evaluated by the true evaluator. The optimizer is updated using two types of objective values: verified fitness values for candidates in $\mathcal{S}_t$ and rejected-objective values for the others. Because the optimizers minimize a scalar objective value, smaller values indicate better candidates.
+After candidate screening and priority ranking, only the selected candidates $\mathcal{S}_t$ are evaluated by the true evaluator. The optimizer is updated using two types of objective values, i.e., verified fitness values for candidates in $\mathcal{S}_t$ and rejected objective values for the others. Because the optimizers minimize a scalar objective value, smaller values indicate better candidates.
 
 For a truly evaluated candidate design ${x}_{t,i}$, the scalar fitness used by the optimizer is defined as
 \begin{equation}
@@ -125,7 +121,7 @@ F^{rej}(x_{t,i}) = M_{rej},
 \quad M_{rej}=1.0\times 10^{12}
 \label{eq:rejected_objective}
 \end{equation}
-This value is much larger than normal material-cost or penalty values, so these candidates are dominated in the minimization process and are effectively skipped.
+This value is much larger than normal material cost or penalty values, so these candidates are dominated in the minimization process and are effectively skipped.
 
 For surrogate update, the FEA-verified samples are added to the local calibration set:
 \begin{equation}
@@ -158,12 +154,12 @@ The complete calibrated surrogate-assisted optimization procedure is summarized 
 \caption{Calibrated surrogate-assisted optimization}
 \label{alg:csa_optimization}
 \begin{algorithmic}[1]
-\REQUIRE Layout $L$, design condition $c$, design space $\mathcal{X}$, optimizer $\mathcal{O}$, global surrogates ${SM}_f$ and ${SM}_s$, true evaluator $\mathcal{E}$, screening threshold $\tau_t$, rejected objective $M_{rej}$, initial local calibration set $\mathcal{D}_{0}^{loc}=\emptyset$.
+\REQUIRE Layout $L$, design condition $c$, design space $\mathcal{X}$, optimizer $\mathcal{O}$, global surrogates $\Phi_f$ and $\Phi_s$, true evaluator $\mathcal{E}$, screening threshold $\tau_t$, rejected objective $M_{rej}$, initial local calibration set $\mathcal{D}_{0}^{loc}=\emptyset$.
 \ENSURE Best feasible design verified by $\mathcal{E}$.
 \FOR{$t=0,1,\ldots,T-1$}
 \STATE Generate a candidate batch $\mathcal{B}_t$ using optimizer $\mathcal{O}$.
 \STATE Construct candidate representations $z_{t,i}=\left(G,d_{t,i},q\right)$ for all $x_{t,i}\in\mathcal{B}_t$.
-\STATE Obtain global predictions $\hat{p}_{f,t,i}^{G}=SM_f(z_{t,i})$ and $\hat{m}_{s,t,i}^{G}=SM_s(z_{t,i})$.
+\STATE Obtain global predictions $\hat{p}_{f,t,i}^{G}=\Phi_f(z_{t,i})$ and $\hat{m}_{s,t,i}^{G}=\Phi_f(z_{t,i})$.
 \IF{$\mathcal{D}_{t}^{loc}$ contains enough verified samples for calibration}
 \STATE Compute calibrated predictions $\hat{p}_{f,t,i}^{C}$ and $\hat{m}_{s,t,i}^{C}$.
 \ELSE
