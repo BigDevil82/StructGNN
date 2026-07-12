@@ -40,7 +40,7 @@ MAPE & 9.26\% & 3.26\% & 1.64\% & 82\% \\
 \setcounter{table}{6}
 
 
-\begin{table*}[t]
+\begin{table*}[!t]
 \centering
 \setcounter{table}{5}
 \caption{Optimization efficiency and solution quality under different candidate evaluation strategies.}
@@ -74,14 +74,12 @@ Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & Firs
 & Screen \& ranking & 75 & 66.7\% & 247 & 65.6\% & 31 & 1.002 \\
 \bottomrule
 \end{tabularx}
-\end{table*}
 
-\begin{figure*}[t]
-\centering
+\vspace{0.8em}
 \includegraphics[width=\textwidth]{optimization_benchmark_results.pdf}
-\caption{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
+\captionof{figure}{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
 \label{fig:optimization_benchmark_results}
-\end{figure*}
+\end{table*}
 
 \begin{figure*}[t]
 \centering
