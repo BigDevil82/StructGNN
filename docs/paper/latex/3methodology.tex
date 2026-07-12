@@ -43,7 +43,7 @@ $c \in \{0, 1, 2\}$ & Design condition index (low/medium/high) \\
 $\mathbf{z}_c \in \mathbb{R}^{D_c}$ & Condition embedding vector ($D_c = 32$) \\
 $\mathbf{Y} \in [0,1]^{N \times 16}$ & Ground-truth shear wall layout matrix \\
 $\hat{\mathbf{Y}} \in [0,1]^{N \times 16}$ & Predicted shear wall layout matrix \\
-$\mathbf{M} \in \{0,1\}^{N \times 16}$ & Constraint mask (1 = wall placement permitted) \\
+\textcolor{red}{$\mathbf{M} \in \{0,1\}^{N \times 16}$} & \textcolor{red}{Graph-level buildable mask formed by stacking the per-room masks} \\
 $\mathcal{N}_i$ & Neighborhood of node $v_i$ \\
 \bottomrule
 \end{tabularx}
@@ -77,7 +77,7 @@ Given an architectural floor plan $\mathcal{P}$ in CAD format, the room adjacenc
 
 \textbf{Step 2: Room Node Registration.} Each resulting rectangular sub-region with an area exceeding a minimum threshold is registered as a room node $v_i$. Openings are associated with the corresponding room-boundary segments according to geometric overlap, so that wall placement is prohibited where doors or windows interrupt a boundary. During dataset preparation, room partitions were manually annotated; visually enclosed regions that were already covered by surrounding room partitions and did not introduce an independent room or additional physical boundary were not registered as separate nodes, as shown in the white regions in Fig.~\ref{fig:graph_comparison}b. Partition boundaries introduced during the decomposition step are treated as virtual edges that carry no structural meaning and are therefore excluded from feasible wall placement.
 
-\textbf{Step 3: Adjacency Edge Construction.} For each pair of rooms, the shared physical boundary length $l_{ij}$ is computed. An adjacency edge $e_{ij}$ is added to $\mathcal{E}$ only if $l_{ij}$ exceeds a physical threshold $\tau_{adj}$ (set to 400 mm), which filters out minor or accidental structural contacts.
+\textbf{Step 3: Adjacency Edge Construction.} \textcolor{red}{For each pair of rooms, the shared physical boundary length $l_{ij}$ is computed. An adjacency edge $e_{ij}$ is added to $\mathcal{E}$ only if $l_{ij}$ exceeds a physical threshold $\tau_{adj}$, which is set to 400~mm in this study. This value is not prescribed by a design code; it is an empirical threshold selected from the geometric scale of the floor plans and shear wall layouts in the dataset. Shared contacts shorter than approximately 400~mm are typically minor corner contacts or drafting artifacts and are unlikely to provide a meaningful boundary for wall placement, so they are excluded from graph connectivity.}
 
 \textbf{Step 4: Attribute \& Label Mapping.} Finally, the room-boundary slots, node features $\mathbf{X}$, and edge attributes $\mathbf{A}$ are computed from room geometry and spatial relationships. Ground-truth shear wall locations are extracted from structural engineering drawings and mapped to the same boundary-slot representation. During this mapping, the effective length of a shear wall is defined as the projected overlap length between an extracted structural wall segment and a feasible room-boundary slot. Multiple wall intervals on the same slot are merged before the final coverage ratio is computed. The detailed output representation, feasibility mask, node features, and edge attributes are described in Sections~\ref{subsubsec:output_param}--\ref{subsubsec:edge_features}.
 
@@ -105,7 +105,7 @@ Further subdivision would increase output dimensionality while providing limited
 
 The resulting 16-dimensional vector $\mathbf{y}_i$ provides a continuous representation capable of encoding various wall configurations. Specifically, values of 1.0 denote full wall coverage, whereas intermediate values represent partial walls. For each boundary slot, the ground-truth coverage ratio is obtained by dividing the effective shear wall length within that slot by the slot length; therefore, a value of 1.0 indicates full coverage and an intermediate value indicates partial coverage. These ratios form the ground-truth vector and are also used in density-related losses and scores.
 
-The same boundary-slot ordering is used to define a 16-dimensional buildable mask $\mathbf{m}_i \in \{0,1\}^{16}$ for each room. Each mask component $m_{ij}$ corresponds one-to-one to the output component $y_{ij}$: $m_{ij}=1$ indicates that the slot is a feasible physical boundary for shear wall placement, while $m_{ij}=0$ indicates that the slot is blocked by an opening or corresponds to a virtual decomposition boundary. Fig.~\ref{fig:output_param}c visualizes this correspondence between output slots and buildable-mask entries. During training and inference, the mask excludes infeasible slots from loss computation, density calculation, and final wall placement.
+\textcolor{red}{The same boundary-slot ordering is used to define a 16-dimensional buildable mask $\mathbf{m}_i \in \{0,1\}^{16}$ for each room node $v_i$. Each mask component $m_{ij}$ corresponds one-to-one to the output component $y_{ij}$: $m_{ij}=1$ indicates that the slot is a feasible physical boundary for shear wall placement, while $m_{ij}=0$ indicates that the slot is blocked by an opening or corresponds to a virtual decomposition boundary. For a floor-plan graph with $N$ room nodes, the per-room masks are stacked into the graph-level buildable mask $\mathbf{M}=[\mathbf{m}_1;\mathbf{m}_2;\ldots;\mathbf{m}_N]\in\{0,1\}^{N\times16}$. In the following sections, $\mathbf{m}_i$ denotes the mask of an individual room node, whereas $\mathbf{M}$ denotes the mask of the complete floor-plan graph. Fig.~\ref{fig:output_param}c visualizes the correspondence between output slots and buildable-mask entries. During training and inference, these masks exclude infeasible slots from loss computation, density calculation, and final wall placement.}
 
 Because adjacent rooms $v_i$ and $v_j$ each independently predict coverage on their shared boundary, their predictions may be mutually inconsistent.
 During inference, this is resolved by taking the element-wise maximum of the two predictions for the corresponding boundary entries:
@@ -190,7 +190,7 @@ Given:
 \begin{enumerate}[(\arabic*)]
 \item Room adjacency graph $G = (\mathcal{V}, \mathcal{E}, \mathbf{X}, \mathbf{A})$ constructed from floor plan $\mathcal{P}$
 \item Design condition $c \in \{0, 1, 2\}$ specifying target shear wall density category (low, medium, high)
-\item Constraint mask $\mathbf{M} \in \{0,1\}^{N \times 16}$ indicating buildable locations
+\item \textcolor{red}{Graph-level buildable mask $\mathbf{M} \in \{0,1\}^{N \times 16}$, formed by stacking the per-room masks $\mathbf{m}_i$}
 \end{enumerate}
 
 
