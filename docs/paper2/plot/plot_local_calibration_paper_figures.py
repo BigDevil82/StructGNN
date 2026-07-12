@@ -449,6 +449,7 @@ def plot_metric_lines(
 
 
 def add_soft_gradient(ax: plt.Axes, color: str = "#75b7d8", alpha_top: float = 0.16) -> None:
+    return
     x0, x1 = ax.get_xlim()
     y0, y1 = ax.get_ylim()
     rgba = np.array(to_rgba(color))
