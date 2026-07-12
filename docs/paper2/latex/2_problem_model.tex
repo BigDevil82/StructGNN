@@ -16,7 +16,7 @@
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{calibrated_optimization_framework.pdf}
-\caption{Calibrated surrogate-assisted optimization framework.}
+\caption{Calibrated surrogate-informed optimization framework.}
 \label{fig:calibrated_optimization_framework}
 \end{figure*}
 
@@ -123,7 +123,7 @@ where $N_s$ is the number of reinforcement training samples and $\beta$ controls
 \subsection{Online Local Calibration of Global Surrogates}
 \label{subsec:online_local_calibration}
 
-A global surrogate trained on multiple layouts provides useful prior knowledge for unseen design cases, but it may still exhibit systematic bias for a particular layout or local search region. This issue is especially important in shear wall optimization because the candidate distribution of design variable changes during the search. Therefore, using a static global surrogate throughout the optimization process may lead to inappropriate screening or ranking decisions.
+A global surrogate trained on multiple layouts provides useful prior knowledge for unseen design cases, but it may still exhibit systematic bias for a particular layout or local search region. This issue is especially important in shear wall optimization because the candidate distribution of the design variable changes during the search. Therefore, using a static global surrogate throughout the optimization process may lead to inappropriate screening or ranking decisions.
 
 To address this problem, this study introduces online local calibration. 
 Fig.~\ref{fig:online_calibration} illustrates the online local calibration process.

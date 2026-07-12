@@ -6,7 +6,7 @@
 \section{Definition of Evaluation Metrics}
 \label{app:evaluation_metrics}
 
-This appendix defines the evaluation metrics that are specific to surrogate-assisted candidate screening, probability calibration, ranking-based reinforcement prediction, and optimization efficiency. Standard classification and regression metrics, such as ROC-AUC, PR-AUC, F1 score, MAE, RMSE, $R^2$, and MAPE, follow their conventional definitions and are not repeated here.
+This appendix defines the evaluation metrics that are specific to surrogate-informed candidate screening, probability calibration, ranking-based reinforcement prediction, and optimization efficiency. Standard classification and regression metrics, such as ROC-AUC, PR-AUC, F1 score, MAE, RMSE, $R^2$, and MAPE, follow their conventional definitions and are not repeated here.
 
 \subsection{Screening Metrics for Feasibility Prediction}
 \label{app:screening_metrics}
@@ -58,7 +58,7 @@ It directly counts the number of truly feasible candidates incorrectly rejected 
 \subsection{Probability Calibration Metrics}
 \label{app:calibration_metrics}
 
-The feasibility surrogate outputs a probability rather than a binary decision. In surrogate-assisted optimization, probability reliability is important because the screening threshold is selected based on predicted feasibility probabilities.
+The feasibility surrogate outputs a probability rather than a binary decision. In surrogate-informed optimization, probability reliability is important because the screening threshold is selected based on predicted feasibility probabilities.
 
 The Brier score is used to measure the mean squared error between predicted probabilities and true binary labels:
 \begin{equation}
@@ -194,7 +194,7 @@ N_{\mathrm{FEA}}^{\mathrm{full}}
 }
 \label{eq:app_fea_reduction}
 \end{equation}
-where $N_{\mathrm{FEA}}^{\mathrm{sur}}$ and $N_{\mathrm{FEA}}^{\mathrm{full}}$ are the numbers of true FEA calls used by the surrogate-assisted strategy and the full FEA baseline, respectively.
+where $N_{\mathrm{FEA}}^{\mathrm{sur}}$ and $N_{\mathrm{FEA}}^{\mathrm{full}}$ are the numbers of true FEA calls used by the surrogate-informed strategy and the full FEA baseline, respectively.
 
 The feasible-solution discovery rate is defined as the proportion of optimization runs that successfully find at least one feasible design:
 \begin{equation}
@@ -209,7 +209,7 @@ N_{\mathrm{runs}}
 \end{equation}
 This metric reflects whether surrogate screening reduces the chance of discovering feasible solutions.
 
-For runs that find feasible solutions, the final material cost of the best FEA-verified feasible design is reported. To compare surrogate-assisted optimization with full FEA optimization under the same layout and random seed, the normalized objective ratio is calculated as
+For runs that find feasible solutions, the final material cost of the best FEA-verified feasible design is reported. To compare surrogate-informed optimization with full FEA optimization under the same layout and random seed, the normalized objective ratio is calculated as
 \begin{equation}
 R_{\mathrm{obj}}
 =
@@ -220,7 +220,7 @@ C_{\mathrm{best}}^{\mathrm{full}}
 }
 \label{eq:app_objective_ratio}
 \end{equation}
-where $C_{\mathrm{best}}^{\mathrm{sur}}$ and $C_{\mathrm{best}}^{\mathrm{full}}$ are the best verified feasible costs obtained by the surrogate-assisted method and the full FEA baseline, respectively. A value close to 1 indicates that the surrogate-assisted method achieves comparable solution quality.
+where $C_{\mathrm{best}}^{\mathrm{sur}}$ and $C_{\mathrm{best}}^{\mathrm{full}}$ are the best verified feasible costs obtained by the surrogate-informed method and the full FEA baseline, respectively. A value close to 1 indicates that the surrogate-informed method achieves comparable solution quality.
 
 The number of FEA calls required to find the first feasible solution is also reported:
 \begin{equation}
@@ -249,7 +249,6 @@ Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_cal
 \centering
 \caption{Best feasibility probability calibrator under different local sample sizes.}
 \label{tab:appendix_feasibility_calibrator}
-\footnotesize
 \setlength{\tabcolsep}{6pt}
 \begin{tabularx}{\textwidth}{@{}>{\centering\arraybackslash}p{0.12\textwidth}
 >{\raggedright\arraybackslash}X
@@ -273,7 +272,6 @@ Calib. samples & Best feasibility calibrator & Brier & ECE & Screen reject & Scr
 \centering
 \caption{Best steel residual calibrator under different local sample sizes.}
 \label{tab:appendix_steel_calibrator}
-\footnotesize
 \setlength{\tabcolsep}{6pt}
 \begin{tabularx}{\textwidth}{@{}>{\centering\arraybackslash}p{0.12\textwidth}
 >{\raggedright\arraybackslash}X

@@ -8,7 +8,7 @@ First, the global surrogate models are evaluated on unseen shear wall layouts. T
 
 Second, the effectiveness of online local calibration is investigated. Since each optimization task is performed for a fixed layout and design condition, FEA-verified samples generated during optimization can provide layout-specific feedback. The calibration experiments therefore examine whether a small number of locally verified samples can improve feasibility probability calibration, reduce reinforcement prediction bias, and improve candidate ranking in the current layout.
 
-Third, the calibrated surrogate models are embedded into optimization procedures. The optimization experiments compare full FEA-based optimization with several surrogate-assisted evaluation strategies. The comparison focuses on the number of true FEA calls, feasible-solution discovery, and final material cost. All compared methods use the same design space and true evaluator.
+Third, the calibrated surrogate models are embedded into optimization procedures. The optimization experiments compare full FEA-based optimization with several surrogate-informed evaluation strategies. The comparison focuses on the number of true FEA calls, feasible-solution discovery, and final material cost. All compared methods use the same design space and true evaluator.
 
 
 \subsection{Dataset and Structural Evaluation}
@@ -184,7 +184,7 @@ To examine sample efficiency, local calibration sizes of 25, 50, 100, 200, and 5
 
 The optimization experiments are conducted on 15 unseen layouts selected from the test set, comprising five layouts from each of the three design-condition groups. For each layout, five random seeds are used. For each test layout, the layout $L$ and design condition $c$ are fixed, and the optimization variables are the section and material parameters $x$. All compared methods use the same design space, true evaluator, and random seeds.
 
-Genetic algorithm is adopted as the main optimizer\cite{Goldberg1989}. In the experiments, the population size, number of generations, mutation rate, and elite size are set to 48, 15, 0.30, and 2, respectively. To examine whether the surrogate-assisted mechanism depends on a specific optimizer, particle swarm optimization (PSO) and random search are also included as supplementary optimizers\cite{Kennedy1995PSO}. The PSO uses a swarm size of 48 and 15 iterations, with a mutation rate of 0.15 to improve exploration. The random search baseline evaluates 720 candidates in batches of 48.
+Genetic algorithm is adopted as the main optimizer\cite{Goldberg1989}. In the experiments, the population size, number of generations, mutation rate, and elite size are set to 48, 15, 0.30, and 2, respectively. To examine whether the surrogate-informed mechanism depends on a specific optimizer, particle swarm optimization (PSO) and random search are also included as supplementary optimizers\cite{Kennedy1995PSO}. The PSO uses a swarm size of 48 and 15 iterations, with a mutation rate of 0.15 to improve exploration. The random search baseline evaluates 720 candidates in batches of 48.
 
 Three candidate evaluation strategies are compared:
 \begin{enumerate}[(\arabic*)]
@@ -193,14 +193,14 @@ Three candidate evaluation strategies are compared:
 \item Screen \& cost ranking: feasibility screening, reinforcement-based cost ranking, and online local calibration are jointly used to select candidates for true FEA evaluation.
 \end{enumerate}
 
-For surrogate-assisted strategies, each optimizer first generates a candidate batch $\mathcal{B}_t$. The surrogate module then evaluates all candidates in the batch and selects a subset $\mathcal{S}_t$ for true FEA and code checking. A minimum number of evaluated candidates is enforced to avoid overly aggressive filtering. In the experiments, the minimum number of true evaluations per batch is set to 8. The verified results are used to update the optimizer and the local calibration set.
+For surrogate-informed strategies, each optimizer first generates a candidate batch $\mathcal{B}_t$. The surrogate module then evaluates all candidates in the batch and selects a subset $\mathcal{S}_t$ for true FEA and code checking. A minimum number of evaluated candidates is enforced to avoid overly aggressive filtering. In the experiments, the minimum number of true evaluations per batch is set to 8. The verified results are used to update the optimizer and the local calibration set.
 
 The cost-ranking uses an evaluation ratio of 0.8 before the first feasible design is found and 0.5 afterwards. After a feasible design has been observed, the selected subset is allocated to cost ranking, feasibility-risk ranking, and random exploration with ratios of 0.60, 0.25, and 0.15, respectively. The feasibility-risk term in the surrogate ranking score uses a hinge target of $p_0=0.5$ and a penalty coefficient of $\eta=1.0\times10^6$. Candidates rejected by surrogate screening or skipped after cost ranking are assigned $M_{rej}=1.0\times10^{12}$. For FEA-evaluated infeasible candidates, the scalar penalty uses $P_0=1.0\times10^5$, $\lambda_v=1.0\times10^7$, and $\lambda_c=0.01$.
 
 \subsection{Evaluation Metrics}
 \label{subsec:evaluation_metrics}
 
-Definitions of the full set of metrics used in this study are provided in \ref{app:evaluation_metrics}.
+To be noted, definitions of the full set of metrics used in this study are provided in \ref{app:evaluation_metrics}.
 
 The feasibility surrogate is assessed using ROC-AUC, PR-AUC, and F1 score to characterize its overall classification performance. Since the model serves as a conservative screening tool before FEA, we further report feasibility recall, reject rate, and false reject count. These metrics quantify, respectively, the proportion of truly feasible candidates retained after screening, the proportion of candidates filtered out before FEA, and the number of feasible candidates mistakenly rejected by the surrogate.
 
@@ -208,4 +208,4 @@ Reinforcement prediction accuracy is measured by mean absolute error (MAE), root
 
 Local calibration is evaluated from both probability and residual-correction perspectives. Feasibility probability calibration is measured by Brier score\cite{Brier1950} and expected calibration error (ECE)\cite{Naeini2015}, together with feasibility recall and reject rate, whereas reinforcement residual calibration is measured by MAE, RMSE, $R^2$ and MAPE after calibration.
 
-Optimization performance is summarized in terms of computational efficiency and solution quality. Efficiency is measured by the number of true FEA calls and the FEA reduction ratio, while solution quality is characterized by feasible-solution discovery rate, the number of FEA calls required to find the first feasible solution, and final material cost. For each test layout and random seed, surrogate-assisted strategies are compared with full FEA optimization to determine whether FEA calls can be reduced without substantial degradation in feasibility discovery or final cost.
+Optimization performance is summarized in terms of computational efficiency and solution quality. Efficiency is measured by the number of true FEA calls and the FEA reduction ratio, while solution quality is characterized by feasible-solution discovery rate, the number of FEA calls required to find the first feasible solution, and final material cost. For each test layout and random seed, surrogate-informed strategies are compared with full FEA optimization to determine whether FEA calls can be reduced without substantial degradation in feasibility discovery or final cost.
