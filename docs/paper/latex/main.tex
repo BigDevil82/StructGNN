@@ -67,6 +67,11 @@
      citecolor    = blue
 }
 \setlength{\mathindent}{0pt}
+
+\ifdefined\makeunmarked
+  \RenewDocumentCommand{\textcolor}{O{} m m}{#3}
+\fi
+
 \captionsetup[table]{
   labelfont=bf,             % "Table n" 加粗
   singlelinecheck=false,    % 强制左对齐（禁止单行居中）
