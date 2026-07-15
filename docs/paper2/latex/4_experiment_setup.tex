@@ -16,7 +16,7 @@ Third, the calibrated surrogate models are embedded into optimization procedures
 
 The dataset is constructed from engineering shear wall layouts and a parametric structural evaluation workflow. Each sample corresponds to a layout, a design condition, and a section-material design scheme. The input includes layout information and design parameters, and the supervised labels include the comprehensive feasibility label $y_f$ and the reinforcement usage $m_s$.
 
-The dataset contains 143 shear wall layouts designed by professional engineers, which can be divided into three groups according to seismic intensity and building height. Group7-H1 corresponds to low-demand cases with seismic intensity 7, PGA of 0.10~g, and building height $H \leq 50$~m. Group7-H2 corresponds to medium-demand cases with the same seismic intensity but building height $H>50$~m. Group8 corresponds to high-demand cases with seismic intensity 8 and PGA of 0.20~g. These groups reflect the combined influence of seismic demand and structural height on shear wall section design and material usage.
+The dataset contains 143 shear wall layouts designed by professional engineers, which can be divided into three groups according to seismic intensity and building height\cite{Zhao2023}. Group7-H1 corresponds to low-demand cases with seismic intensity 7, PGA of 0.10~g, and building height $H \leq 50$~m. Group7-H2 corresponds to medium-demand cases with the same seismic intensity but building height $H>50$~m. Group8 corresponds to high-demand cases with seismic intensity 8 and PGA of 0.20~g.  These groups reflect the combined influence of seismic demand and structural height on shear wall section design and material usage.
 
 \begin{table}[t]
 \centering
@@ -90,10 +90,9 @@ Total & 143 & 714,972 & 23.1\% / 36.4\% / 40.6\% \\
 
 Two global surrogate models are trained, i.e. the feasibility surrogate $\Phi_f$ and the reinforcement usage surrogate $\Phi_s$. They use the same candidate representation and model architecture, but are trained separately with independent parameters for different prediction tasks. The feasibility surrogate outputs the probability that a candidate can pass the comprehensive structural checks, while the reinforcement surrogate predicts the reinforcement quantity before true evaluation.
 
-To examine the effect of layout representation, three surrogate models are compared under progressively enriched input settings. Param-MLP uses only the section, material, and design-condition parameters, and is adopted as a baseline without explicit layout information. Stat-MLP further incorporates fixed-dimensional global layout statistics, including plan aspect ratio, shear wall ratio, total wall length, centroid-related measures, and other geometric summaries of the overall shear wall layout. This model is used to evaluate the effectiveness of compact tabular layout descriptors. The proposed LayoutParamGNN combines the room-level graph, global layout statistics, and design parameters, allowing the surrogate model to exploit both global geometric features and room-level topological relationships.
+To investigate how different levels of layout information affect surrogate performance, three models with progressively enriched candidate representations are compared. Param-MLP uses only section, material, and design-condition parameters and therefore serves as a baseline without explicit layout information. Stat-MLP augments these inputs with fixed-dimensional global layout statistics, including the plan aspect ratio, shear wall ratio, total wall length, wall centroid, and other geometric summaries. The proposed FuseGNN model further incorporates the room-level graph, which jointly fuses room-level topology, global layout descriptors, and candidate design parameters. This enables the surrogate to capture both the global geometric context and local spatial relationships that influence structural feasibility and reinforcement demand.
 
-
-The LayoutParamGNN adopts a three-layer GraphSAGE encoder for room-graph feature extraction\cite{Hamilton2017GraphSAGE}. In each surrogate model, the graph-level representation is fused with global layout statistics and design-parameter embeddings before being passed to the task-specific output layer. For the feasibility model, the hidden dimension, dropout rate, batch size, and learning rate are set to 256, 0.2, 128, and 0.001, respectively. Weighted binary cross-entropy is used to handle class imbalance. The screening threshold is selected on the validation set according to a target feasibility recall of 0.995.
+The FuseGNN adopts a three-layer GraphSAGE encoder for room-level graph feature extraction\cite{Hamilton2017GraphSAGE}. In each surrogate model, the graph-level representation is fused with global layout statistics and design-parameter embeddings before being passed to the task-specific output layer. For the feasibility model, the hidden dimension, dropout rate, batch size, and learning rate are set to 256, 0.2, 128, and 0.001, respectively. Weighted binary cross-entropy is used to handle class imbalance. The screening threshold is selected on the validation set according to a target feasibility recall of 0.995.
 
 For the reinforcement model, the hidden dimension, dropout rate, batch size, and learning rate are set to 128, 0.1, 512, and 0.0005, respectively. Both global surrogate models are trained using validation-based early stopping.
 
@@ -115,7 +114,7 @@ Model & ROC-AUC & PR-AUC & F1 & Reject rate & Feasibility recall & False reject 
 \midrule
 Param-MLP & 0.9117 & 0.6137 & 0.5927 & 0.4787 & 0.9946 & 90 \\
 Stat-MLP & 0.9547 & 0.8163 & 0.7370 & 0.4447 & 0.9994 & 10 \\
-LayoutParamGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
+FuseGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
 \bottomrule
 \end{tabularx}
 \end{table*}
@@ -140,7 +139,7 @@ Model & MAE (t) & RMSE (t) & $R^2$ & MAPE & Bias (t) & Pairwise acc. & Spearman 
 \midrule
 Param-MLP & 32.30 & 45.77 & 0.351 & 0.247 & -13.89 & 0.9586 & 0.9547 & 0.8974 \\
 Stat-MLP & 13.83 & 18.75 & 0.891 & 0.112 & -1.66 & 0.9652 & 0.9628 & 0.9142 \\
-LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
+FuseGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
 \bottomrule
 \end{tabularx}
 \end{table*}
@@ -149,7 +148,7 @@ LayoutParamGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.948
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{global_surrogate_overview.pdf}
-\caption{Overall performance and error patterns of the global layout-conditioned surrogate model.}
+\caption{Overall performance and error patterns of the global surrogate model.}
 \label{fig:global_surrogate_overview}
 \end{figure*}
 
@@ -184,13 +183,13 @@ To examine sample efficiency, local calibration sizes of 25, 50, 100, 200, and 5
 
 The optimization experiments are conducted on 15 unseen layouts selected from the test set, comprising five layouts from each of the three design-condition groups. For each layout, five random seeds are used. For each test layout, the layout $L$ and design condition $c$ are fixed, and the optimization variables are the section and material parameters $x$. All compared methods use the same design space, true evaluator, and random seeds.
 
-Genetic algorithm is adopted as the main optimizer\cite{Goldberg1989}. In the experiments, the population size, number of generations, mutation rate, and elite size are set to 48, 15, 0.30, and 2, respectively. To examine whether the surrogate-informed mechanism depends on a specific optimizer, particle swarm optimization (PSO) and random search are also included as supplementary optimizers\cite{Kennedy1995PSO}. The PSO uses a swarm size of 48 and 15 iterations, with a mutation rate of 0.15 to improve exploration. The random search baseline evaluates 720 candidates in batches of 48.
+Genetic algorithm (GA) is adopted as the main optimizer\cite{Goldberg1989}. In the experiments, the population size, number of generations, mutation rate, and elite size are set to 48, 15, 0.30, and 2, respectively. To examine whether the surrogate-informed mechanism depends on a specific optimizer, particle swarm optimization (PSO) and random search are also included as supplementary optimizers\cite{Kennedy1995PSO}. The PSO uses a swarm size of 48 and 15 iterations, with a mutation rate of 0.15 to improve exploration. The random search baseline evaluates 720 candidates in batches of 48.
 
 Three candidate evaluation strategies are compared:
 \begin{enumerate}[(\arabic*)]
-\item Full FEA optimization: all candidates generated by the optimizer are evaluated by $\mathcal{E}$. This strategy serves as the baseline.
+\item For full FEA optimization, all candidates generated by the optimizer are evaluated by $\mathcal{E}$. This strategy serves as the baseline.
 \item Cost ranking: candidates are ranked using the reinforcement surrogate and the estimated concrete quantity, and only high-priority candidates are submitted to $\mathcal{E}$.
-\item Screen \& cost ranking: feasibility screening, reinforcement-based cost ranking, and online local calibration are jointly used to select candidates for true FEA evaluation.
+\item Screen \& cost ranking: Both feasibility screening and cost-based ranking are used to select candidates for FEA evaluation.
 \end{enumerate}
 
 For surrogate-informed strategies, each optimizer first generates a candidate batch $\mathcal{B}_t$. The surrogate module then evaluates all candidates in the batch and selects a subset $\mathcal{S}_t$ for true FEA and code checking. A minimum number of evaluated candidates is enforced to avoid overly aggressive filtering. In the experiments, the minimum number of true evaluations per batch is set to 8. The verified results are used to update the optimizer and the local calibration set.

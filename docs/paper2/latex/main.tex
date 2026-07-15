@@ -168,7 +168,8 @@
 %             country={Country Two}}
 
 \begin{abstract}
-Shear wall structural optimization for high-rise buildings requires repeated finite-element analysis and code-based design checking, making conventional optimization computationally expensive in preliminary design. Existing optimization methods using surrogate model can reduce evaluation cost, but static global surrogates may suffer from layout-specific prediction bias and become unreliable under direct application. This paper proposes a calibrated surrogate-informed optimization framework for FEA-efficient shear wall structural design. A layout-conditioned surrogate model is first developed to estimate candidate feasibility and reinforcement usage from room-level graph representations, global layout statistics, and design parameters. During optimization, the surrogate predictions are further corrected through online local calibration using FEA-verified samples accumulated from the current layout, enabling layout-specific feasibility probability calibration and reinforcement residual correction. Based on the calibrated predictions, the framework conservatively filters low-feasibility candidates and selects promising low-cost candidates for true FEA evaluation, thereby reallocating the limited analysis budget. Experiments on 143 engineering shear wall layouts with approximately 715,000 FEA-labeled samples show that the proposed method improves candidate assessment, reduces local surrogate bias, and substantially decreases true FEA calls while maintaining comparable solution quality. The results demonstrate that online local calibration and surrogate-informed budget allocation provide an effective strategy for improving the computational efficiency of shear wall structural optimization.
+
+Shear wall structural optimization for high-rise buildings requires repeated finite element analysis (FEA) and design code checking, making conventional optimization computationally expensive. Although surrogate-assisted methods can reduce evaluation costs, static surrogates may exhibit prediction bias when applied to unseen layouts or evolving local search regions. This study proposes a calibrated surrogate-informed optimization framework that improves optimization efficiency by reducing unnecessary FEA evaluations. Two surrogate models integrate room-level graph representations, global layout statistics, and design parameters to estimate candidate feasibility and reinforcement usage before FEA. During optimization, FEA-verified samples collected from the current layout are used for online local calibration, which adjusts feasibility probabilities and corrects reinforcement prediction residuals. The calibrated predictions support conservative feasibility screening and cost-oriented candidate ranking, thereby concentrating the limited FEA budget on high-priority designs. Experiments on 143 engineering layouts with approximately 715,000 FEA-labeled samples show that the proposed strategy reduces FEA evaluations by 64.6\% on average across 15 unseen layouts, with only a 1.19\% average cost increase compared with the full-FEA baseline cases. These results demonstrate that online local calibration and surrogate-informed budget allocation can substantially improve the computational efficiency of shear wall structural optimization while preserving comparable solution quality.
 \end{abstract}
 
 %%Graphical abstract
@@ -179,10 +180,11 @@ Shear wall structural optimization for high-rise buildings requires repeated fin
 %%Research highlights
 % \begin{strip}
 \begin{highlights}
-\item Calibrated surrogates accelerate shear wall structural optimization.
-\item Layout-conditioned surrogates predict feasibility and reinforcement demand.
-\item Online calibration adapts predictions to each layout and search region.
-\item Candidate screening and ranking improve FEA budget allocation.
+\item A graph surrogate captures layout-dependent feasibility and reinforcement demand.
+\item FEA feedback enables online adaptation of surrogate prediction.
+\item Online calibration cuts Brier score by 42\% and reinforcement MAE by 82\%.
+\item Risk-aware screening and cost ranking focus FEA on competitive designs.
+\item True FEA calls drop by 64.6\% with only a 1.19\% mean cost increase.
 \end{highlights}
 % \end{strip}
 
