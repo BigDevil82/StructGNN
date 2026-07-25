@@ -2,7 +2,7 @@
 \section{Discussion}
 \label{sec:discussion}
 
-This section interprets the experimental findings, discusses the practical scope of the proposed framework, and identifies its current limitations.
+\textcolor{red}{This section interprets the experimental findings, discusses the practical scope of the proposed framework, and identifies its current limitations.}
 
 \subsection{Mechanism analysis of performance gains}
 \label{subsec:mechanism}
@@ -16,7 +16,7 @@ Furthermore, the ablation study highlights the critical role of the FiLM conditi
 
 Beyond the numerical improvements reported in Section~\ref{sec:experiments}, the main practical implication of the framework lies in how it can be inserted into the preliminary design workflow. In current practice, early shear wall layout development is usually an iterative coordination process between architects and structural engineers, and the speed of that loop directly limits how many candidate schemes can be explored. The proposed method is intended for this stage rather than for final structural detailing. Based on the present dataset experiments and the two FE case studies, its current practical value should be interpreted as the ability to generate multiple boundary-feasible alternatives under different density conditions for rapid preliminary comparison. Whether such alternatives are suitable for direct project adoption still requires project-specific structural analysis and engineering review.
 
-Regarding the scope of application, this study focuses on high-rise residential buildings in seismic regions, a typology where shear wall layouts are strictly governed by room partitions. While the underlying graph formulation is generic, the learned patterns are specific to this domain. Extending this approach to public buildings (e.g., offices or malls) with large open spaces would require adapting the room definition, potentially using virtual partitions or grid-based subdivisions, and retraining the model on domain-specific datasets. Nevertheless, the core premise of aligning structural predictions with functional spaces remains applicable.
+Regarding the scope of application, \textcolor{red}{this paper focused} on high-rise residential buildings in seismic regions, a typology where shear wall layouts are strictly governed by room partitions. While the underlying graph formulation is generic, the learned patterns are specific to this domain. Extending this approach to public buildings (e.g., offices or malls) with large open spaces would require adapting the room definition, potentially using virtual partitions or grid-based subdivisions, and retraining the model on domain-specific datasets. Nevertheless, the core premise of aligning structural predictions with functional spaces remains applicable.
 
 \subsection{Limitations}
 \label{subsec:limitations}
