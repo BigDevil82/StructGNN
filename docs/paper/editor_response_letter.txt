@@ -3,7 +3,7 @@ Editorial Comments and Responses
 1. Title: The use of product names, made-up words or obscure acronyms in paper titles is strongly discouraged. Remove "RC-GNN:". Use: "Room-level Conditional Graph Neural Networks for Shear Wall Layout Generation in High-Rise Buildings".
 
 Response:
-Revised. The acronym prefix was removed from the title. RC-GNN is retained only as an acronym introduced in the manuscript body.
+Thank you for this helpful comment. The acronym prefix was removed from the title. RC-GNN is retained only as an acronym introduced in the manuscript body.
 
 Revision:
 - Title: Room-level Conditional Graph Neural Networks for Shear Wall Layout Generation in High-Rise Buildings
@@ -12,7 +12,7 @@ Revision:
 2. Lines 97-98: This sentence lists cited items (one single sentence lists 4 cited items) without even a brief statement as to what those items include, and what they contribute to the present paper. This is highly excessive, please revise.
 
 Response:
-Revised. The sentence was divided into two statements, one cited reference was removed, and the contributions of the remaining studies are now briefly identified.
+Thank you for this helpful comment. The sentence was divided into two statements, one cited reference was removed, and the contributions of the remaining studies are now briefly identified.
 
 Revision:
 - In Section 2.1: Early intelligent structural layout methods were largely optimization-driven. Zhou et al. incorporated prior knowledge into genetic-algorithm-based search, while Mueller et al. and Zhang et al. explored multi-objective formulations that balance structural performance with design preferences.
@@ -21,7 +21,7 @@ Revision:
 3. Page 4: Remove unnecessary definite or indefinite articles (e.g., The, A) from headings, figure or table captions. For example, replace "Figure 1: The overall framework of the proposed room-level conditional shear wall layout generation method" with "Figure 1: Overall framework of the proposed room-level conditional shear wall layout generation method". Please check for other instances in the manuscript and correct.
 
 Response:
-Revised. The manuscript was checked for headings and figure/table captions beginning with unnecessary definite or indefinite articles. Two caption instances were revised; no other such headings or captions were found.
+Thank you for this helpful comment. The manuscript was checked for headings and figure/table captions beginning with unnecessary definite or indefinite articles. Two caption instances were revised; no other such headings or captions were found.
 
 Revision:
 - Figure 1: Overall framework of the proposed room-level conditional shear wall layout generation method.
@@ -31,7 +31,7 @@ Revision:
 4. Line 1110: Add a brief introduction to explain or describe Section 5. Avoid orphan headings without context, and review the document for similar instances.
 
 Response:
-Revised. A brief introductory sentence was added to Section 5. The manuscript was also checked for orphan headings. The introductory sentences already provided for Sections 2, 4, and 4.1 were retained, and no additional orphan headings were found.
+Thank you for this helpful comment. A brief introductory sentence was added to Section 5. The manuscript was also checked for orphan headings. The introductory sentences already provided for Sections 2, 4, and 4.1 were retained, and no additional orphan headings were found.
 
 Revision:
 - In Section 2: This section reviews prior work from three perspectives: automated structural layout generation, graph-based representations, and conditional generation under limited paired data.
@@ -43,7 +43,7 @@ Revision:
 5. Line 1231: Replace "study" with "paper". Use past tense on the first sentence that states what the paper did or presented. Replace "This study develops" with "This paper presented".
 
 Response:
-Revised. References to the present work in the narrative sections were changed from "this study" to "this paper" where appropriate. Statements describing what the paper did or presented were revised in the past tense. A full-text check identified and revised the related instances listed below; no additional relevant narrative instances were found.
+Thank you for this helpful comment. References to the present work in the narrative sections were changed from "this study" to "this paper" where appropriate. Statements describing what the paper did or presented were revised in the past tense. A full-text check identified and revised the related instances listed below; no additional relevant narrative instances were found.
 
 Revision:
 - In Section 1: Therefore, this paper addressed two coupled challenges: introducing room-level semantics into graph-based generation and maintaining condition responsiveness under sparse paired supervision.
@@ -62,7 +62,7 @@ Revision:
 6. Lines 1303-1308: Move the Appendix after the References section.
 
 Response:
-Revised. Appendix A was moved to immediately follow the complete reference list and is retained in one-column layout.
+Thank you for this helpful comment. Appendix A was moved to immediately follow the complete reference list and is retained in one-column layout.
 
 Revision:
 - Document order: References, followed by Appendix A.
