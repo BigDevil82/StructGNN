@@ -396,7 +396,7 @@ Second, a topological consistency term is introduced to discourage contradictory
 where $side_v$ indicates the boundary of room $u$ adjacent to room $v$.
 
 (3) Condition-aware density constraint. To encourage generated layouts to respond to the target design condition, a density-alignment loss is imposed on both the supervised and cross-condition streams.
-In this paper, density was not defined as a normalized area ratio in $[0,1]$. Instead, it is defined directly from the 16-dimensional room output. For each room, the four boundaries are divided into eight half-segments, and each half-segment is represented by two coverage ratios. The room-level density score is therefore computed as the sum of the 16 predicted ratio values after masking out non-buildable positions:
+In this paper, density was not defined as a normalized area ratio in $[0,1]$. Instead, it was defined directly from the 16-dimensional room output. For each room, the four boundaries are divided into eight half-segments, and each half-segment is represented by two coverage ratios. The room-level density score is therefore computed as the sum of the 16 predicted ratio values after masking out non-buildable positions:
 \begin{equation}
 d_i = \sum_{j=1}^{16}\hat{y}_{ij}^{\text{reg}} \cdot m_{ij}
 \label{eq:room_density}
