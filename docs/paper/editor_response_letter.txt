@@ -1,0 +1,69 @@
+Editorial Comments and Responses
+
+1. Title: The use of product names, made-up words or obscure acronyms in paper titles is strongly discouraged. Remove "RC-GNN:". Use: "Room-level Conditional Graph Neural Networks for Shear Wall Layout Generation in High-Rise Buildings".
+
+Response:
+Revised. The acronym prefix was removed from the title. RC-GNN is retained only as an acronym introduced in the manuscript body.
+
+Revision:
+- Title: Room-level Conditional Graph Neural Networks for Shear Wall Layout Generation in High-Rise Buildings
+
+
+2. Lines 97-98: This sentence lists cited items (one single sentence lists 4 cited items) without even a brief statement as to what those items include, and what they contribute to the present paper. This is highly excessive, please revise.
+
+Response:
+Revised. The sentence was divided into two statements, one cited reference was removed, and the contributions of the remaining studies are now briefly identified.
+
+Revision:
+- In Section 2.1: Early intelligent structural layout methods were largely optimization-driven. Zhou et al. incorporated prior knowledge into genetic-algorithm-based search, while Mueller et al. and Zhang et al. explored multi-objective formulations that balance structural performance with design preferences.
+
+
+3. Page 4: Remove unnecessary definite or indefinite articles (e.g., The, A) from headings, figure or table captions. For example, replace "Figure 1: The overall framework of the proposed room-level conditional shear wall layout generation method" with "Figure 1: Overall framework of the proposed room-level conditional shear wall layout generation method". Please check for other instances in the manuscript and correct.
+
+Response:
+Revised. The manuscript was checked for headings and figure/table captions beginning with unnecessary definite or indefinite articles. Two caption instances were revised; no other such headings or captions were found.
+
+Revision:
+- Figure 1: Overall framework of the proposed room-level conditional shear wall layout generation method.
+- Figure 4: Model architecture diagram, consisting of (1) Node and edge encoders, (2) Three GATv2 layers with residual connections, (3) FiLM conditioning applied after each layer, (4) Dual-head decoder producing classification and regression outputs.
+
+
+4. Line 1110: Add a brief introduction to explain or describe Section 5. Avoid orphan headings without context, and review the document for similar instances.
+
+Response:
+Revised. A brief introductory sentence was added to Section 5. The manuscript was also checked for orphan headings. The introductory sentences already provided for Sections 2, 4, and 4.1 were retained, and no additional orphan headings were found.
+
+Revision:
+- In Section 2: This section reviews prior work from three perspectives: automated structural layout generation, graph-based representations, and conditional generation under limited paired data.
+- In Section 4: This section evaluates the proposed method in terms of prediction accuracy, conditional controllability, ablation behavior, computational efficiency, and engineering feasibility.
+- In Section 4.1: The experimental setup first describes the dataset and condition grouping, then introduces the baseline, implementation settings, and evaluation metrics used for comparison.
+- In Section 5: This section interprets the experimental findings, discusses the practical scope of the proposed framework, and identifies its current limitations.
+
+
+5. Line 1231: Replace "study" with "paper". Use past tense on the first sentence that states what the paper did or presented. Replace "This study develops" with "This paper presented".
+
+Response:
+Revised. References to the present work in the narrative sections were changed from "this study" to "this paper" where appropriate. Statements describing what the paper did or presented were revised in the past tense. A full-text check identified and revised the related instances listed below; no additional relevant narrative instances were found.
+
+Revision:
+- In Section 1: Therefore, this paper addressed two coupled challenges: introducing room-level semantics into graph-based generation and maintaining condition responsiveness under sparse paired supervision.
+- In Section 3: To address the challenges of semantic alignment and conditional controllability in shear wall design, this paper presented a unified generative framework, RC-GNN (Room-level Conditional Graph Neural Network), as illustrated in Fig. 1.
+- In Section 3.1.1: An adjacency edge e_ij is added to E only if l_ij exceeds a physical threshold tau_adj, which was set to 400 mm in this paper.
+- In Section 3.1.3: However, the open-source dataset employed in this paper did not include room-type annotations for individual spaces.
+- In Section 3.4.1: To mitigate the above conditional-collapse issue, a dual-stream training framework was presented in this paper.
+- In Section 3.4.2: In this paper, density was not defined as a normalized area ratio in [0,1].
+- In Section 4.1.1: The dataset used in this paper was restricted to plans for which the architectural drawing, the engineered shear wall drawing, and the condition label can be aligned reliably after preprocessing.
+- In Section 4.1.1: It should be noted that the condition label used in this paper is a discrete density category rather than a continuous engineering descriptor.
+- In Section 4.1.2: The experimental comparison focuses on graph-based methods because the central question addressed in this paper was whether a room-level graph representation can improve graph-based shear wall layout prediction compared with the commonly used component-level graph representation.
+- In Section 5.2: Regarding the scope of application, this paper focused on high-rise residential buildings in seismic regions, a typology where shear wall layouts are strictly governed by room partitions.
+- In Section 6: This paper presented a room-level conditional graph framework for shear wall layout generation in high-rise residential buildings.
+
+
+6. Lines 1303-1308: Move the Appendix after the References section.
+
+Response:
+Revised. Appendix A was moved to immediately follow the complete reference list and is retained in one-column layout.
+
+Revision:
+- Document order: References, followed by Appendix A.
+- Appendix A. Additional qualitative results on test cases
