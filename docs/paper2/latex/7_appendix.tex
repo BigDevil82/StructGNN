@@ -173,13 +173,10 @@ A positive value indicates overestimation, while a negative value indicates unde
 
 In the optimization experiments, the primary computational metric is the number of true FEA calls:
 \begin{equation}
-N_{\mathrm{FEA}}
-=
-\sum_{t}
-|\mathcal{S}_t|
+N_{\mathrm{FEA}}=\sum_{t}N_{\mathrm{new},t}+N_{\mathrm{final}}
 \label{eq:app_fea_calls}
 \end{equation}
-where $\mathcal{S}_t$ is the set of candidates submitted to the true evaluator at iteration $t$.
+where $N_{\mathrm{new},t}$ counts uncached structural evaluations in iteration $t$ and $N_{\mathrm{final}}$ counts any additional evaluation needed to verify the provisional returned design. Reusing a cached result does not add an FEA call.
 
 The FEA reduction ratio is calculated relative to full FEA optimization:
 \begin{equation}
@@ -280,13 +277,30 @@ Calib. samples & Best feasibility calibrator & Brier & ECE & Screen reject & Scr
 >{\centering\arraybackslash}p{0.09\textwidth}
 >{\centering\arraybackslash}p{0.11\textwidth}@{}}
 \toprule
-Calib. samples & Best steel residual model & MAE (kg) & RMSE (kg) & $R^2$ & Pair acc. \\
+Calib. samples & Best steel residual model & MAE (t) & RMSE (t) & $R^2$ & Pair acc. \\
 \midrule
-25 & Ridge & 2395.9 & 3162.8 & 0.9924 & 0.9769 \\
-50 & Gaussian process & 2229.1 & 3003.6 & 0.9932 & 0.9785 \\
-100 & Gaussian process & 2044.7 & 2756.0 & 0.9943 & 0.9797 \\
-200 & LightGBM & 1741.3 & 2386.0 & 0.9957 & 0.9821 \\
-500 & LightGBM & 1444.8 & 1992.6 & 0.9970 & 0.9851 \\
+25 & Ridge & 2.396 & 3.163 & 0.9924 & 0.9769 \\
+50 & Gaussian process & 2.229 & 3.004 & 0.9932 & 0.9785 \\
+100 & Gaussian process & 2.045 & 2.756 & 0.9943 & 0.9797 \\
+200 & LightGBM & 1.741 & 2.386 & 0.9957 & 0.9821 \\
+500 & LightGBM & 1.445 & 1.993 & 0.9970 & 0.9851 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Platt scaling under random local sampling, using the same evaluation subsets and averaging convention as Table~\ref{tab:appendix_feasibility_calibrator}. These results do not use search-selected records.}
+\label{tab:appendix_platt}
+\begin{tabularx}{\textwidth}{@{}*{5}{>{\centering\arraybackslash}X}@{}}
+\toprule
+Local samples & Brier & ECE & Screen reject & Screen recall \\
+\midrule
+25 & 0.0520 & 0.0459 & 49.7\% & 0.9927 \\
+50 & 0.0490 & 0.0369 & 53.0\% & 0.9912 \\
+100 & 0.0473 & 0.0302 & 52.4\% & 0.9942 \\
+200 & 0.0434 & 0.0211 & 57.7\% & 0.9940 \\
+500 & 0.0402 & 0.0137 & 60.2\% & 0.9927 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -351,7 +365,7 @@ For an evaluated candidate with valid material quantities, the scalar fitness is
 F(x)=
 \begin{cases}
 C(x), & y_f(x)=1,\\
-P_0+\lambda_v V(x)+\lambda_c C(x), & y_f(x)=0,
+P_{\mathrm{inf}}+\lambda_v V(x)+\lambda_c C(x), & y_f(x)=0,
 \end{cases}
 \label{eq:true_fitness}
 \end{equation}

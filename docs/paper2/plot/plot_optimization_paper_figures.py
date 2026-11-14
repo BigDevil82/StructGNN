@@ -9,7 +9,6 @@ import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import ScalarFormatter
 from optimization_plot_data import (
-    DEFAULT_EXPERIMENTS,
     SELECTED15_EXPERIMENTS,
     complete_case_rows,
     find_result_json,
@@ -48,22 +47,23 @@ def main() -> None:
     }
     df = load_all_summaries(experiments)
     paired = paired_with_full(df)
-    heatmap_df = load_all_summaries(SELECTED15_EXPERIMENTS)
 
     plot_combined_distribution_summary(df, paired, args.out_dir)
     plot_tolerance_success_curve(paired, args.out_dir)
-    plot_success_heatmap(heatmap_df, args.out_dir)
-    plot_process_examples(df, args.out_dir, args.process_algorithm)
+    plot_success_heatmap(df, args.out_dir)
+    if not args.summary_only:
+        plot_process_examples(df, args.out_dir, args.process_algorithm)
     plot_screening_funnel(df, args.out_dir)
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Generate paper-oriented figures for optimization experiments.")
-    p.add_argument("--ga-dir", default=str(DEFAULT_EXPERIMENTS["GA"]))
-    p.add_argument("--pso-dir", default=str(DEFAULT_EXPERIMENTS["PSO"]))
-    p.add_argument("--random-dir", default=str(DEFAULT_EXPERIMENTS["Random Search"]))
+    p.add_argument("--ga-dir", default=str(SELECTED15_EXPERIMENTS["GA"]))
+    p.add_argument("--pso-dir", default=str(SELECTED15_EXPERIMENTS["PSO"]))
+    p.add_argument("--random-dir", default=str(SELECTED15_EXPERIMENTS["Random Search"]))
     p.add_argument("--out-dir", default=str(PLOT_DIR))
     p.add_argument("--process-algorithm", choices=ALGORITHM_ORDER, default="GA")
+    p.add_argument("--summary-only", action="store_true", help="Skip illustrative search histories.")
     return p
 
 
@@ -350,7 +350,7 @@ def load_hard_case_override(algorithm: str) -> tuple[dict[str, object], pd.DataF
 def plot_screening_funnel(df: pd.DataFrame, out_dir: str | Path) -> None:
     fig, axes = plt.subplots(1, 3, figsize=(11.4, 3.8), sharey=True)
     flow_colors = ["#e8a69d", "#efbd75", "#8fb6d6"]
-    flow_labels = ["FEA evaluated", "Cost skipped", "Feasibility rejected"]
+    flow_labels = ["Evaluated / cached", "Cost skipped", "Feasibility rejected"]
     for ax, algorithm in zip(axes, ALGORITHM_ORDER):
         rows = df[(df["algorithm"] == algorithm) & (df["method"] == "gnn_screen_cost")]
         flow = aggregate_flow(rows)

@@ -1,24 +1,24 @@
-\section{Layout-Conditioned Surrogate Modeling and Local Calibration}
+\section{Layout-Conditioned Surrogate Modeling and Local Adaptation}
 \label{sec:problem_surrogate}
 
-CASIO uses two complementary predictions to allocate structural evaluations: feasibility predictions identify candidates unlikely to satisfy the design checks, while reinforcement predictions support material-cost ranking. The models are trained across layouts and adapted to the current design task using evaluation feedback. This section defines the engineering problem, the candidate representation, and the prediction and calibration models. Section~\ref{sec:optimization_framework} describes how these models guide candidate selection.
+CASIO uses two complementary predictions to allocate structural evaluations: feasibility predictions identify candidates unlikely to satisfy the design checks, while reinforcement-mass predictions support material-cost ranking. The models are trained across layouts and adapted to the current design task using evaluation feedback. Local adaptation comprises feasibility-score calibration and reinforcement residual correction; ``local'' refers to the current layout and fixed design conditions. This section defines the engineering problem, candidate representation, and prediction models. Section~\ref{sec:optimization_framework} describes how these models guide candidate selection.
 
 \subsection{Design Problem and Evaluation Scope}
 \label{subsec:expensive_problem}
 
-The task is to optimize section dimensions and concrete grade for a prescribed shear wall layout. Let $L$ denote the fixed wall and beam arrangement, $c$ the fixed design conditions, and $x\in\mathcal{X}$ a candidate design. The conditions include building height, seismic demand, site class, seismic group, and loading assumptions. The design variables comprise wall thicknesses in three vertical zones, main and secondary beam dimensions, and concrete grade. Their admissible discrete values define $\mathcal{X}$, with wall thicknesses constrained to be nonincreasing with height. Layout topology is not optimized.
+The task is to optimize section dimensions and concrete grade for a prescribed shear wall layout. Let $L$ denote the fixed wall and beam arrangement, $c$ the fixed design conditions, and $x\in\mathcal{X}$ a candidate design. The conditions include the number of stories, story height, seismic intensity, site class, seismic group, and loading assumptions. They remain fixed within each optimization task. The design variables comprise wall thicknesses in three vertical zones, main and secondary beam dimensions, and concrete grade. Their admissible discrete values define $\mathcal{X}$, with wall thicknesses constrained to be nonincreasing with height. Layout topology is not optimized.
 
-Candidate evaluation comprises parametric structural modeling, finite element analysis (FEA), reinforcement design, and code-based checking\cite{GB500112010,GB500102010}. The feasibility label $y_f(x)$ equals 1 only if the analysis converges and the implemented structural and member-design checks pass. These checks cover interstory drift, torsional response, shear-to-weight ratio, vertical stiffness regularity, torsional-to-translational period ratio, wall axial compression, and wall and beam shear-compression limits. Analysis failure is treated as infeasibility. Here, feasibility refers to this implemented checking scope; the evaluator also returns reinforcement and concrete quantities when available.
+Candidate evaluation comprises parametric structural modeling, finite element analysis (FEA), reinforcement design, and code-based checking\cite{GB500112010,GB500102010}. The feasibility label $y_f(x)$ equals 1 only if the analysis converges and the implemented structural and member-design checks pass. These checks cover interstory drift, torsional response, shear-to-weight ratio, vertical stiffness regularity, torsional-to-translational period ratio, wall axial compression, and wall and beam shear-compression limits. Analysis failure is treated as infeasibility. Feasibility is defined by this implemented checking scope (\ref{app:implementation_details}), rather than a claim of full code compliance. The evaluator also returns reinforcement and concrete masses in kilograms when the corresponding quantities are available; result tables report reinforcement errors in tonnes.
 
 For a fixed $(L,c)$, the optimization problem is
 \begin{equation}
 \begin{aligned}
-\min_{x\in\mathcal{X}}\; C(x)&=p_s m_s(x)+p_c(x)m_c(x),\\
+\min_{x\in\mathcal{X}}\; C(x)&=\pi_s m_s(x)+\pi_c(x)m_c(x),\\
 \text{subject to}\qquad y_f(x)&=1,
 \end{aligned}
 \label{eq:optimization_problem}
 \end{equation}
-where $m_s$ and $m_c$ are reinforcement and concrete masses, $p_s$ is the reinforcement unit price, and $p_c(x)$ is the mass-based concrete unit price for the selected grade. The dependence on the fixed layout and conditions is omitted for readability. The objective covers reinforcement and concrete material costs in the evaluated structural model, rather than total construction cost. Prices and evaluation settings are reported in Section~\ref{sec:experimental_setup}.
+where $m_s$ and $m_c$ are reinforcement and concrete masses, $\pi_s$ is the reinforcement unit price, and $\pi_c(x)$ is the mass-based concrete unit price for the selected grade. The dependence on the fixed layout and conditions is omitted for readability. The objective covers reinforcement and concrete material costs in the evaluated structural model, rather than total construction cost. Prices and evaluation settings are reported in Section~\ref{sec:experimental_setup}.
 
 Reinforcement demand depends on member forces and design checks and therefore requires structural analysis. Concrete quantity can instead be estimated from member lengths, section dimensions, and story counts. CASIO consequently predicts feasibility and reinforcement mass, and combines the latter with a geometric concrete estimate for candidate ranking. Final design selection uses evaluated quantities and verified feasibility.
 
@@ -29,7 +29,7 @@ Each candidate is represented by $z=(G,d,q)$, where $G$ is a room-adjacency grap
 
 The graph construction follows our earlier room-level representation for shear wall layout generation\cite{LengRoomGNN2026}. Rooms form the nodes and shared boundaries define directed adjacency edges. The present task differs in that the wall arrangement is already known. The boundary-wise wall descriptors that served as generation targets in the earlier work are therefore included as inputs here. Each node has 41 features: nine normalized geometric descriptors, 16 boundary-availability indicators, and 16 descriptors of the prescribed wall arrangement. Each edge has eight attributes describing shared-boundary geometry, relative direction, and orientation. This representation associates the existing walls with the architectural spaces they bound, rather than treating room adjacency alone as a structural description.
 
-The design vector contains numerical section and building parameters and categorical material and seismic parameters. Numerical features are standardized using training-set statistics, and categorical variables are mapped to learned embeddings. Global context is supplied by 41 geometric and structural layout statistics, including building dimensions, directional wall lengths, wall eccentricity, beam quantities, and connectivity measures, together with seven room-graph summaries. The latter describe graph size, density, normalized room area, and aggregate wall distribution. These complementary descriptors connect local room organization with the overall structural configuration. Feature groups and dimensions are summarized in \ref{app:implementation_details}.
+The design vector contains eight numerical inputs (story count and seven section dimensions) and four categorical inputs (concrete grade, seismic intensity, site class, and seismic group). Numerical features are standardized using training-set statistics, and categorical variables are mapped to learned embeddings. Global context is supplied by 41 geometric and structural layout statistics, including building dimensions, directional wall lengths, wall eccentricity, beam quantities, and connectivity measures, together with seven room-graph summaries. The latter describe graph size, density, normalized room area, and aggregate wall distribution. These complementary descriptors connect local room organization with the overall structural configuration. Feature groups and dimensions are summarized in \ref{app:implementation_details}.
 
 \begin{figure*}[t]
 \centering
@@ -57,9 +57,9 @@ The reinforcement model uses Smooth L1 loss with transition parameter $0.5$ on t
 u_s=\frac{\ln(1+m_s)-\mu_s}{\sigma_s},
 \label{eq:steel_transform}
 \end{equation}
-where mass is expressed in kilograms and $\mu_s$ and $\sigma_s$ are calculated from the training targets. The inverse transformation gives $m_g$. Samples with valid reinforcement quantities are used for regression, including designs that fail a structural check but yield a valid member-design result. Optimization uses the resulting mass estimates primarily to compare candidate costs.
+where mass is expressed in kilograms and $\mu_s$ and $\sigma_s$ are calculated from the training targets. For a network output $\hat u_s$, the inverse transformation gives $m_g=\exp(\sigma_s\hat u_s+\mu_s)-1$. Samples with valid reinforcement quantities are used for regression, including designs that fail a structural check but yield a valid member-design result. Optimization uses the resulting mass estimates to rank candidates retained after screening.
 
-\subsection{Online Local Calibration}
+\subsection{Online Local Adaptation}
 \label{subsec:online_local_calibration}
 
 A model trained across layouts can exhibit systematic error on a new layout. During optimization, the evaluated candidates also become concentrated in selected parts of the design space. CASIO uses the resulting FEA feedback to adapt predictions without retraining the global networks. At the start of iteration $t$, a local record set $\mathcal{D}_t$ contains previously evaluated designs, their global predictions, feasibility labels, and available reinforcement quantities. Repeated designs contribute one local record. The calibration models are refitted when new records become available and are then applied to the next candidate batch.
@@ -79,20 +79,20 @@ The online classifier correction uses Platt scaling\cite{Platt1999}, which fits 
 p_t(z)=\sigma\!\left(a_t\operatorname{logit}(p_g(z))+b_t\right).
 \label{eq:calibrated_probability}
 \end{equation}
-The two coefficients are fitted to the local feasibility labels using regularized logistic regression. The subscript $t$ denotes the prediction available for the current iteration. This correction is activated only when the local set contains sufficient samples and both feasible and infeasible labels; otherwise, $p_t=p_g$. The corresponding screening threshold is updated from the local feasible samples as described in Section~\ref{subsec:candidate_screening_ranking}.
+The two coefficients are fitted to the local feasibility labels using L2-regularized logistic regression, after clipping $p_g$ to $[10^{-6},1-10^{-6}]$. The subscript $t$ denotes the prediction available for the current iteration. Calibration is activated after at least 25 labeled records containing both classes; otherwise, $p_t=p_g$. This rule permits activation with only one feasible record. The corresponding screening threshold is updated from the local feasible samples as described in Section~\ref{subsec:candidate_screening_ranking}.
 
-Platt scaling provides a low-dimensional online correction. More flexible alternatives, including probability-residual models that also use design parameters, are examined separately in the calibration comparison in Section~\ref{subsec:local_calibration_settings}. The deployed online classifier remains the same across sample sizes.
+For a positive fitted slope $a_t$, Platt scaling preserves the ordering of global scores. Its role is then to adjust the screening threshold and the score scale used in the feasibility-deficit penalty, rather than improve discrimination. The fitted slope is not constrained to be positive. More flexible alternatives, including probability-residual models that also use design parameters, are examined separately in Section~\ref{subsec:local_calibration_settings}. The deployed online classifier remains Platt scaling across sample sizes; its separate-comparison results are reported alongside those of the alternative models.
 
 \subsubsection{Reinforcement residual correction}
 \label{subsubsec:steel_calibration}
 
 For reinforcement prediction, a local model learns the residual $m_s-m_g$. Its inputs are the candidate design variables, the global mass prediction, and its logarithm. The corrected prediction is
 \begin{equation}
-m_t(z)=\max\{0,\;m_g(z)+r_t(d,m_g(z))\},
+m_t(z)=\max\{0,\;m_g(z)+\delta_t(d_{\mathrm{var}},m_g(z),\ln(1+m_g(z)))\},
 \label{eq:calibrated_steel}
 \end{equation}
-where $r_t$ includes the logarithmic input transformation and is fitted only to records with valid reinforcement quantities. Fixed entries of $d$ do not vary within a task. The global prediction carries information learned across layouts, while $r_t$ estimates the remaining error within the current task.
+where $d_{\mathrm{var}}$ contains the section and material variables that vary within the task. The residual model $\delta_t$ is fitted only to records with valid reinforcement quantities. The global prediction carries information learned across layouts, while $\delta_t$ estimates the remaining error within the current task.
 
 The online residual model follows a sample-count schedule: ridge regression is used with a small local set, Gaussian process regression with an intermediate set, and LightGBM with a larger set. The thresholds and model settings are given in Section~\ref{subsec:local_calibration_settings} and \ref{app:implementation_details}. The model family is determined by the available sample count, without evaluating alternative models on future candidates. Before enough valid residual samples are available, $m_t=m_g$. The two calibration tasks have independent activation conditions.
 
-Local calibration uses samples selected by the search and therefore adapts to the observed candidate region. It does not provide a generalization guarantee over unvisited regions. Its practical effect is assessed through both a separate calibration comparison and optimization experiments with the specified online rule.
+Local adaptation uses samples selected by the search and therefore reflects the observed candidate region. Once active, the residual model is applied to all candidates, including those outside that region; there is no distance-based fallback to the global prediction. Neither the residual correction nor the calibrated scores have a generalization guarantee over unvisited regions. The separate comparison assesses prediction changes under random local sampling, while the optimization experiments assess the combined framework under search-selected feedback.

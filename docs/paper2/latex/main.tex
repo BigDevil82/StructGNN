@@ -171,7 +171,7 @@
 
 \begin{abstract}
 
-Shear wall structural optimization for high-rise buildings requires repeated finite element analysis (FEA) and design code checking, making conventional optimization computationally expensive. Although surrogate-assisted methods can reduce evaluation costs, static surrogates may exhibit prediction bias when applied to unseen layouts or evolving local search regions. This study proposes a calibrated surrogate-informed optimization framework that improves optimization efficiency by reducing unnecessary FEA evaluations. Two surrogate models integrate room-level graph representations, global layout statistics, and design parameters to estimate candidate feasibility and reinforcement usage before FEA. During optimization, FEA-verified samples collected from the current layout are used for online local calibration, which adjusts feasibility probabilities and corrects reinforcement prediction residuals. The calibrated predictions support conservative feasibility screening and cost-oriented candidate ranking, thereby concentrating the limited FEA budget on high-priority designs. Experiments on 143 engineering layouts with approximately 715,000 FEA-labeled samples show that the proposed strategy reduces FEA evaluations by 64.6\% on average across 15 unseen layouts, with only a 1.19\% average cost increase compared with the full-FEA baseline cases. These results demonstrate that online local calibration and surrogate-informed budget allocation can substantially improve the computational efficiency of shear wall structural optimization while preserving comparable solution quality.
+Shear wall structural optimization for high-rise buildings requires repeated finite element analysis (FEA) and design code checking, making conventional optimization computationally expensive. Although surrogate-assisted methods can reduce evaluation costs, static surrogates may exhibit prediction bias when applied to unseen layouts or evolving local search regions. This study proposes a calibrated surrogate-informed optimization framework that improves optimization efficiency by reducing unnecessary FEA evaluations. Two surrogate models integrate room-level graph representations, global layout statistics, and design parameters to estimate candidate feasibility and reinforcement usage before FEA. During optimization, FEA-verified samples collected from the current layout are used for online local calibration, which adjusts feasibility probabilities and corrects reinforcement prediction residuals. The calibrated predictions support conservative feasibility screening and cost-oriented candidate ranking, thereby concentrating the limited FEA budget on high-priority designs. Experiments on 143 engineering layouts with approximately 715,000 FEA-labeled samples show that the proposed strategy reduces FEA evaluations by 64.6\% on average across 15 unseen layouts, with a 1.19\% mean cost increase across 142 paired cases where both strategies find feasible solutions. The median increase is approximately zero, while the largest is 17.39\%. The results demonstrate reduced FEA demand for the combined framework, with a trade-off in feasibility discovery and individual solution costs.
 \end{abstract}
 
 %%Graphical abstract
@@ -185,8 +185,8 @@ Shear wall structural optimization for high-rise buildings requires repeated fin
 \item A graph surrogate captures layout-dependent feasibility and reinforcement demand.
 \item FEA feedback enables online adaptation of surrogate prediction.
 \item Local correction reduces prediction error in a separate calibration comparison.
-\item Risk-aware screening and cost ranking focus FEA on competitive designs.
-\item True FEA calls drop by 64.6\% with only a 1.19\% mean cost increase.
+\item Feasibility-aware screening and cost ranking focus FEA on competitive designs.
+\item True FEA calls drop by 64.6\% with a 1.19\% mean cost increase in paired feasible cases.
 \end{highlights}
 % \end{strip}
 

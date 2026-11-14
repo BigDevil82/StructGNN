@@ -96,6 +96,17 @@ def build_sample_efficiency(feas: pd.DataFrame, steel: pd.DataFrame) -> pd.DataF
     rows = []
     feas_base = mean_by_size(feas[feas["method"] == FEAS_BASELINE], ["brier", "ece", "screen_reject_rate"])
     feas_best = best_by_size(feas[~feas["method"].str.startswith("global")], "method", "brier")
+    feas_platt = mean_by_size(
+        feas[feas["method"] == "platt"], ["brier", "ece", "screen_reject_rate"]
+    )
+    for _, row in feas_platt.iterrows():
+        rows.append(
+            sample_row(
+                "feasibility", "Platt", row,
+                {"brier": "brier", "ece": "ece", "screen_reject_rate": "screen_reject_rate"},
+                calibrator="platt",
+            )
+        )
     for _, row in feas_base.iterrows():
         rows.append(
             sample_row(
@@ -350,7 +361,7 @@ def plot_sample_efficiency(df: pd.DataFrame, out_dir: Path) -> None:
     plot_steel_local_bias(axes[1, 1], steel)
     captions = [
         "(a) Feasibility probability calibration improvement",
-        "(b) Screening capacity improvement at high recall",
+        "(b) Screening rejection gain (recalls not matched)",
         "(c) Steel MAE reduction relative to global baseline",
         "(d) Steel bias after local calibration",
     ]
@@ -387,8 +398,16 @@ def plot_feasibility_lollipop(
     for xi, value, color in zip(x, values.to_numpy(dtype=float), colors):
         ax.vlines(xi, zero_line, value, color=color, linewidth=3.0, alpha=0.78)
     ax.scatter(
-        x, values.to_numpy(dtype=float), s=54, color=colors, edgecolor="#333333", linewidth=0.5, zorder=3
+        x, values.to_numpy(dtype=float), s=54, color=colors, edgecolor="#333333", linewidth=0.5, zorder=3,
+        label="Best by Brier"
     )
+    if "Platt" in pivot.columns:
+        if higher_is_better:
+            platt = (pivot["Platt"] - pivot["Global"]) * value_scale
+        else:
+            platt = 100.0 * (pivot["Global"] - pivot["Platt"]) / pivot["Global"].clip(lower=1.0e-9)
+        ax.plot(x, platt, "s--", color="#4477aa", markersize=4, linewidth=1.3, label="Platt")
+        ax.legend(loc="lower right", frameon=False, fontsize=8)
     ax.axhline(zero_line, color="#777777", linewidth=0.8, linestyle="--")
     ax.set_xticks(x)
     ax.set_xticklabels([str(int(v)) for v in values.index])

@@ -4,7 +4,7 @@
 \subsection{Experimental Objectives}
 \label{subsec:experimental_objectives}
 
-First, the global surrogate models are evaluated on unseen shear wall layouts. The feasibility surrogate is assessed in terms of both classification performance and conservative screening ability, while the reinforcement surrogate is assessed in terms of prediction accuracy and ranking quality. To verify the role of layout representation, three input settings are compared, namely design parameters only, design parameters with global layout statistics, and the proposed graph-based layout representation.
+First, the global surrogate models are evaluated on unseen shear wall layouts. The feasibility surrogate is assessed in terms of classification and screening performance, while the reinforcement surrogate is assessed in terms of prediction accuracy and ranking quality. Three input settings are compared: design parameters only, design parameters with seven room-graph summaries, and the full representation combining graph encoding with those summaries and 41 additional layout statistics.
 
 Second, a separate local-calibration comparison examines how model choice and sample count affect probability reliability, reinforcement error, and ranking within a layout. This comparison uses randomly sampled local records. Online adaptation under search-selected feedback is evaluated in the optimization experiments.
 
@@ -27,11 +27,11 @@ The dataset contains 143 shear wall layouts designed by professional engineers, 
 \toprule
 Parameter & Symbol & Unit & Sampling values \\
 \midrule
-Number of stories & $N$ & - & 18--33 \\
+Number of stories & $N_{\mathrm{stories}}$ & - & 18--33 \\
 Story height & $h_{story}$ & m & 2.9 \\
-Bottom wall thickness & $t_{w,b}$ & mm & 200, 250, 300, 350, 400 \\
-Middle wall thickness & $t_{w,m}$ & mm & 160, 180, 200, 250, 300 \\
-Top wall thickness & $t_{w,t}$ & mm & 160, 180, 200, 250 \\
+Bottom wall thickness & $w_b$ & mm & 200, 250, 300, 350, 400 \\
+Middle wall thickness & $w_m$ & mm & 160, 180, 200, 250, 300 \\
+Top wall thickness & $w_t$ & mm & 160, 180, 200, 250 \\
 Main beam depth & $h_{m}$ & mm & 400, 500, 550, 600, 650, 700 \\
 Main beam width & $b_{m}$ & mm & 200, 250, 300, 350 \\
 Secondary beam depth & $h_{s}$ & mm & 300, 400, 450, 500 \\
@@ -44,7 +44,7 @@ Seismic group & $S_G$ & - & 1, 2, 3 \\
 \end{tabularx}
 \end{table}
 
-For each layout, 5000 candidate design schemes are sampled from a predefined parameter space, which is summarized in Table~\ref{tab:parameter_space}. The sampled variables include the number of stories, wall thicknesses in different vertical zones, main and secondary beam dimensions, concrete strength grade, seismic intensity, site class, and seismic group. During sampling, wall thicknesses are constrained to be nonincreasing along the building height, i.e., $t_{w,t}\le t_{w,m}\le t_{w,b}$.
+For each layout, 5000 candidate design schemes are sampled from a predefined parameter space, which is summarized in Table~\ref{tab:parameter_space}. The sampled variables include the number of stories, wall thicknesses in different vertical zones, main and secondary beam dimensions, concrete strength grade, seismic intensity, site class, and seismic group. During sampling, wall thicknesses are constrained to be nonincreasing along the building height, i.e., $w_t\le w_m\le w_b$.
 
 Representative finite element models generated from the same parametric workflow are shown in Fig.~\ref{fig:model_cases}.
 
@@ -101,7 +101,7 @@ For reinforcement prediction, the corresponding settings are 128, 0.1, 512, $5\t
 
 \begin{table*}[t]
 \centering
-\caption{Feasibility prediction performance of different surrogate input settings.}
+\caption{Feasibility prediction performance of different surrogate input settings. Screening metrics use each model's validation-selected threshold; test-set recalls are not matched.}
 \label{tab:global_feasibility_results}
 \setlength{\tabcolsep}{5pt}
 \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X
@@ -164,7 +164,7 @@ FuseGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{calibration_sample_efficiency.pdf}
-\caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods.}
+\caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods. The dashed feasibility curves show Platt scaling on the same subsets; screening recalls are not matched.}
 \label{fig:calibration_sample_efficiency}
 \end{figure*}
 
@@ -178,7 +178,7 @@ For the separate comparison, 25, 50, 100, 200, or 500 records are sampled from e
 
 Calibration metrics are averaged over layouts and repetitions. Feasibility summaries exclude layout L17\_157, which has no feasible examples in the evaluation subsets, so that feasible-recall comparisons are defined; reinforcement summaries include all test layouts. For each sample count, the reported best feasibility and reinforcement calibrators minimize mean evaluation Brier score and MAE, respectively. The layout-wise plots instead select the best evaluated method for each layout. These retrospective summaries characterize the observed performance of the candidate calibrators; they are not independent estimates of an online model-selection policy. The uncalibrated feasibility baseline retains the global predictions but also uses a threshold estimated from the local fitting samples, so its rejection rate differs from that obtained with the fixed global threshold.
 
-The online configuration follows Section~\ref{subsec:online_local_calibration}. Feasibility correction uses Platt scaling after at least 25 labeled records and both classes are available. Reinforcement correction uses ridge regression for 25--49 valid residual records, Gaussian process regression for 50--199 records, and LightGBM from 200 records onward. Before the respective conditions are met, the corresponding global prediction is retained. The local screening rule uses $r_0=0.995$ and $\alpha=0.1$; when feasibility calibration is inactive, the global threshold of 0.004 is used. The sample-count schedule is fixed during each optimization run. Model settings are collected in \ref{app:implementation_details}, and the separate comparison results are reported in Section~\ref{subsec:local_calibration_results} and \ref{app:calibration_results}.
+The online configuration follows Section~\ref{subsec:online_local_calibration}. Feasibility correction uses Platt scaling after at least 25 labeled records and both classes are available. Reinforcement correction uses ridge regression for 25--49 valid residual records, Gaussian process regression for 50--199 records, and LightGBM from 200 records onward. Before the respective conditions are met, the corresponding global prediction is retained. The local screening rule uses $\kappa=0.995$ and $\alpha=0.1$; when feasibility calibration is inactive, the global threshold of 0.004 is used. The sample-count schedule is fixed during each optimization run. Model settings are collected in \ref{app:implementation_details}, and the separate comparison results are reported in Section~\ref{subsec:local_calibration_results} and \ref{app:calibration_results}.
 
 \subsection{Optimization Benchmark Settings}
 \label{subsec:optimization_benchmark_settings}
@@ -196,7 +196,9 @@ Three candidate evaluation strategies are compared:
 
 For surrogate-informed strategies, the quota is calculated from the candidates retained after screening: the retained count multiplied by the evaluation ratio is rounded to the nearest integer, raised to at least eight, and capped by the retained count. Thus, the minimum does not override feasibility screening when fewer than eight candidates remain. Cached designs reuse their evaluated results, and only uncached evaluation requests contribute to the reported FEA-call count.
 
-The evaluation ratio is 0.8 before a feasible design has been observed and 0.5 afterwards. In the latter stage, the target quota proportions are 0.60 for priority-score ranking, 0.25 for feasibility-deficit ranking, and 0.15 for random exploration. Each share is rounded to an integer, with at least one selection when capacity permits, and the total is capped by the available quota. The priority score uses $p_0=0.5$ and $\eta=10^6$~CNY. Unselected candidates receive $M_{\mathrm{rej}}=10^{12}$. For evaluated infeasible candidates, the penalty in \ref{app:implementation_details} uses $P_0=10^5$, $\lambda_v=10^7$, and $\lambda_c=0.01$. The cost-ranking-only strategy omits feasibility screening and the probability-deficit term; its local adaptation concerns reinforcement prediction. The screening-and-ranking strategy activates both calibration tasks.
+The evaluation ratio is 0.8 before a feasible design has been observed and 0.5 afterwards. In the latter stage, the target quota proportions are 0.60 for priority-score ranking, 0.25 for feasibility-deficit ranking, and 0.15 for random exploration. Each share is rounded to an integer, with at least one selection when capacity permits, and the total is capped by the available quota. The priority score uses $p_{\mathrm{ref}}=0.5$ and $\eta=10^6$~CNY. Unselected candidates receive $M_{\mathrm{rej}}=10^{12}$. For evaluated infeasible candidates, the penalty in \ref{app:implementation_details} uses $P_{\mathrm{inf}}=10^5$, $\lambda_v=10^7$, and $\lambda_c=0.01$. The cost-ranking-only strategy omits feasibility screening and the probability-deficit term; its local adaptation concerns reinforcement prediction. The screening-and-ranking strategy activates both calibration tasks.
+
+The online settings are held constant across the compared optimizers. The study does not include a separate validation-layout tuning assessment for the local model schedule or selection hyperparameters. Because the calibration comparison and optimization benchmark share test layouts, their results should not be interpreted as independent evidence that the selected schedule or settings generalize to a further unseen collection.
 
 \subsection{Evaluation Metrics}
 \label{subsec:evaluation_metrics}
