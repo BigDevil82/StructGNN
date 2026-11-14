@@ -5,10 +5,10 @@ This study proposed CASIO, a calibrated surrogate-informed optimization framewor
 
 The experimental results show that CASIO can improve structural optimization efficiency under fixed shear wall layouts, leading to the following conclusions:
 
-\begin{enumerate}[(\arabic*)]
+\begin{enumerate}[(1)]
 \item Layout information improves surrogate accuracy. The proposed FuseGNN achieved a feasibility PR-AUC of 0.8593 and a reinforcement prediction $R^2$ of 0.924 on the test layouts, outperforming models based only on design parameters or global layout statistics.
 
-\item Online local calibration can reduce layout-specific prediction bias. With 100 local FEA samples, the feasibility Brier score decreased from 0.0749 to 0.0437, and the reinforcement MAE decreased from 11.48~t to 2.04~t.
+\item The separate local-calibration comparison indicates substantial potential for correcting layout-specific bias. With 100 randomly sampled local FEA records, the retrospectively selected calibrators reduced the feasibility Brier score from 0.0749 to 0.0437 and reinforcement MAE from 11.48~t to 2.04~t. These values characterize the model comparison, rather than the fixed online configuration.
 
 \item The calibrated surrogate-informed strategy can reduce FEA demand with limited cost penalty. Across 15 test layouts and five random seeds, the Screen \& ranking strategy reduced true FEA evaluations by 64.6\% on average, with a 1.19\% average cost increase in paired feasible cases.
 

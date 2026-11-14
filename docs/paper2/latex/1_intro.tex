@@ -21,7 +21,7 @@ Based on the above considerations, this study proposes a calibrated surrogate-in
 For a given shear wall layout, the framework first uses global surrogate models to quickly estimate candidate feasibility and reinforcement demand, so that clearly low-value candidates can be filtered and more competitive candidates can be prioritized. The selected candidates are then submitted to FEA and code-based checking, and the verified results are reused to calibrate the surrogate predictions for the current layout during optimization. In this way, the framework reallocates the limited FEA budget toward candidates that are more likely to be feasible and economical, while the final best design is always selected from FEA-verified feasible candidates.
 
 The main contributions of this study are summarized as follows:
-\begin{enumerate}[(\arabic*)]
+\begin{enumerate}[(1)]
 \item A layout-conditioned surrogate model named FuseGNN is proposed for shear wall section-material optimization, which incorporates layout information to estimate candidate feasibility and reinforcement demand prior to FEA.
 \item An online local calibration mechanism is introduced to adapt global surrogate predictions to the current layout, using FEA-verified samples to calibrate feasibility probabilities and correct reinforcement residuals.
 \item A screening and ranking strategy is developed to allocate FEA evaluations by filtering low-feasibility candidates and selecting low-cost ones.

@@ -184,7 +184,7 @@ Shear wall structural optimization for high-rise buildings requires repeated fin
 \begin{highlights}
 \item A graph surrogate captures layout-dependent feasibility and reinforcement demand.
 \item FEA feedback enables online adaptation of surrogate prediction.
-\item Online calibration cuts Brier score by 42\% and reinforcement MAE by 82\%.
+\item Local correction reduces prediction error in a separate calibration comparison.
 \item Risk-aware screening and cost ranking focus FEA on competitive designs.
 \item True FEA calls drop by 64.6\% with only a 1.19\% mean cost increase.
 \end{highlights}
@@ -208,9 +208,9 @@ Shear wall structures \sep Structural optimization \sep surrogate-informed optim
 %%%%%%%%%%%%%%%%%%%%%%% main body start %%%%%%%%%%%%%%%%%%%%%%
 \input{1_intro} % introduction
 
-\input{2_problem_model} % related works
+\input{2_problem_model} % surrogate models and calibration
 
-\input{3_framework} % methodology
+\input{3_framework} % optimization framework
 
 \input{4_experiment_setup} % experiments
 

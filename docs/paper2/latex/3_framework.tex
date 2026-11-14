@@ -1,180 +1,81 @@
-\section{Calibrated Surrogate-Informed Optimization Framework}
+\section{Calibrated Surrogate-Informed Optimization}
 \label{sec:optimization_framework}
 
-This section describes how the surrogate predictions defined in Section~\ref{sec:problem_surrogate} are used to allocate FEA evaluations during optimization.
+CASIO inserts a candidate-selection step between an optimizer and the FEA-based evaluator. It can therefore use different search algorithms while retaining the same screening, ranking, and calibration rules. The optimizer proposes designs; the surrogates allocate evaluations; and the evaluated results update both the search and the local correction models.
 
-\subsection{Overall Framework}
+\subsection{Evaluation Loop}
 \label{subsec:overall_framework}
 
-The overall framework is illustrated in Fig.~\ref{fig:calibrated_optimization_framework}. For a fixed shear wall layout $L$ and design condition $c$, the optimization task is to search the design space $\mathcal{X}$ for section and material parameters that minimize the material cost while satisfying all structural checks. At iteration $t$, the optimizer $\mathcal{O}$ generates a batch of candidate designs:
-\begin{equation}
-\mathcal{B}_t=
-\left\{
-x_{t,1},x_{t,2},\ldots,x_{t,i},\ldots,x_{t,N_b}
-\right\}
-\label{eq:candidate_batch}
-\end{equation}
-where $N_b$ is the batch size.
+At iteration $t$, the optimizer generates a candidate batch $\mathcal{B}_t$. Admissible design values and the wall-thickness ordering are enforced before surrogate assessment. Each candidate is represented as in Section~\ref{subsec:layout_parameter_model} and assigned the current predictions $p_t$ and $m_t$. Screening and ranking select a subset $\mathcal{S}_t$ for structural evaluation. Previously evaluated designs reuse their cached results; new evaluations provide feasibility labels, material quantities, and constraint violations. The verified results are returned to the optimizer and added to $\mathcal{D}_t$ for subsequent calibration. Fig.~\ref{fig:calibrated_optimization_framework} illustrates this loop.
 
-For each candidate $x_{t,i}$ in $\mathcal{B}_t$, the surrogate input follows the representation defined in Section~\ref{subsec:layout_parameter_model}:
-\begin{equation}
-z_{t,i}=\left(G,d_{t,i},q\right)
-\label{eq:candidate_input_framework}
-\end{equation}
-where the layout-related terms $G$ and $q$ remain fixed in a single optimization task, while the design vector $d_{t,i}$ varies among candidates. The global surrogate models and the online calibration module then provide the calibrated feasibility probability $\hat{p}_{f,t,i}^{C}$ and calibrated reinforcement estimate $\hat{m}_{s,t,i}^{C}$ according to Section~\ref{subsec:online_local_calibration}.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{calibrated_optimization_framework.pdf}
+\caption{CASIO evaluation loop: candidate generation, surrogate-based selection, structural evaluation, and feedback to the optimizer and local calibration models.}
+\label{fig:calibrated_optimization_framework}
+\end{figure*}
 
-These calibrated predictions are used only to decide which candidates should receive true evaluation. The selected subset is denoted by $\mathcal{S}_t\subseteq \mathcal{B}_t$. For each candidate in $\mathcal{S}_t$, the true evaluator produces FEA-verified results:
-\begin{equation}
-\mathcal{E}(L,c,x_{t,i})
-\rightarrow
-(y_{f,t,i},m_{s,t,i},m_{c,t,i},r_{t,i}),
-\quad x_{t,i}\in\mathcal{S}_t
-\label{eq:true_eval_framework}
-\end{equation}
-These verified results are used to update the optimizer and to expand the local calibration set. Candidates not selected for FEA receive a rejected-objective value so that the optimizer can still be updated with a complete batch.
-
-\subsection{Candidate Screening and Priority Ranking}
+\subsection{Feasibility Screening and Cost-Based Selection}
 \label{subsec:candidate_screening_ranking}
 
-The surrogate-based candidate assessment follows a two-stage procedure. First, candidates predicted to be clearly infeasible are removed through probability-based screening. The remaining candidates are then prioritized using their predicted material cost and feasibility risk, from which a limited subset is selected for true FEA and code-based evaluation. The number and composition of the selected candidates are adjusted according to the current search stage.
-
-Given the candidate batch $\mathcal{B}_t$ generated at iteration $t$, the calibrated feasibility model first predicts $\hat{p}_{f,t,i}^{C}$ for each candidate. Candidates whose probabilities fall below the screening threshold $\tau_t$ are excluded from further consideration, while the retained set is defined as
+Feasibility screening rejects a candidate from the current batch when $p_t(x)<\tau_t$. Here and below, predictions are written as functions of $x$, with the fixed layout and its encoded representation left implicit. Before local feasibility calibration becomes available, $\tau_t$ is the validation-selected global threshold. After calibration is activated, it is computed from the recalibrated scores of the locally verified feasible designs:
 \begin{equation}
-\mathcal{B}_{t}^{pass}
-=
-\left\{
-x_{t,i}\in\mathcal{B}_t
-\mid
-\hat{p}_{f,t,i}^{C}\ge \tau_t
-\right\}
-\label{eq:pass_set}
+\tau_t=\alpha Q_{1-r_0}\!\left(\{p_t(x_i):y_f(x_i)=1\}\right),
+\label{eq:calibrated_threshold}
 \end{equation}
-Thus, the number of candidates removed at this stage is determined by the predicted feasibility distribution rather than by a prescribed screening ratio. The threshold is selected conservatively so that candidates with uncertain but potentially feasible responses are not prematurely discarded.
+where the scores are drawn from $\mathcal{D}_t$, $r_0$ is the target feasible recall, $Q$ denotes an empirical quantile, and $0<\alpha\leq1$ lowers the threshold to reduce false rejection. The retained set is $\mathcal{P}_t=\{x\in\mathcal{B}_t:p_t(x)\geq\tau_t\}$. This rule aims to retain potentially feasible candidates; the target recall is an empirical calibration criterion, not a guarantee for later batches.
 
-For each candidate in $\mathcal{B}_{t}^{\mathrm{pass}}$, the calibrated reinforcement estimate is combined with the rapidly estimated concrete quantity to obtain the surrogate material cost $\hat{C}_{t,i}^{C}$ defined in Eqn.~\ref{eq:calibrated_cost}. A feasibility-risk term is further introduced as
+Retained candidates are ranked using estimated material cost and a penalty for low predicted feasibility:
 \begin{equation}
-R_{t,i}=\max
-\left(
-0,
-p_0-\hat{p}_{f,t,i}^{C}
-\right),
-\label{eq:feasibility_risk}
-\end{equation}
-where $p_0$ is a reference probability. The overall priority score is then calculated as
-\begin{equation}
-S_{t,i}^{C}=\hat{C}_{t,i}^{C}
-+
-\eta R_{t,i},
+\begin{aligned}
+\widehat C_t(x)&=p_s m_t(x)+p_c(x)\widetilde m_c(x),\\
+s_t(x)&=\widehat C_t(x)+\eta\max\{0,p_0-p_t(x)\},
+\end{aligned}
 \label{eq:calibrated_priority_score}
 \end{equation}
-where $\eta$ converts the probability deficit into an equivalent cost penalty. A lower value of $S_{t,i}^{C}$ therefore indicates a candidate with a more favorable balance between material economy and predicted feasibility.
+where $\widetilde m_c$ is the geometric concrete-mass estimate, $p_0$ is a reference feasibility score, and $\eta$ expresses the score deficit in cost units. A smaller $s_t$ gives higher evaluation priority. The feasibility penalty discourages selecting low-cost designs whose predicted passing likelihood remains low even after screening.
 
-The number of candidates submitted to FEA is determined from the size of the retained set rather than from the original candidate batch. A larger proportion is evaluated during the early search stage, when no feasible solution has yet been confirmed and broader evaluation is needed to identify the feasible region. After feasible solutions have been found, the evaluation quota is reduced so that the FEA budget can be concentrated on more competitive candidates.
+The evaluation quota is a prescribed fraction of $|\mathcal{P}_t|$, subject to a minimum count and capped by the number of retained candidates. A larger fraction is used before the first verified feasible design is found. In this stage, candidates with the lowest $s_t$ are selected to support feasibility discovery. After a feasible design has been found, the fraction is reduced and the quota is divided among three groups: candidates with low $s_t$, candidates with the smallest feasibility-score deficit, and random candidates from the remaining retained set. Ties in the second group are resolved by $s_t$. Selections are made without duplication, and any unfilled quota is completed in ascending score order. The fractions and minimum count are given in Section~\ref{subsec:optimization_benchmark_settings}.
 
-Within the available quota, candidate selection is primarily guided by the ascending order of $S_{t,i}^{C}$. Most evaluations are assigned to candidates with low risk-adjusted costs. In addition, a limited number of candidates with high feasibility confidence or candidates sampled from the remaining pool are also retained. The former reduces the possibility that promising feasible designs are overlooked because of cost-prediction errors, while the latter preserves exploration and prevents the optimization process from becoming completely dependent on the current surrogate ranking.
+If fewer candidates pass screening than the minimum count, all retained candidates are selected. An empty retained set produces no new FEA evaluation for that batch. Random selection explores alternatives within the retained set; it does not revisit candidates rejected by the feasibility threshold. These choices reduce evaluation demand but can exclude useful designs, which motivates reporting both feasible-solution discovery and final cost in the optimization benchmarks.
 
-Through this sequential assessment, clearly unfavorable candidates are first removed by the feasibility model, and the remaining candidates are then prioritized mainly according to predicted material cost with an additional feasibility-risk correction. Only the selected subset is evaluated by FEA and code checking, whereas all final feasible solutions are determined exclusively from the high-fidelity evaluation results.
-
-\subsection{Optimizer and Surrogate Update after Candidate Evaluation}
+\subsection{Optimizer Feedback and Local Updates}
 \label{subsec:online_update_framework}
 
-After candidate screening and priority ranking, only the selected candidates $\mathcal{S}_t$ are evaluated by the true evaluator. The optimizer is updated using two types of objective values, i.e., verified fitness values for candidates in $\mathcal{S}_t$ and rejected objective values for the others. Because the optimizers minimize a scalar objective value, smaller values indicate better candidates.
+The optimizer compares candidates using a feasibility-first rule: verified feasible designs are preferred, and their material costs determine their order. Evaluated infeasible designs are compared using a penalty that combines normalized constraint violations, failed-check indicators, and a small material-cost contribution. The penalty definition is provided in \ref{app:implementation_details}; it guides the search before feasibility is achieved without replacing the original constrained objective.
 
-For a truly evaluated candidate design ${x}_{t,i}$, the scalar fitness used by the optimizer is defined as
-\begin{equation}
-F({x}_{t,i})
-=
-\begin{cases}
-C({x}_{t,i}), 
-& {x}_{t,i}\in\Omega_f,\\[3pt]
-P_0+\lambda_v V({x}_{t,i})+\lambda_c C({x}_{t,i}),
-& {x}_{t,i}\notin\Omega_f
-\end{cases}
-\label{eq:true_fitness}
-\end{equation}
-where $C({x}_{t,i})$ is the material cost computed from the verified reinforcement and concrete quantities, $\Omega_f$ denotes the feasible domain, $P_0$ is a base infeasibility penalty, and $\lambda_v$ and $\lambda_c$ are the violation and cost weights for infeasible candidates. The violation measure is
-\begin{equation}
-\begin{aligned}
-V({x}_{t,i})
-={}&
-\sum_{r}
-\max\left(
-0,
-\frac{g_r({x}_{t,i})-g_r^{\lim}}{g_r^{\lim}}
-\right) \\
-&+
-\sum_{s}
-\max\left(
-0,
-\frac{h_s^{\lim}-h_s({x}_{t,i})}{h_s^{\lim}}
-\right) \\
-&+
-\sum_{q} b_q({x}_{t,i})
-\end{aligned}
-\label{eq:violation_score}
-\end{equation}
-where $g_r$ denotes upper-bound constraints, $h_s$ denotes lower-bound constraints, and $b_q\in\{0,1\}$ indicates whether a discrete code-check item fails. Thus, feasible candidates are ranked by material cost, while infeasible evaluated candidates are assigned a penalty according to their code-violation level.
+Candidates rejected by screening or omitted by the evaluation quota have no verified response. They receive a fixed unfavorable objective value $M_{\mathrm{rej}}$ for optimizer bookkeeping. For GA, this makes them unfavorable in tournament selection and elite retention. For PSO, it prevents an unevaluated position from improving an already verified feasible personal or global best. In random search, the value affects only best-candidate bookkeeping, since subsequent sampling is independent of previous evaluations. Thus, the same evaluation interface is used across optimizers, while its effect on the search depends on the optimizer. The rejection value is never used as a training label or reported as a verified material cost.
 
-Candidates not submitted to FEA do not have verified feasibility or cost values. To keep the optimizer update well defined, these candidates are assigned a large rejected objective:
-\begin{equation}
-F^{rej}(x_{t,i}) = M_{rej},
-\quad M_{rej}=1.0\times 10^{12}
-\label{eq:rejected_objective}
-\end{equation}
-This value is much larger than normal material cost or penalty values, so these candidates are dominated in the minimization process and are effectively skipped.
+After a batch is evaluated, its verified records update the local calibration set. Feasibility calibration uses the recorded binary outcomes, including analysis failures; reinforcement correction uses only records with valid mass values. The global networks remain frozen. New local data trigger refitting before prediction of the next batch, so the current batch cannot use its own evaluation outcomes to select candidates.
 
-For surrogate update, the FEA-verified samples are added to the local calibration set:
-\begin{equation}
-\begin{aligned}
-\mathcal{D}_{t+1}^{loc}
-=
-\mathcal{D}_{t}^{loc}
-\cup
-\bigl\{
-&(z_{t,i},
-\hat{p}_{f,t,i}^{G},
-\hat{m}_{s,t,i}^{G},
-y_{f,t,i},
-m_{s,t,i})
-&\mid x_{t,i}\in\mathcal{S}_t
-\bigr\}
-\end{aligned}
-\label{eq:local_set_update}
-\end{equation}
-The stored global predictions and verified labels allow the calibration module to learn layout-specific probability shifts and reinforcement residuals.
-
-At the beginning of optimization, $\mathcal{D}_{t}^{loc}$ may be empty or too small for reliable calibration, and the framework mainly relies on global surrogate predictions with conservative screening. As more FEA-verified samples are accumulated, the local calibration module becomes active and progressively corrects the global surrogate bias. This online update process allows the surrogate module to become more consistent with the current optimization task without retraining the full global graph model.
+The best verified feasible design is retained throughout the search. If the provisional final candidate has only a rejection value, it is structurally evaluated before return. A run that returns an infeasible design is recorded as an unsuccessful feasibility search, rather than as a valid optimum. Surrogate screening therefore affects which designs are explored, while the final feasibility decision remains with the structural evaluator.
 
 \subsection{Algorithm Summary}
 \label{subsec:algorithm_summary}
 
-The complete calibrated surrogate-informed optimization procedure is summarized in Algorithm~\ref{alg:csa_optimization}. The algorithm takes a fixed layout, design condition, design space, optimizer, global surrogate models, true evaluator, rejected objective, and per-iteration evaluation quota settings as inputs. It outputs the best feasible design verified during the search.
+Algorithm~\ref{alg:csa_optimization} summarizes the common evaluation loop. Each calibration task independently falls back to its global prediction when its activation conditions are not met.
 
 \begin{algorithm}[t]
-\caption{Calibrated surrogate-informed optimization}
+\caption{CASIO evaluation loop}
 \label{alg:csa_optimization}
 \begin{algorithmic}[1]
-\REQUIRE Layout $L$, design condition $c$, design space $\mathcal{X}$, optimizer $\mathcal{O}$, global surrogates $\Phi_f$ and $\Phi_s$, true evaluator $\mathcal{E}$, screening threshold $\tau_t$, rejected objective $M_{rej}$, initial local calibration set $\mathcal{D}_{0}^{loc}=\emptyset$.
-\ENSURE Best feasible design verified by $\mathcal{E}$.
-\FOR{$t=0,1,\ldots,T-1$}
-\STATE Generate a candidate batch $\mathcal{B}_t$ using optimizer $\mathcal{O}$.
-\STATE Construct candidate representations $z_{t,i}=\left(G,d_{t,i},q\right)$ for all $x_{t,i}\in\mathcal{B}_t$.
-\STATE Obtain global predictions $\hat{p}_{f,t,i}^{G}=\Phi_f(z_{t,i})$ and $\hat{m}_{s,t,i}^{G}=\Phi_f(z_{t,i})$.
-\IF{$\mathcal{D}_{t}^{loc}$ contains enough verified samples for calibration}
-\STATE Compute calibrated predictions $\hat{p}_{f,t,i}^{C}$ and $\hat{m}_{s,t,i}^{C}$.
-\ELSE
-\STATE Set $\hat{p}_{f,t,i}^{C}=\hat{p}_{f,t,i}^{G}$ and $\hat{m}_{s,t,i}^{C}=\hat{m}_{s,t,i}^{G}$.
-\ENDIF
-\STATE Screen candidates according to $\hat{p}_{f,t,i}^{C}$ and $\tau_t$.
-\STATE Rank the retained candidates using the score $S_{t,i}^{C}$.
-\STATE Select $\mathcal{S}_t$ for true FEA and code-based checking.
-\STATE Evaluate each $x_{t,i}\in\mathcal{S}_t$ using $\mathcal{E}$ to obtain $(y_{f,t,i},m_{s,t,i},m_{c,t,i},r_{t,i})$.
-\STATE Compute the verified fitness $F(x_{t,i})$ for each $x_{t,i}\in\mathcal{S}_t$.
-\STATE Assign $M_{rej}$ to candidates not in $\mathcal{S}_t$.
-\STATE Update optimizer $\mathcal{O}$ using verified fitness values and rejected-objective values.
-\STATE Update the local calibration set $\mathcal{D}_{t+1}^{loc}$.
+\REQUIRE Fixed layout and conditions; design space; optimizer; global models $\Phi_f,\Phi_s$; structural evaluator; screening and selection settings; iteration limit $T$.
+\ENSURE Best verified feasible design, or an unsuccessful-search status.
+\STATE Initialize the optimizer and $\mathcal{D}_0=\emptyset$, with no feasible incumbent.
+\FOR{$t=0,\ldots,T-1$}
+\STATE Generate and repair candidate batch $\mathcal{B}_t$.
+\STATE Obtain global predictions from $\Phi_f$ and $\Phi_s$.
+\STATE Refit eligible local models if $\mathcal{D}_t$ has changed; otherwise retain the available models or global fallbacks.
+\STATE Compute $p_t$, $m_t$, and screening threshold $\tau_t$.
+\STATE Retain $\mathcal{P}_t=\{x\in\mathcal{B}_t:p_t(x)\geq\tau_t\}$.
+\STATE Select $\mathcal{S}_t\subseteq\mathcal{P}_t$ using the current quota and priority score $s_t$.
+\STATE Evaluate $\mathcal{S}_t$, reusing cached results when available.
+\STATE Update the best verified feasible design and append verified records to obtain $\mathcal{D}_{t+1}$.
+\STATE Return evaluated fitness values and rejection values for unselected candidates to the optimizer.
+\STATE Update the optimizer according to its search rule.
 \ENDFOR
-\STATE \RETURN The best feasible design verified by $\mathcal{E}$.
+\STATE Verify the provisional returned candidate if it has not been evaluated.
+\RETURN Best verified feasible design, or unsuccessful-search status if none is available.
 \end{algorithmic}
 \end{algorithm}
 

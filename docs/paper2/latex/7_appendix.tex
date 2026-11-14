@@ -243,11 +243,11 @@ This metric indicates how quickly an optimization strategy reaches the feasible 
 \renewcommand{\thetable}{B.\arabic{table}}
 \renewcommand{\theHtable}{B.\arabic{table}}
 
-Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_calibrator} report the calibration-model selection results for feasibility probability calibration and steel-usage residual calibration under different local sample sizes. For each sample size, several lightweight calibrators are trained and the model with the best Brier score is reported together with other evaluation metrics. The results show that the most suitable calibrator varies with the amount of available local calibration data.
+Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_calibrator} summarize the separate calibration comparison. At each sample count, the feasibility method with the lowest mean evaluation Brier score and the reinforcement method with the lowest mean evaluation MAE are reported. The feasibility averages exclude the layout with no feasible evaluation examples, consistently with Section~\ref{subsec:local_calibration_settings}. These are retrospective best-method summaries on the comparison data, rather than results of the deployed online selection rule.
 
 \begin{table}[H]
 \centering
-\caption{Best feasibility probability calibrator under different local sample sizes.}
+\caption{Retrospective best feasibility calibrator at each local sample count.}
 \label{tab:appendix_feasibility_calibrator}
 \setlength{\tabcolsep}{6pt}
 \begin{tabularx}{\textwidth}{@{}>{\centering\arraybackslash}p{0.12\textwidth}
@@ -259,18 +259,18 @@ Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_cal
 \toprule
 Calib. samples & Best feasibility calibrator & Brier & ECE & Screen reject & Screen recall \\
 \midrule
-25 & Platt scaling & 0.0505 & 0.0455 & 47.4\% & 0.9476 \\
-50 & Residual random forest & 0.0464 & 0.0406 & 51.6\% & 0.9485 \\
-100 & Residual random forest & 0.0420 & 0.0325 & 52.3\% & 0.9487 \\
-200 & Residual random forest & 0.0381 & 0.0261 & 59.1\% & 0.9481 \\
-500 & Residual random forest & 0.0344 & 0.0201 & 63.9\% & 0.9441 \\
+25 & Platt scaling & 0.0520 & 0.0459 & 49.7\% & 0.9927 \\
+50 & Residual random forest & 0.0483 & 0.0416 & 54.1\% & 0.9937 \\
+100 & Residual random forest & 0.0437 & 0.0333 & 54.8\% & 0.9939 \\
+200 & Residual random forest & 0.0397 & 0.0268 & 61.9\% & 0.9933 \\
+500 & Residual random forest & 0.0360 & 0.0208 & 66.9\% & 0.9891 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{Best steel residual calibrator under different local sample sizes.}
+\caption{Retrospective best reinforcement residual model at each local sample count.}
 \label{tab:appendix_steel_calibrator}
 \setlength{\tabcolsep}{6pt}
 \begin{tabularx}{\textwidth}{@{}>{\centering\arraybackslash}p{0.12\textwidth}
@@ -290,3 +290,73 @@ Calib. samples & Best steel residual model & MAE (kg) & RMSE (kg) & $R^2$ & Pair
 \bottomrule
 \end{tabularx}
 \end{table}
+
+\section{Representation and Online Implementation Details}
+\label{app:implementation_details}
+\setcounter{table}{0}
+\renewcommand{\thetable}{C.\arabic{table}}
+\renewcommand{\theHtable}{C.\arabic{table}}
+
+\subsection{Input Features and Network Fusion}
+
+Table~\ref{tab:input_features} summarizes the inputs used by the retained global models. The graph construction and boundary-wise wall encoding follow the earlier room-level method\cite{LengRoomGNN2026}. The 16 prescribed-wall descriptors are supplied as inputs because the present study optimizes sections and materials for an existing layout.
+
+\begin{table}[H]
+\centering
+\caption{Input feature groups for the global surrogates.}
+\label{tab:input_features}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.21\textwidth}>{\centering\arraybackslash}p{0.10\textwidth}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Feature group & Dimension & Content \\
+\midrule
+Node geometry & 9 & Normalized bounding-box coordinates, width, height, area, and center coordinates. \\
+Boundary availability & 16 & Buildable-boundary indicators inherited from the room representation. \\
+Prescribed wall arrangement & 16 & Boundary-wise descriptors of the existing shear walls. \\
+Edge attributes & 8 & Shared-boundary length and center, four relative-direction indicators, and orientation. \\
+Design inputs & 12 & Eight numerical inputs (story count and seven section dimensions) and four categorical inputs (concrete grade, seismic intensity, site class, and seismic group). \\
+Layout statistics & 41 & Plan dimensions; wall counts, lengths, directional balance, spatial distribution, eccentricity and geometric moments; beam quantities; member connectivity; boundary-wall proportion. \\
+Room-graph summaries & 7 & Scaled node and directed-edge counts, edge density, normalized total and mean room area, and two normalized aggregate wall-distribution summaries. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For the room-graph summaries, node and directed-edge counts are divided by 64 and 256, respectively; density uses the possible directed-edge count. Room areas are normalized by the squared layout scale. The two wall-distribution summaries use the summed wall descriptors and their per-room mean, normalized by 16 descriptors per room. The tabular encoder receives 49 standardized numerical features (eight design inputs and 41 layout statistics) and four categorical embeddings, each of dimension four.
+
+With graph hidden width $H$, the fused vector concatenates mean- and max-pooled node features ($2H$), mean-pooled edge features ($H/2$), the tabular embedding ($H$), and the seven room-graph summaries. Its dimension is therefore $3.5H+7$: 903 for feasibility prediction and 455 for reinforcement prediction. The final head maps this vector to $H$ hidden units and then to one output, using ReLU and dropout between the two linear layers. The two networks have independent parameters and different hidden widths.
+
+\subsection{Online Calibration Models}
+
+Table~\ref{tab:online_calibrators} specifies the deployed models. The sample count for reinforcement correction refers only to records with valid global and evaluated reinforcement masses. Numeric residual-model inputs are standardized for ridge and Gaussian process regression; categorical inputs are one-hot encoded. The global reinforcement prediction and its $\ln(1+m_g)$ transform are included alongside the design variables. Platt scaling uses only the global feasibility logit, with probabilities clipped to $[10^{-6},1-10^{-6}]$ for numerical evaluation.
+
+\begin{table}[H]
+\centering
+\caption{Deployed online calibration configuration.}
+\label{tab:online_calibrators}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.19\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Task and model & Activation & Principal settings \\
+\midrule
+Feasibility: Platt scaling & At least 25 labeled records and both classes & Logistic regression with L2 regularization, inverse regularization strength 1, and the L-BFGS solver. \\
+Reinforcement: ridge & 25--49 valid residual records & L2 penalty coefficient 10. \\
+Reinforcement: Gaussian process & 50--199 valid residual records & RBF kernel plus a white-noise kernel; normalized targets; diagonal regularization $10^{-6}$. \\
+Reinforcement: LightGBM & At least 200 valid residual records & 300 trees; learning rate 0.03; 31 leaves; at least 10 samples per leaf; L1/L2 penalties 0.1/1.0; feature fraction 0.9. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Evaluated Fitness and Rejection Values}
+
+For an evaluated candidate with valid material quantities, the scalar fitness is
+\begin{equation}
+F(x)=
+\begin{cases}
+C(x), & y_f(x)=1,\\
+P_0+\lambda_v V(x)+\lambda_c C(x), & y_f(x)=0,
+\end{cases}
+\label{eq:true_fitness}
+\end{equation}
+where $V$ sums normalized limit violations and binary failed-check indicators. An upper-bound check contributes $\max\{0,(a-\ell)/\ell\}$, and a lower-bound check contributes $\max\{0,(\ell-a)/\ell\}$, where $a$ is the measured quantity and $\ell$ its positive limit. Binary indicators capture failed analysis and design checks. The optimizer gives feasible candidates priority before comparing $F$, so feasibility does not depend on the relative magnitude of material cost and the base penalty.
+
+Unevaluated candidates instead receive $M_{\mathrm{rej}}=10^{12}$ and an unverified status. This value is used only by the optimization interface. It is excluded from calibration records, material-cost comparisons, and the set of verified feasible designs. Failed evaluations are infeasible; absent material quantities are not treated as regression targets.
+
+For reproducibility, the implemented global checks use a torsional response ratio limit of 1.5, an interstory drift limit of $1/1000$, adjacent- and three-story-average stiffness ratio lower limits of 0.7 and 0.8, and a torsional-to-translational period ratio below 0.9. The minimum shear-to-weight ratio depends on seismic intensity (0.008, 0.016, 0.024, and 0.032 for the sampled intensity settings 6, 7, 7.5, and 8). Wall axial and wall/beam shear-compression limits are supplied by the member-design checks for the corresponding material and seismic conditions. These are the evaluator settings used to define feasibility within this study.
