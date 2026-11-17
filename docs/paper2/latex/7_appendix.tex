@@ -3,235 +3,38 @@
 \renewcommand{\thetable}{A.\arabic{table}}
 \renewcommand{\theHtable}{A.\arabic{table}}
 
-\section{Definition of Evaluation Metrics}
+\section{Definition of Decision and Optimization Metrics}
 \label{app:evaluation_metrics}
 
-This appendix defines the evaluation metrics that are specific to surrogate-informed candidate screening, probability calibration, ranking-based reinforcement prediction, and optimization efficiency. Standard classification and regression metrics, such as ROC-AUC, PR-AUC, F1 score, MAE, RMSE, $R^2$, and MAPE, follow their conventional definitions and are not repeated here.
+Standard classification, regression, probability calibration (Brier score~\cite{Brier1950} and ECE~\cite{Naeini2015}), and rank-correlation metrics (Spearman's $\rho_s$~\cite{Spearman1904}) follow their conventional definitions. This appendix defines the task-specific screening, ranking, and optimization metrics used in this study.
 
-\subsection{Screening Metrics for Feasibility Prediction}
-\label{app:screening_metrics}
-
-In this study, the feasibility surrogate is used as a conservative screening model. Therefore, its performance is evaluated not only by ordinary classification metrics, but also by whether it can reject low-value candidates while retaining most truly feasible candidates.
-
-Let $y_i \in {0,1}$ denote the true feasibility label of candidate $i$, where $y_i=1$ indicates a feasible candidate. Let $\hat{p}_{f,i}$ denote the predicted or calibrated feasibility probability, and let $\tau$ denote the screening threshold. A candidate is retained for potential FEA evaluation if
+For candidate screening with threshold $\tau$ and true binary feasibility labels $y_i \in \{0,1\}$, let $\hat{p}_{f,i}$ denote the predicted or calibrated feasibility score. Feasibility recall ($R_{\mathrm{fea}}$), pre-FEA reject rate ($R_{\mathrm{rej}}$), and false-reject count ($N_{\mathrm{fr}}$) are defined as
 \begin{equation}
-\hat{p}_{f,i} \geq \tau
+R_{\mathrm{fea}} = \frac{\sum_{i=1}^{N}\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}_{f,i}\geq \tau)}{\sum_{i=1}^{N}\mathbb{I}(y_i=1)}, \qquad
+R_{\mathrm{rej}} = \frac{\sum_{i=1}^{N}\mathbb{I}(\hat{p}_{f,i}<\tau)}{N}, \qquad
+N_{\mathrm{fr}} = \sum_{i=1}^{N}\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}_{f,i}<\tau),
+\label{eq:app_screening_metrics}
 \end{equation}
-
-The feasibility recall is defined as
+where $\mathbb{I}(\cdot)$ is the indicator function. For reinforcement ranking, pairwise ranking accuracy ($A_{\mathrm{rank}}$) and top-$k$ recall ($R_{\mathrm{top}\text{-}k}$) are defined as
 \begin{equation}
-R_{\mathrm{fea}}
-=
-\frac{
-\sum_{i=1}^{N}
-\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}_{f,i}\geq \tau)
-}{
-\sum_{i=1}^{N}
-\mathbb{I}(y_i=1)
-}
-\label{eq:app_feasible_recall}
+A_{\mathrm{rank}} = \frac{\sum_{i<j}\mathbb{I}\!\left[(m_{s,i}-m_{s,j})(\hat{m}_{s,i}-\hat{m}_{s,j}) > 0\right]}{\binom{N}{2}}, \qquad
+R_{\mathrm{top}\text{-}k} = \frac{|\mathcal{T}_k \cap \hat{\mathcal{T}}_k|}{|\mathcal{T}_k|},
+\label{eq:app_ranking_metrics}
 \end{equation}
-where $\mathbb{I}(\cdot)$ is the indicator function. This metric measures the proportion of truly feasible candidates retained after surrogate screening. A high feasibility recall is required because falsely filtering out feasible candidates may reduce the chance of finding a valid optimal design.
+where $\mathcal{T}_k$ and $\hat{\mathcal{T}}_k$ denote the sets of candidates with the lowest $k$ true and predicted reinforcement masses, respectively.
 
-The reject rate is defined as
+For optimization benchmarking, the true FEA call count ($N_{\mathrm{FEA}}$), FEA reduction ratio ($R_{\mathrm{FEA}}$), feasible-solution discovery rate ($R_{\mathrm{succ}}$), paired objective cost ratio ($R_{\mathrm{obj}}$), and FEA calls to first feasible design ($N_{\mathrm{first}}$) are given by
 \begin{equation}
-R_{\mathrm{rej}}
-=
-\frac{
-\sum_{i=1}^{N}
-\mathbb{I}(\hat{p}_{f,i}<\tau)
-}{N}
-\label{eq:app_reject_rate}
+\begin{aligned}
+N_{\mathrm{FEA}} &= \sum_{t}N_{\mathrm{new},t} + N_{\mathrm{final}}, &\qquad
+R_{\mathrm{FEA}} &= 1 - \frac{N_{\mathrm{FEA}}^{\mathrm{sur}}}{N_{\mathrm{FEA}}^{\mathrm{full}}}, &\qquad
+R_{\mathrm{succ}} &= \frac{N_{\mathrm{runs}}^{\mathrm{feasible}}}{N_{\mathrm{runs}}}, \\
+R_{\mathrm{obj}} &= \frac{C_{\mathrm{best}}^{\mathrm{sur}}}{C_{\mathrm{best}}^{\mathrm{full}}}, &\qquad
+N_{\mathrm{first}} &= \min\left\{n \mid \exists i \leq n,\ y_{f,i}=1\right\},
+\end{aligned}
+\label{eq:app_optimization_metrics}
 \end{equation}
-It measures the proportion of candidates rejected before true FEA evaluation. A higher reject rate indicates greater potential for reducing FEA calls, but it is meaningful only when feasibility recall remains sufficiently high.
-
-The false reject count is defined as
-\begin{equation}
-N_{\mathrm{fr}}
-=
-\sum_{i=1}^{N}
-\mathbb{I}(y_i=1)\mathbb{I}(\hat{p}_{f,i}<\tau)
-\label{eq:app_false_reject}
-\end{equation}
-It directly counts the number of truly feasible candidates incorrectly rejected by the screening rule. This metric is reported because even a small false reject rate may be important when the number of feasible candidates is limited.
-
-\subsection{Probability Calibration Metrics}
-\label{app:calibration_metrics}
-
-The feasibility surrogate outputs a probability rather than a binary decision. In surrogate-informed optimization, probability reliability is important because the screening threshold is selected based on predicted feasibility probabilities.
-
-The Brier score is used to measure the mean squared error between predicted probabilities and true binary labels:
-\begin{equation}
-\mathrm{Brier}
-=
-\frac{1}{N}
-\sum_{i=1}^{N}
-(\hat{p}_{f,i}-y_i)^2
-\label{eq:app_brier}
-\end{equation}
-A lower Brier score indicates better probabilistic prediction.
-
-Expected calibration error (ECE) measures the discrepancy between predicted probability and empirical feasibility frequency. The predictions are divided into $M$ probability bins. Let $B_m$ denote the set of samples in bin $m$. The average confidence and empirical feasible rate in bin $m$ are defined as
-\begin{equation}
-\mathrm{conf}(B_m)
-=
-\frac{1}{|B_m|}
-\sum_{i\in B_m}
-\hat{p}_{f,i}
-\label{eq:app_confidence}
-\end{equation}
-\begin{equation}
-\mathrm{freq}(B_m)
-=
-\frac{1}{|B_m|}
-\sum_{i\in B_m}
-y_i
-\label{eq:app_frequency}
-\end{equation}
-The ECE is then calculated as
-\begin{equation}
-\mathrm{ECE}
-=
-\sum_{m=1}^{M}
-\frac{|B_m|}{N}
-\left|
-\mathrm{freq}(B_m)
--
-\mathrm{conf}(B_m)
-\right|
-\label{eq:app_ece}
-\end{equation}
-A smaller ECE indicates that the predicted feasibility probabilities are more consistent with the observed feasible frequencies.
-
-\subsection{Ranking Metrics for Reinforcement Prediction}
-\label{app:ranking_metrics}
-
-The reinforcement surrogate is mainly used to rank candidates by material economy before true FEA evaluation. Therefore, ranking-oriented metrics are reported in addition to regression errors.
-
-Pairwise ranking accuracy evaluates whether the surrogate correctly predicts the relative order of reinforcement usage between candidate pairs. Given two candidates $i$ and $j$, the ordering is correctly predicted if
-\begin{equation}
-(m_{s,i}-m_{s,j})(\hat{m}_{s,i}-\hat{m}_{s,j}) > 0
-\end{equation}
-The pairwise ranking accuracy is defined as
-\begin{equation}
-A_{\mathrm{rank}}
-=
-\frac{
-\sum_{i<j}
-\mathbb{I}
-\left[
-(m_{s,i}-m_{s,j})(\hat{m}_{s,i}-\hat{m}_{s,j}) > 0
-\right]
-}{
-\binom{N}{2}
-}
-\label{eq:app_pairwise_ranking}
-\end{equation}
-A higher value indicates that the surrogate better preserves the relative material economy of candidates.
-
-Spearman's rank correlation coefficient is also used to measure the monotonic agreement between true and predicted reinforcement usage\cite{Spearman1904}:
-\begin{equation}
-\rho_s
-=
-1
--
-\frac{
-6\sum_{i=1}^{N} d_i^2
-}{
-N(N^2-1)
-}
-\label{eq:app_spearman}
-\end{equation}
-where $d_i$ is the difference between the true rank and predicted rank of candidate $i$. A value closer to 1 indicates better rank consistency.
-
-Top-$k$ recall evaluates whether the surrogate can identify the truly low-reinforcement candidates. Let $\mathcal{T}_k$ denote the set of candidates with the lowest true reinforcement usage, and let $\hat{\mathcal{T}}_k$ denote the set of candidates with the lowest predicted reinforcement usage. The top-$k$ recall is defined as
-\begin{equation}
-R_{\mathrm{top}\text{-}k}
-=
-\frac{
-|\mathcal{T}_k \cap \hat{\mathcal{T}}_k|
-}{
-|\mathcal{T}_k|
-}
-\label{eq:app_topk_recall}
-\end{equation}
-This metric is particularly relevant for optimization because only a small subset of promising candidates is selected for true FEA evaluation.
-
-The prediction bias of reinforcement usage is defined as
-\begin{equation}
-\mathrm{Bias}
-=
-\frac{1}{N}
-\sum_{i=1}^{N}
-(\hat{m}_{s,i}-m_{s,i})
-\label{eq:app_bias}
-\end{equation}
-A positive value indicates overestimation, while a negative value indicates underestimation. Bias is reported because systematic overestimation or underestimation may affect candidate ranking and FEA budget allocation.
-
-\subsection{Optimization Efficiency and Solution Quality Metrics}
-\label{app:optimization_metrics}
-
-In the optimization experiments, the primary computational metric is the number of true FEA calls:
-\begin{equation}
-N_{\mathrm{FEA}}=\sum_{t}N_{\mathrm{new},t}+N_{\mathrm{final}}
-\label{eq:app_fea_calls}
-\end{equation}
-where $N_{\mathrm{new},t}$ counts uncached structural evaluations in iteration $t$ and $N_{\mathrm{final}}$ counts any additional evaluation needed to verify the provisional returned design. Reusing a cached result does not add an FEA call.
-
-The FEA reduction ratio is calculated relative to full FEA optimization:
-\begin{equation}
-R_{\mathrm{FEA}}
-=
-1
--
-\frac{
-N_{\mathrm{FEA}}^{\mathrm{sur}}
-}{
-N_{\mathrm{FEA}}^{\mathrm{full}}
-}
-\label{eq:app_fea_reduction}
-\end{equation}
-where $N_{\mathrm{FEA}}^{\mathrm{sur}}$ and $N_{\mathrm{FEA}}^{\mathrm{full}}$ are the numbers of true FEA calls used by the surrogate-informed strategy and the full FEA baseline, respectively.
-
-The feasible-solution discovery rate is defined as the proportion of optimization runs that successfully find at least one feasible design:
-\begin{equation}
-R_{\mathrm{succ}}
-=
-\frac{
-N_{\mathrm{runs}}^{\mathrm{feasible}}
-}{
-N_{\mathrm{runs}}
-}
-\label{eq:app_success_rate}
-\end{equation}
-This metric reflects whether surrogate screening reduces the chance of discovering feasible solutions.
-
-For runs that find feasible solutions, the final material cost of the best FEA-verified feasible design is reported. To compare surrogate-informed optimization with full FEA optimization under the same layout and random seed, the normalized objective ratio is calculated as
-\begin{equation}
-R_{\mathrm{obj}}
-=
-\frac{
-C_{\mathrm{best}}^{\mathrm{sur}}
-}{
-C_{\mathrm{best}}^{\mathrm{full}}
-}
-\label{eq:app_objective_ratio}
-\end{equation}
-where $C_{\mathrm{best}}^{\mathrm{sur}}$ and $C_{\mathrm{best}}^{\mathrm{full}}$ are the best verified feasible costs obtained by the surrogate-informed method and the full FEA baseline, respectively. A value close to 1 indicates that the surrogate-informed method achieves comparable solution quality.
-
-The number of FEA calls required to find the first feasible solution is also reported:
-\begin{equation}
-N_{\mathrm{first}}
-=
-\min
-\left\{
-n
-\mid
-\exists i \leq n,\ y_{f,i}=1
-\right\}
-\label{eq:app_first_feasible}
-\end{equation}
-This metric indicates how quickly an optimization strategy reaches the feasible region under a limited FEA budget.
+where $N_{\mathrm{new},t}$ counts uncached structural evaluations in iteration $t$, $N_{\mathrm{final}} \in \{0,1\}$ accounts for final verification of an unevaluated provisional solution, and superscripts $\mathrm{sur}$ and $\mathrm{full}$ denote surrogate-informed and full-FEA runs under identical layouts and random seeds.
 
 
 \section{Additional Calibration Results}
@@ -240,7 +43,7 @@ This metric indicates how quickly an optimization strategy reaches the feasible 
 \renewcommand{\thetable}{B.\arabic{table}}
 \renewcommand{\theHtable}{B.\arabic{table}}
 
-Tables~\ref{tab:appendix_feasibility_calibrator} and~\ref{tab:appendix_steel_calibrator} summarize the separate calibration comparison. At each sample count, the feasibility method with the lowest mean evaluation Brier score and the reinforcement method with the lowest mean evaluation MAE are reported. The feasibility averages exclude the layout with no feasible evaluation examples, consistently with Section~\ref{subsec:local_calibration_settings}. These are retrospective best-method summaries on the comparison data, rather than results of the deployed online selection rule.
+Tables~\ref{tab:appendix_feasibility_calibrator}--\ref{tab:appendix_platt} report the numerical results corresponding to Fig.~\ref{fig:calibration_sample_efficiency} across local sample counts from 25 to 500 under random local sampling. Feasibility averages exclude layout L17\_157, which contains no feasible examples in its evaluation subsets.
 
 \begin{table}[H]
 \centering
@@ -290,7 +93,7 @@ Calib. samples & Best steel residual model & MAE (t) & RMSE (t) & $R^2$ & Pair a
 
 \begin{table}[H]
 \centering
-\caption{Platt scaling under random local sampling, using the same evaluation subsets and averaging convention as Table~\ref{tab:appendix_feasibility_calibrator}. These results do not use search-selected records.}
+\caption{Platt scaling under random local sampling across local sample counts.}
 \label{tab:appendix_platt}
 \begin{tabularx}{\textwidth}{@{}*{5}{>{\centering\arraybackslash}X}@{}}
 \toprule
@@ -305,6 +108,7 @@ Local samples & Brier & ECE & Screen reject & Screen recall \\
 \end{tabularx}
 \end{table}
 
+
 \section{Representation and Online Implementation Details}
 \label{app:implementation_details}
 \setcounter{table}{0}
@@ -313,7 +117,7 @@ Local samples & Brier & ECE & Screen reject & Screen recall \\
 
 \subsection{Input Features and Network Fusion}
 
-Table~\ref{tab:input_features} summarizes the inputs used by the retained global models. The graph construction and boundary-wise wall encoding follow the earlier room-level method\cite{LengRoomGNN2026}. The 16 prescribed-wall descriptors are supplied as inputs because the present study optimizes sections and materials for an existing layout.
+Table~\ref{tab:input_features} summarizes the input feature groups for the global surrogates. Graph construction and boundary-wise wall encoding follow our earlier room-level representation~\cite{LengRoomGNN2026}, with the 16 prescribed-wall descriptors supplied as known inputs.
 
 \begin{table}[H]
 \centering
@@ -334,13 +138,11 @@ Room-graph summaries & 7 & Scaled node and directed-edge counts, edge density, n
 \end{tabularx}
 \end{table}
 
-For the room-graph summaries, node and directed-edge counts are divided by 64 and 256, respectively; density uses the possible directed-edge count. Room areas are normalized by the squared layout scale. The two wall-distribution summaries use the summed wall descriptors and their per-room mean, normalized by 16 descriptors per room. The tabular encoder receives 49 standardized numerical features (eight design inputs and 41 layout statistics) and four categorical embeddings, each of dimension four.
-
-With graph hidden width $H$, the fused vector concatenates mean- and max-pooled node features ($2H$), mean-pooled edge features ($H/2$), the tabular embedding ($H$), and the seven room-graph summaries. Its dimension is therefore $3.5H+7$: 903 for feasibility prediction and 455 for reinforcement prediction. The final head maps this vector to $H$ hidden units and then to one output, using ReLU and dropout between the two linear layers. The two networks have independent parameters and different hidden widths.
+For the room-graph summaries, node and directed-edge counts are normalized by 64 and 256, respectively, and room areas are normalized by the squared layout scale. The tabular encoder processes 49 standardized numerical features (8 design inputs and 41 layout statistics) concatenated with four 4-dimensional categorical embeddings. With graph hidden width $H$, the fused representation concatenates mean- and max-pooled node embeddings ($2H$), mean-pooled edge embeddings ($H/2$), the tabular embedding ($H$), and the seven graph summaries, yielding a vector of dimension $3.5H+7$ (903 for $\Phi_f$ and 455 for $\Phi_s$) passed to a two-layer MLP head with ReLU and dropout.
 
 \subsection{Online Calibration Models}
 
-Table~\ref{tab:online_calibrators} specifies the deployed models. The sample count for reinforcement correction refers only to records with valid global and evaluated reinforcement masses. Numeric residual-model inputs are standardized for ridge and Gaussian process regression; categorical inputs are one-hot encoded. The global reinforcement prediction and its $\ln(1+m_g)$ transform are included alongside the design variables. Platt scaling uses only the global feasibility logit, with probabilities clipped to $[10^{-6},1-10^{-6}]$ for numerical evaluation.
+Table~\ref{tab:online_calibrators} lists the hyperparameters of the deployed online calibrators. Numeric inputs to ridge and Gaussian process residual models are standardized and categorical inputs are one-hot encoded, alongside $m_g$ and $\ln(1+m_g)$. Platt scaling operates on the global feasibility logit with probabilities clipped to $[10^{-6},1-10^{-6}]$.
 
 \begin{table}[H]
 \centering
@@ -350,17 +152,17 @@ Table~\ref{tab:online_calibrators} specifies the deployed models. The sample cou
 \toprule
 Task and model & Activation & Principal settings \\
 \midrule
-Feasibility: Platt scaling & At least 25 labeled records and both classes & Logistic regression with L2 regularization, inverse regularization strength 1, and the L-BFGS solver. \\
-Reinforcement: ridge & 25--49 valid residual records & L2 penalty coefficient 10. \\
-Reinforcement: Gaussian process & 50--199 valid residual records & RBF kernel plus a white-noise kernel; normalized targets; diagonal regularization $10^{-6}$. \\
-Reinforcement: LightGBM & At least 200 valid residual records & 300 trees; learning rate 0.03; 31 leaves; at least 10 samples per leaf; L1/L2 penalties 0.1/1.0; feature fraction 0.9. \\
+Feasibility: Platt scaling & $\ge 25$ labeled records spanning both classes & $L_2$-regularized logistic regression ($C=1.0$, L-BFGS solver). \\
+Reinforcement: ridge & 25--49 valid residual records & $L_2$ penalty coefficient $10.0$. \\
+Reinforcement: Gaussian process & 50--199 valid residual records & RBF kernel + white-noise kernel; normalized targets; diagonal regularization $10^{-6}$. \\
+Reinforcement: LightGBM & $\ge 200$ valid residual records & 300 trees; learning rate 0.03; 31 leaves; min 10 samples/leaf; $L_1/L_2$ penalties $0.1/1.0$; feature fraction 0.9. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\subsection{Evaluated Fitness and Rejection Values}
+\subsection{Evaluated Fitness and Code-Checking Scope}
 
-For an evaluated candidate with valid material quantities, the scalar fitness is
+For an evaluated candidate with valid material quantities, the scalar fitness returned to the optimizer is
 \begin{equation}
 F(x)=
 \begin{cases}
@@ -369,8 +171,6 @@ P_{\mathrm{inf}}+\lambda_v V(x)+\lambda_c C(x), & y_f(x)=0,
 \end{cases}
 \label{eq:true_fitness}
 \end{equation}
-where $V$ sums normalized limit violations and binary failed-check indicators. An upper-bound check contributes $\max\{0,(a-\ell)/\ell\}$, and a lower-bound check contributes $\max\{0,(\ell-a)/\ell\}$, where $a$ is the measured quantity and $\ell$ its positive limit. Binary indicators capture failed analysis and design checks. The optimizer gives feasible candidates priority before comparing $F$, so feasibility does not depend on the relative magnitude of material cost and the base penalty.
+where $V(x)$ sums normalized upper-bound violations $\max\{0,(a-\ell)/\ell\}$, lower-bound violations $\max\{0,(\ell-a)/\ell\}$, and binary failed-check indicators.
 
-Unevaluated candidates instead receive $M_{\mathrm{rej}}=10^{12}$ and an unverified status. This value is used only by the optimization interface. It is excluded from calibration records, material-cost comparisons, and the set of verified feasible designs. Failed evaluations are infeasible; absent material quantities are not treated as regression targets.
-
-For reproducibility, the implemented global checks use a torsional response ratio limit of 1.5, an interstory drift limit of $1/1000$, adjacent- and three-story-average stiffness ratio lower limits of 0.7 and 0.8, and a torsional-to-translational period ratio below 0.9. The minimum shear-to-weight ratio depends on seismic intensity (0.008, 0.016, 0.024, and 0.032 for the sampled intensity settings 6, 7, 7.5, and 8). Wall axial and wall/beam shear-compression limits are supplied by the member-design checks for the corresponding material and seismic conditions. These are the evaluator settings used to define feasibility within this study.
+The automated structural check enforces a torsional response ratio limit of 1.5, an interstory drift limit of $1/1000$, adjacent- and three-story-average stiffness ratio lower limits of 0.7 and 0.8, a torsional-to-translational period ratio limit of 0.9, and minimum shear-to-weight ratios of 0.008, 0.016, 0.024, and 0.032 for seismic intensities 6, 7, 7.5, and 8, respectively, together with code-specified wall axial compression and wall/beam shear-compression checks~\cite{GB500112010,GB500102010}.

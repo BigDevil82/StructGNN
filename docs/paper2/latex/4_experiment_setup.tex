@@ -1,24 +1,16 @@
 \section{Experimental Setup}
 \label{sec:experimental_setup}
 
-\subsection{Experimental Objectives}
-\label{subsec:experimental_objectives}
-
-First, the global surrogate models are evaluated on unseen shear wall layouts. The feasibility surrogate is assessed in terms of classification and screening performance, while the reinforcement surrogate is assessed in terms of prediction accuracy and ranking quality. Three input settings are compared: design parameters only, design parameters with seven room-graph summaries, and the full representation combining graph encoding with those summaries and 41 additional layout statistics.
-
-Second, a separate local-calibration comparison examines how model choice and sample count affect probability reliability, reinforcement error, and ranking within a layout. This comparison uses randomly sampled local records. Online adaptation under search-selected feedback is evaluated in the optimization experiments.
-
-Third, the calibrated surrogate models are embedded into optimization procedures. The optimization experiments compare full FEA-based optimization with several surrogate-informed evaluation strategies. The comparison focuses on the number of true FEA calls, feasible-solution discovery, and final material cost. All compared methods use the same design space and true evaluator.
-
+The experimental evaluation comprises three parts: (1) assessing the cross-layout accuracy and ranking quality of the global surrogates on unseen layouts; (2) examining local probability and residual calibration across varying local sample sizes; and (3) benchmarking the complete CASIO framework against full FEA optimization across multiple search algorithms.
 
 \subsection{Dataset and Structural Evaluation}
 \label{subsec:dataset_structural_evaluation}
 
-The dataset is constructed from engineering shear wall layouts and a parametric structural evaluation workflow. Each sample corresponds to a layout, a design condition, and a section-material design scheme. The input includes layout information and design parameters, and the supervised labels include the comprehensive feasibility label $y_f$ and the reinforcement usage $m_s$.
+The dataset consists of 143 real-world engineering shear wall layouts collected from architectural design practice~\cite{LengRoomGNN2026}. Following Chinese seismic and tall-building design codes~\cite{GB500112010,GB500102010}, these layouts are categorized into three source groups: Group7-H1 (seismic intensity 7, PGA $0.10\text{ g}$, height $H \leq 50\text{ m}$), Group7-H2 (intensity 7, $H > 50\text{ m}$), and Group8 (intensity 8, PGA $0.20\text{ g}$).
 
-The dataset contains 143 shear wall layouts designed by professional engineers, following the layout collection used in our earlier study\cite{LengRoomGNN2026}. The source layouts are divided into three groups according to their original seismic intensity and building height. Group7-H1 corresponds to seismic intensity 7, PGA of 0.10~g, and building height $H \leq 50$~m. Group7-H2 has the same seismic intensity and building height $H>50$~m. Group8 corresponds to seismic intensity 8 and PGA of 0.20~g. These labels describe the source-layout groups; the parametric dataset subsequently varies building and seismic parameters over the sampling space below.
+For each layout, 5,000 design variants are sampled from the discrete parameter space in Table~\ref{tab:parameter_space}, enforcing nonincreasing wall thicknesses with height ($w_t \le w_m \le w_b$). Each candidate is evaluated by an automated structural evaluator $\mathcal{E}$ that builds the finite element model in OpenSees~\cite{McKenna2011OpenSees} (Fig.~\ref{fig:model_cases}), extracts global responses and member forces, and performs code-based reinforcement design and checking to obtain the binary feasibility label $y_f$ and reinforcement mass $m_s$. After discarding 28 non-convergent runs, 714,972 valid samples remain and are split at the layout level into 100 training, 21 validation, and 22 testing layouts (Table~\ref{tab:dataset_split}).
 
-\begin{table}[t]
+\begin{table}[tp]
 \centering
 \caption{Sampling space of structural design parameters.}
 \label{tab:parameter_space}
@@ -44,26 +36,12 @@ Seismic group & $S_G$ & - & 1, 2, 3 \\
 \end{tabularx}
 \end{table}
 
-For each layout, 5000 candidate design schemes are sampled from a predefined parameter space, which is summarized in Table~\ref{tab:parameter_space}. The sampled variables include the number of stories, wall thicknesses in different vertical zones, main and secondary beam dimensions, concrete strength grade, seismic intensity, site class, and seismic group. During sampling, wall thicknesses are constrained to be nonincreasing along the building height, i.e., $w_t\le w_m\le w_b$.
-
-Representative finite element models generated from the same parametric workflow are shown in Fig.~\ref{fig:model_cases}.
-
-
-A true structural evaluator $\mathcal{E}$ is used to generate labels for all sampled candidates. For each candidate, the evaluator automatically constructs the structural model, performs FEA in OpenSees\cite{McKenna2011OpenSees}, extracts global structural responses and member forces, and conducts code-based member design and reinforcement calculation. The comprehensive feasibility label $y_f$ is determined by analysis validity, global response limits, and member-level design checks. The reinforcement usage label $m_s$ is obtained from the final member design results.
-
-The sampling procedure generates 715,000 candidate records. After removing 28 failed-analysis or invalid-result records, 714,972 samples remain for surrogate training and evaluation. Designs with valid outputs but failed structural or member-design checks remain in the dataset as infeasible examples. A layout-level split assigns 100 layouts to training, 21 to validation, and 22 to testing. All parameter variants of a layout belong to the same subset. The test layouts cover the three source-layout groups and are used for global surrogate evaluation, local calibration comparisons, and optimization benchmarking. During online optimization, analysis failure is recorded as infeasibility, and an unavailable reinforcement quantity is excluded from residual fitting.
-
-Material costs use fixed market-based rates throughout the comparisons: CNY~5/kg for reinforcement and CNY~500, 530, 560, 590, and 620/m$^3$ for concrete grades C30--C50, respectively. Concrete volume prices are converted to mass prices using a density of 2400~kg/m$^3$. Each optimization candidate uses one selected concrete grade across the vertical zones. Before FEA, concrete mass is estimated from the prescribed wall and beam lengths, candidate section dimensions, and story counts; evaluated material quantities are used for the final objective.
-
- The detailed distribution of layouts and samples across design-condition groups is given in Table~\ref{tab:dataset_split}.
-
-\begin{figure*}[t]
+\begin{figure*}[tbp]
 \centering
 \includegraphics[width=\textwidth]{model_cases.pdf}
 \caption{Representative finite element models of shear wall structures under different sampled design parameters and design conditions.}
 \label{fig:model_cases}
 \end{figure*}
-
 
 \begin{table*}[t]
 \centering
@@ -86,129 +64,32 @@ Total & 143 & 714,972 & 23.1\% / 36.4\% / 40.6\% \\
 \end{tabularx}
 \end{table*}
 
+Material costs are calculated using fixed unit prices of CNY~5/kg for reinforcement and CNY~500, 530, 560, 590, and 620/m$^3$ for concrete grades C30--C50 (converted to mass prices at a density of $2400\text{ kg/m}^3$). Prior to FEA, concrete mass $\widetilde m_c(x)$ is computed analytically from member geometry, whereas final optimization costs use FEA-evaluated material quantities.
 
 \subsection{Global Surrogate Model Training}
 \label{subsec:global_surrogate_training}
 
-The feasibility surrogate $\Phi_f$ and reinforcement surrogate $\Phi_s$ are trained independently, using the architecture in Section~\ref{subsec:surrogate_tasks}. Separate checkpoints are used for the two tasks; there is no jointly trained shared encoder.
+To evaluate the contribution of structural layout representations, three input configurations are compared: \textbf{Param-MLP} (using only the 12 design and condition inputs), \textbf{Stat-MLP} (adding the seven room-graph summaries without graph message passing), and \textbf{FuseGNN} (combining the full room-adjacency graph, seven graph summaries, and 41 global layout statistics).
 
-Three input settings are compared. Param-MLP uses only the eight numerical and four categorical design inputs. Stat-MLP adds the seven pooled room-graph summaries described in \ref{app:implementation_details}, without message passing. FuseGNN uses the full room graph, these summaries, and the additional 41 layout statistics. Thus, the comparison measures the benefit of progressively richer representations; the difference between Stat-MLP and FuseGNN includes both additional layout statistics and graph encoding, and does not isolate message passing alone.
-
-Both FuseGNN instances use three GraphSAGE layers. For feasibility prediction, the hidden width, dropout rate, batch size, learning rate, and weight decay are 256, 0.35, 512, $2\times10^{-4}$, and $3\times10^{-4}$, respectively. Weighted binary cross-entropy is used, and early stopping monitors the validation rejection rate subject to a target feasible recall of 0.995. The resulting global screening threshold is 0.004.
-
-For reinforcement prediction, the corresponding settings are 128, 0.1, 512, $5\times10^{-4}$, and $10^{-4}$. Early stopping monitors validation MAE after the inverse target transformation. Both tasks use AdamW. The retained checkpoints provide the global predictions used in the calibration and optimization experiments.
-
-
-\begin{table*}[t]
-\centering
-\caption{Feasibility prediction performance of different surrogate input settings. Screening metrics use each model's validation-selected threshold; test-set recalls are not matched.}
-\label{tab:global_feasibility_results}
-\setlength{\tabcolsep}{5pt}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X
->{\centering\arraybackslash}p{0.09\textwidth}
->{\centering\arraybackslash}p{0.09\textwidth}
->{\centering\arraybackslash}p{0.07\textwidth}
->{\centering\arraybackslash}p{0.105\textwidth}
->{\centering\arraybackslash}p{0.135\textwidth}
->{\centering\arraybackslash}p{0.145\textwidth}@{}}
-\toprule
-Model & ROC-AUC & PR-AUC & F1 & Reject rate & Feasibility recall & False reject count \\
-\midrule
-Param-MLP & 0.9117 & 0.6137 & 0.5927 & 0.4787 & 0.9946 & 90 \\
-Stat-MLP & 0.9547 & 0.8163 & 0.7370 & 0.4447 & 0.9994 & 10 \\
-FuseGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
-\bottomrule
-\end{tabularx}
-\end{table*}
-
-
-\begin{table*}[t]
-\centering
-\caption{Reinforcement usage prediction performance of different surrogate input settings.}
-\label{tab:global_steel_results}
-\setlength{\tabcolsep}{4pt}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X
->{\centering\arraybackslash}p{0.075\textwidth}
->{\centering\arraybackslash}p{0.075\textwidth}
->{\centering\arraybackslash}p{0.06\textwidth}
->{\centering\arraybackslash}p{0.07\textwidth}
->{\centering\arraybackslash}p{0.075\textwidth}
->{\centering\arraybackslash}p{0.105\textwidth}
->{\centering\arraybackslash}p{0.09\textwidth}
->{\centering\arraybackslash}p{0.125\textwidth}@{}}
-\toprule
-Model & MAE (t) & RMSE (t) & $R^2$ & MAPE & Bias (t) & Pairwise acc. & Spearman & Top-10\% recall \\
-\midrule
-Param-MLP & 32.30 & 45.77 & 0.351 & 0.247 & -13.89 & 0.9586 & 0.9547 & 0.8974 \\
-Stat-MLP & 13.83 & 18.75 & 0.891 & 0.112 & -1.66 & 0.9652 & 0.9628 & 0.9142 \\
-FuseGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
-\bottomrule
-\end{tabularx}
-\end{table*}
-
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{global_surrogate_overview.pdf}
-\caption{Overall performance and error patterns of the global surrogate model.}
-\label{fig:global_surrogate_overview}
-\end{figure*}
-
-\begin{figure*}[!t]
-\centering
-\includegraphics[width=\textwidth]{local_calibration_effect.pdf}
-\caption{Layout-wise local-calibration comparison using 100 randomly sampled FEA records. Each layout reports the best evaluated calibrator for its task; these retrospective comparisons do not represent a single deployed online model.}
-\label{fig:local_calibration_effect}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{calibration_sample_efficiency.pdf}
-\caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods. The dashed feasibility curves show Platt scaling on the same subsets; screening recalls are not matched.}
-\label{fig:calibration_sample_efficiency}
-\end{figure*}
-
+Both FuseGNN networks use three GraphSAGE layers trained independently with AdamW and batch size 512. The feasibility classifier $\Phi_f$ (hidden width 256, dropout 0.35, learning rate $2\times10^{-4}$, weight decay $3\times10^{-4}$) is trained with positive-weighted binary cross-entropy; early stopping maximizes the validation rejection rate at a target feasible recall of $0.995$, yielding a global screening threshold of $0.004$. The reinforcement regressor $\Phi_s$ (hidden width 128, dropout 0.1, learning rate $5\times10^{-4}$, weight decay $10^{-4}$) minimizes Smooth L1 loss on log-transformed mass and uses validation MAE for early stopping. Global models are evaluated on the 22 test layouts using classification/screening metrics (ROC-AUC, PR-AUC, F1, rejection rate, feasibility recall, and false-reject count) and regression/ranking metrics (MAE, RMSE, $R^2$, MAPE, bias, pairwise ranking accuracy, Spearman correlation, and top-10\% recall; definitions in \ref{app:evaluation_metrics}).
 
 \subsection{Local Calibration Comparison and Online Configuration}
 \label{subsec:local_calibration_settings}
 
-The calibration experiments separate two questions: which correction models perform well with a given number of local samples, and how a specified correction rule behaves during optimization. The first is examined using random local sampling; the second uses the search-generated records in the optimization benchmarks. Randomly sampled records need not have the same distribution as candidates selected online.
+To analyze sample efficiency prior to online deployment, an offline local-calibration study randomly samples $25, 50, 100, 200,$ or $500$ records from each test layout (repeated three times) to fit local calibrators, evaluating them on the remaining held-out records of that layout. Candidate feasibility calibrators include Platt scaling~\cite{Platt1999}, isotonic regression~\cite{Zadrozny2002}, logistic regression, probability-residual models (ridge regression, random forest, LightGBM), and a probability-averaging ensemble~\cite{Bella2013}. Candidate reinforcement residual models include ridge regression~\cite{Hoerl1970Ridge}, Gaussian process regression~\cite{Rasmussen2006GPML}, LightGBM~\cite{Ke2017LightGBM}, and $k$-nearest neighbors~\cite{Cover1967KNN}. Probability reliability is measured by Brier score~\cite{Brier1950} and expected calibration error (ECE)~\cite{Naeini2015}, alongside screening and regression metrics.
 
-For the separate comparison, 25, 50, 100, 200, or 500 records are sampled from each test layout for fitting, and the remaining records form a disjoint evaluation subset. Each setting is repeated three times. Feasibility models include Platt scaling\cite{Platt1999}, isotonic regression\cite{Zadrozny2002}, logistic regression, probability-residual correction with ridge regression, random forests or LightGBM, and a probability-averaging ensemble\cite{Bella2013}. Platt scaling and isotonic regression use the global score alone; the other models can also use the design parameters. Reinforcement residual models include ridge regression\cite{Hoerl1970Ridge}, Gaussian process regression\cite{Rasmussen2006GPML}, LightGBM\cite{Ke2017LightGBM}, and K-nearest neighbors\cite{Cover1967KNN}, using the global mass estimate, its logarithm, and design parameters.
-
-Calibration metrics are averaged over layouts and repetitions. Feasibility summaries exclude layout L17\_157, which has no feasible examples in the evaluation subsets, so that feasible-recall comparisons are defined; reinforcement summaries include all test layouts. For each sample count, the reported best feasibility and reinforcement calibrators minimize mean evaluation Brier score and MAE, respectively. The layout-wise plots instead select the best evaluated method for each layout. These retrospective summaries characterize the observed performance of the candidate calibrators; they are not independent estimates of an online model-selection policy. The uncalibrated feasibility baseline retains the global predictions but also uses a threshold estimated from the local fitting samples, so its rejection rate differs from that obtained with the fixed global threshold.
-
-The online configuration follows Section~\ref{subsec:online_local_calibration}. Feasibility correction uses Platt scaling after at least 25 labeled records and both classes are available. Reinforcement correction uses ridge regression for 25--49 valid residual records, Gaussian process regression for 50--199 records, and LightGBM from 200 records onward. Before the respective conditions are met, the corresponding global prediction is retained. The local screening rule uses $\kappa=0.995$ and $\alpha=0.1$; when feasibility calibration is inactive, the global threshold of 0.004 is used. The sample-count schedule is fixed during each optimization run. Model settings are collected in \ref{app:implementation_details}, and the separate comparison results are reported in Section~\ref{subsec:local_calibration_results} and \ref{app:calibration_results}.
+For the deployed online optimization framework (Section~\ref{subsec:online_local_calibration}), feasibility calibration uses Platt scaling once at least 25 evaluated records spanning both classes are collected, with adaptive screening parameters $\kappa=0.995$ and $\alpha=0.1$. Reinforcement residual correction uses ridge regression for 25--49 valid residual records, Gaussian process regression for 50--199 records, and LightGBM for $\ge 200$ records. Full model hyperparameters are listed in \ref{app:implementation_details}.
 
 \subsection{Optimization Benchmark Settings}
 \label{subsec:optimization_benchmark_settings}
 
-The optimization experiments are conducted on 15 unseen layouts selected from the test set, comprising five layouts from each of the three design-condition groups. For each layout, five random seeds are used. For each test layout, the layout $L$ and design condition $c$ are fixed, and the optimization variables are the section and material parameters $x$. All compared methods use the same design space, true evaluator, and random seeds.
+Optimization benchmarks are conducted on 15 unseen test layouts (five per design-condition group) across five random seeds, yielding 75 runs per strategy. Genetic algorithm (GA)~\cite{Goldberg1989} serves as the primary optimizer (population size 48, 15 generations, mutation rate $0.30$, elite size 2), supplemented by particle swarm optimization (PSO)~\cite{Kennedy1995PSO} (swarm size 48, 15 iterations, mutation rate $0.15$) and random search (720 candidates in batches of 48) to test optimizer generality.
 
-Genetic algorithm (GA) is adopted as the main optimizer\cite{Goldberg1989}. In the experiments, the population size, number of generations, mutation rate, and elite size are set to 48, 15, 0.30, and 2, respectively. To examine whether the surrogate-informed mechanism depends on a specific optimizer, particle swarm optimization (PSO) and random search are also included as supplementary optimizers\cite{Kennedy1995PSO}. The PSO uses a swarm size of 48 and 15 iterations, with a mutation rate of 0.15 to improve exploration. The random search baseline evaluates 720 candidates in batches of 48.
-
-Three candidate evaluation strategies are compared:
+Three candidate evaluation strategies are compared under identical design spaces and initial seeds:
 \begin{enumerate}[(1)]
-\item For full FEA optimization, all candidates generated by the optimizer are evaluated by $\mathcal{E}$. This strategy serves as the baseline.
-\item Cost ranking: candidates are ranked using the reinforcement surrogate and the estimated concrete quantity, and only high-priority candidates are submitted to $\mathcal{E}$.
-\item Screen \& cost ranking: Both feasibility screening and cost-based ranking are used to select candidates for FEA evaluation.
+\item \textbf{Full FEA}: All generated candidates are evaluated by $\mathcal{E}$ (baseline).
+\item \textbf{Cost ranking}: Candidates are ranked solely by estimated material cost without feasibility screening, submitting only the top-quota subset to $\mathcal{E}$.
+\item \textbf{Screen \& ranking}: The full CASIO strategy combining calibrated feasibility screening, deficit-penalized cost ranking, and quota-based FEA allocation.
 \end{enumerate}
 
-For surrogate-informed strategies, the quota is calculated from the candidates retained after screening: the retained count multiplied by the evaluation ratio is rounded to the nearest integer, raised to at least eight, and capped by the retained count. Thus, the minimum does not override feasibility screening when fewer than eight candidates remain. Cached designs reuse their evaluated results, and only uncached evaluation requests contribute to the reported FEA-call count.
-
-The evaluation ratio is 0.8 before a feasible design has been observed and 0.5 afterwards. In the latter stage, the target quota proportions are 0.60 for priority-score ranking, 0.25 for feasibility-deficit ranking, and 0.15 for random exploration. Each share is rounded to an integer, with at least one selection when capacity permits, and the total is capped by the available quota. The priority score uses $p_{\mathrm{ref}}=0.5$ and $\eta=10^6$~CNY. Unselected candidates receive $M_{\mathrm{rej}}=10^{12}$. For evaluated infeasible candidates, the penalty in \ref{app:implementation_details} uses $P_{\mathrm{inf}}=10^5$, $\lambda_v=10^7$, and $\lambda_c=0.01$. The cost-ranking-only strategy omits feasibility screening and the probability-deficit term; its local adaptation concerns reinforcement prediction. The screening-and-ranking strategy activates both calibration tasks.
-
-The online settings are held constant across the compared optimizers. The study does not include a separate validation-layout tuning assessment for the local model schedule or selection hyperparameters. Because the calibration comparison and optimization benchmark share test layouts, their results should not be interpreted as independent evidence that the selected schedule or settings generalize to a further unseen collection.
-
-\subsection{Evaluation Metrics}
-\label{subsec:evaluation_metrics}
-
-Decision-specific evaluation metrics are defined in \ref{app:evaluation_metrics}.
-
-The feasibility surrogate is assessed using ROC-AUC, PR-AUC, and F1 score to characterize its overall classification performance. Since the model serves as a conservative screening tool before FEA, we further report feasibility recall, reject rate, and false reject count. These metrics quantify, respectively, the proportion of truly feasible candidates retained after screening, the proportion of candidates filtered out before FEA, and the number of feasible candidates mistakenly rejected by the surrogate.
-
-Reinforcement prediction accuracy is measured by mean absolute error (MAE), root mean square error (RMSE), coefficient of determination ($R^2$), mean absolute percentage error (MAPE), and bias. To reflect its role in candidate ranking, pairwise ranking accuracy, Spearman correlation, and top-$k$ recall are further included.
-
-Local calibration is evaluated from both probability and residual-correction perspectives. Feasibility probability calibration is measured by Brier score\cite{Brier1950} and expected calibration error (ECE)\cite{Naeini2015}, together with feasibility recall and reject rate, whereas reinforcement residual calibration is measured by MAE, RMSE, $R^2$ and MAPE after calibration.
-
-Optimization performance is summarized in terms of computational efficiency and solution quality. Efficiency is measured by the number of true FEA calls and the FEA reduction ratio, while solution quality is characterized by feasible-solution discovery rate, the number of FEA calls required to find the first feasible solution, and final material cost. For each test layout and random seed, surrogate-informed strategies are compared with full FEA optimization to determine whether FEA calls can be reduced without substantial degradation in feasibility discovery or final cost.
+For surrogate-informed strategies, the batch quota $n_t$ uses a minimum quota $n_{\min}=8$ (capped by $|\mathcal{P}_t|$) and an evaluation ratio $\theta_t = 0.8$ before the first feasible solution is found, decreasing to $\theta_t = 0.5$ afterward. In the post-discovery stage, $n_t$ is split into 60\% priority-score ranking, 25\% smallest feasibility-score deficit, and 15\% random exploration within $\mathcal{P}_t$. Priority scoring uses $p_{\mathrm{ref}}=0.5$ and $\eta=10^6\text{ CNY}$; unselected candidates receive $M_{\mathrm{rej}}=10^{12}$, and evaluated infeasible designs use penalty weights $P_{\mathrm{inf}}=10^5$, $\lambda_v=10^7$, and $\lambda_c=0.01$ (\ref{app:implementation_details}). Optimization performance is evaluated by uncached FEA call count, FEA reduction ratio, feasible-solution discovery rate, FEA calls to first feasible design, and paired final material cost ratio (\ref{app:evaluation_metrics}).

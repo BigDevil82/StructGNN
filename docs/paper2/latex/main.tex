@@ -61,6 +61,27 @@
 \usepackage{cuted}
 \usepackage{placeins}
 \usepackage{threeparttable}
+\usepackage{dblfloatfix}
+
+% 1. 消除独立浮动页 [p] 中两张图之间被强行拉开的空隙
+\makeatletter
+\setlength{\@fptop}{0pt plus 1fil}
+\setlength{\@fpsep}{14pt} % 固定两图之间的间距为 14pt，不再无限拉伸
+\setlength{\@fpbot}{0pt plus 1fil}
+\makeatother
+
+% 2. 适度控制单页图文比例，避免正文被挤成细条
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{6}
+\setcounter{dbltopnumber}{2}
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.15}      % 保证有正文的页面至少留出 15% 给文字
+\renewcommand{\floatpagefraction}{0.75} % 超过 75% 高度自动成独立浮动页
+\renewcommand{\dbltopfraction}{0.85}
+\renewcommand{\dblfloatpagefraction}{0.75}
+
 \setlength{\linenumbersep}{3pt}
 \hyphenpenalty=1000
 \hypersetup{
@@ -171,34 +192,23 @@
 
 \begin{abstract}
 
-Shear wall structural optimization for high-rise buildings requires repeated finite element analysis (FEA) and design code checking, making conventional optimization computationally expensive. Although surrogate-assisted methods can reduce evaluation costs, static surrogates may exhibit prediction bias when applied to unseen layouts or evolving local search regions. This study proposes a calibrated surrogate-informed optimization framework that improves optimization efficiency by reducing unnecessary FEA evaluations. Two surrogate models integrate room-level graph representations, global layout statistics, and design parameters to estimate candidate feasibility and reinforcement usage before FEA. During optimization, FEA-verified samples collected from the current layout are used for online local calibration, which adjusts feasibility probabilities and corrects reinforcement prediction residuals. The calibrated predictions support conservative feasibility screening and cost-oriented candidate ranking, thereby concentrating the limited FEA budget on high-priority designs. Experiments on 143 engineering layouts with approximately 715,000 FEA-labeled samples show that the proposed strategy reduces FEA evaluations by 64.6\% on average across 15 unseen layouts, with a 1.19\% mean cost increase across 142 paired cases where both strategies find feasible solutions. The median increase is approximately zero, while the largest is 17.39\%. The results demonstrate reduced FEA demand for the combined framework, with a trade-off in feasibility discovery and individual solution costs.
+Shear wall structural optimization for high-rise buildings requires repeated finite element analysis (FEA) and design code checking, making conventional optimization computationally expensive. Although surrogate-assisted methods can reduce evaluation costs, static surrogates often suffer from prediction bias when applied to unseen layouts or evolving local search regions. This study proposes a calibrated surrogate-informed optimization framework (CASIO) that improves optimization efficiency by allocating limited FEA evaluations to high-priority candidates. First, two independently trained layout-conditioned surrogates (FuseGNN) integrate room-adjacency graphs, global layout statistics, and design parameters to estimate candidate feasibility and reinforcement mass prior to FEA. During optimization, FEA-verified samples accumulated from the current building update lightweight online local calibration models, which adjust feasibility probabilities and correct reinforcement prediction residuals without retraining the global networks. The calibrated predictions then guide conservative feasibility screening and cost-oriented candidate ranking. Experiments on 143 engineering shear wall layouts with approximately 715,000 FEA-labeled samples demonstrate that CASIO reduces true FEA calls by 64.6\% on average across 15 unseen layouts and three search algorithms, while incurring only a 1.19\% mean material cost increase (with a median near zero) across 142 paired feasible runs. These results confirm that online-calibrated surrogates can substantially accelerate code-compliant shear wall sizing while preserving near-optimal material economy.
+
 \end{abstract}
 
-%%Graphical abstract
-% \begin{graphicalabstract}
-% \includegraphics{grabs}
-% \end{graphicalabstract}
 
-%%Research highlights
-% \begin{strip}
 \begin{highlights}
-\item A graph surrogate captures layout-dependent feasibility and reinforcement demand.
-\item FEA feedback enables online adaptation of surrogate prediction.
-\item Local correction reduces prediction error in a separate calibration comparison.
-\item Feasibility-aware screening and cost ranking focus FEA on competitive designs.
-\item True FEA calls drop by 64.6\% with a 1.19\% mean cost increase in paired feasible cases.
+\item Graph-tabular surrogates capture layout-dependent feasibility and steel demand.
+\item FEA feedback enables online local calibration without retraining global models.
+\item Local residual calibration reduces reinforcement prediction MAE by over 80\%.
+\item Feasibility screening and cost ranking focus FEA on competitive candidates.
+\item True FEA calls drop by 64.6\% with only a 1.19\% mean material cost increase.
 \end{highlights}
 % \end{strip}
 
 \begin{keyword}
 %% keywords here, in the form: keyword \sep keyword
-Shear wall structures \sep Structural optimization \sep surrogate-informed optimization \sep Online local calibration \sep FEA budget allocation
-
-%% PACS codes here, in the form: \PACS code \sep code
-% \PACS 0000 \sep 1111
-%% MSC codes here, in the form: \MSC code \sep code
-%% or \MSC[2008] code \sep code (2000 is the default)
-% \MSC 0000 \sep 1111
+Shear wall structures \sep Structural optimization \sep Surrogate-informed optimization \sep Online local calibration \sep FEA budget allocation
 \end{keyword}
 
 \end{frontmatter}
