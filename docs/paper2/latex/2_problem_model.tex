@@ -31,7 +31,7 @@ The graph construction follows our earlier room-level representation for shear w
 
 The design vector contains eight numerical inputs (story count and seven section dimensions) and four categorical inputs (concrete grade, seismic intensity, site class, and seismic group). Numerical features are standardized using training-set statistics, and categorical variables are mapped to learned embeddings. Global context is supplied by 41 geometric and structural layout statistics, including building dimensions, directional wall lengths, wall eccentricity, beam quantities, and connectivity measures, together with seven room-graph summaries. The latter describe graph size, density, normalized room area, and aggregate wall distribution. These complementary descriptors connect local room organization with the overall structural configuration. Feature groups and dimensions are summarized in \ref{app:implementation_details}.
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{layout_parameter_surrogate.pdf}
 \caption{Layout-conditioned surrogate modeling for feasibility and reinforcement prediction. The two tasks use separately trained networks with independent parameters.}
@@ -64,7 +64,7 @@ where mass is expressed in kilograms and $\mu_s$ and $\sigma_s$ are calculated f
 
 A global surrogate trained across diverse layouts can exhibit systematic bias when applied to an unseen building, particularly as the optimization search concentrates within a local region of the design space. To mitigate this bias without retraining the global networks, CASIO updates lightweight local calibration models using FEA-verified samples accumulated during the current optimization run (Fig.~\ref{fig:online_calibration}). At iteration $t$, let $\mathcal{D}_t$ denote the archive of unique designs evaluated so far along with their global predictions and true structural responses. Whenever new evaluations are added to $\mathcal{D}_t$, the local calibrators are refitted prior to assessing the next candidate batch.
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{online_local_calibration.pdf}
 \caption{Local adaptation of frozen global surrogates using evaluated candidates from the current design task. Feasibility calibration and reinforcement residual correction are fitted separately.}

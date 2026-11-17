@@ -6,7 +6,7 @@
 
 Tables~\ref{tab:global_feasibility_results} and~\ref{tab:global_steel_results} compare the cross-layout generalization of the global surrogates across progressively enriched representations. When relying solely on design parameters, Param-MLP performs poorly on unseen layouts (feasibility PR-AUC of 0.6137 and reinforcement $R^2$ of 0.351), confirming that section dimensions alone cannot capture layout-dependent stiffness and load-path variations. Incorporating seven room-graph summaries (Stat-MLP) substantially improves both tasks, while FuseGNN—combining message passing over the room-adjacency graph with global layout statistics—achieves the strongest performance (PR-AUC of 0.8593, F1 of 0.7688, reinforcement MAE of 11.48~t, and $R^2$ of 0.924).
 
-\begin{table*}[tbp]
+\begin{table*}[!t]
 \centering
 \caption{Feasibility prediction performance of different surrogate input settings. Screening metrics use each model's validation-selected threshold; test-set recalls are not matched.}
 \label{tab:global_feasibility_results}
@@ -28,7 +28,7 @@ FuseGNN & 0.9693 & 0.8593 & 0.7688 & 0.4736 & 0.9998 & 3 \\
 \end{tabularx}
 \end{table*}
 
-\begin{table*}[tbp]
+\begin{table*}[!t]
 \centering
 \caption{Reinforcement usage prediction performance of different surrogate input settings.}
 \label{tab:global_steel_results}
@@ -54,7 +54,7 @@ FuseGNN & 11.48 & 15.67 & 0.924 & 0.093 & -5.02 & 0.9787 & 0.9779 & 0.9483 \\
 
 More importantly, FuseGNN aligns well with decision-oriented screening and ranking. At the validation-selected operating threshold, it filters out 47.36\% of candidate designs prior to FEA while retaining 99.98\% of truly feasible solutions (only three false rejections across the test set). For reinforcement prediction, it achieves a pairwise ranking accuracy of 0.9787 and a top-10\% recall of 0.9483, reliably identifying economical candidates within each layout.
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{global_surrogate_overview.pdf}
 \caption{Overall performance and error patterns of the global surrogate model.}
@@ -67,7 +67,7 @@ Fig.~\ref{fig:global_surrogate_overview} further diagnoses the error structure o
 \subsection{Local Calibration Comparison}
 \label{subsec:local_calibration_results}
 
-\begin{figure*}[tp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{local_calibration_effect.pdf}
 \caption{Layout-wise local-calibration comparison using 100 randomly sampled FEA records. Each layout reports the best evaluated calibrator for its task; these retrospective comparisons do not represent a single deployed online model.}
@@ -112,7 +112,7 @@ Table~\ref{tab:local_calibration_results} compares calibrating the global surrog
 
 Fig.~\ref{fig:calibration_sample_efficiency} tracks calibration performance from 25 to 500 local samples (detailed values in \ref{app:calibration_results}). Error reductions grow steadily with sample count, and the optimal residual model complexity scales with data availability: ridge regression performs best at 25 samples, Gaussian process regression at 50--100 samples, and LightGBM at 200--500 samples. For feasibility, Platt scaling provides substantial probability calibration even at 25 samples (reducing Brier score by 30.5\%) and tracks the best residual random forest closely without risking small-sample overfitting, supporting its fixed online deployment alongside the sample-scheduled reinforcement residual models.
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{calibration_sample_efficiency.pdf}
 \caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods. The dashed feasibility curves show Platt scaling on the same subsets; screening recalls are not matched.}
@@ -158,14 +158,14 @@ Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & Firs
 \end{tabularx}
 \end{table*}
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{optimization_benchmark_results.pdf}
 \caption{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
 \label{fig:optimization_benchmark_results}
 \end{figure*}
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{cost_tolerance_analysis.pdf}
 \caption{Cost-tolerance analysis on the same 15-layout benchmark as Table~\ref{tab:optimization_summary_results}. Panel $n$ counts layout--seed cases where full FEA finds a feasible design (51 GA, 46 PSO, and 51 random-search cases); point labels count qualifying cases for each strategy.}
@@ -182,21 +182,21 @@ Fig.~\ref{fig:cost_tolerance_analysis} further evaluates the trade-off between c
 \subsection{Mechanism and Practical Implications}
 \label{subsec:mechanism_discussion}
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth,height=0.25\textheight,keepaspectratio]{candidate_flow_analysis.pdf}
 \caption{Candidate flow in the calibrated surrogate-informed optimization process.}
 \label{fig:candidate_flow_analysis}
 \end{figure*}
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{optimization_case_examples.pdf}
 \caption{Illustrative optimization histories for layouts with different levels of difficulty, taken from exploratory runs distinct from the 15-layout benchmark in Table~\ref{tab:optimization_summary_results}.}
 \label{fig:optimization_case_examples}
 \end{figure*}
 
-\begin{figure*}[tbp]
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{layout_difficulty_heatmap.pdf}
 \caption{Feasible-solution discovery patterns across test layouts and optimization strategies.}

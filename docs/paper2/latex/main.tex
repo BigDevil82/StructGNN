@@ -75,17 +75,17 @@
 \setlength{\floatsep}{14pt plus 2pt minus 2pt}
 \setlength{\dblfloatsep}{14pt plus 2pt minus 2pt}
 
-% 2. 适度控制单页图文比例，避免正文被挤成细条
+% Prefer mixed text/float pages; reserve float-only pages for nearly full pages.
 \setcounter{topnumber}{3}
 \setcounter{bottomnumber}{2}
 \setcounter{totalnumber}{6}
 \setcounter{dbltopnumber}{2}
-\renewcommand{\topfraction}{0.85}
+\renewcommand{\topfraction}{0.9}
 \renewcommand{\bottomfraction}{0.8}
-\renewcommand{\textfraction}{0.15}      % 保证有正文的页面至少留出 15% 给文字
-\renewcommand{\floatpagefraction}{0.75} % 超过 75% 高度自动成独立浮动页
-\renewcommand{\dbltopfraction}{0.85}
-\renewcommand{\dblfloatpagefraction}{0.75}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.9}
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\dblfloatpagefraction}{0.9}
 
 \setlength{\linenumbersep}{3pt}
 \hyphenpenalty=1000
@@ -227,7 +227,6 @@ Shear wall structures \sep Structural optimization \sep Surrogate-informed optim
 
 \input{5_results} % discussion
 
-\FloatBarrier
 \input{6_conclusion} % conclusion
 %%%%%%%%%%%%%%%%%%%%%%% main body end %%%%%%%%%%%%%%%%%%%%%%
 
