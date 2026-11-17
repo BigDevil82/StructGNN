@@ -407,7 +407,7 @@ def plot_feasibility_lollipop(
         else:
             platt = 100.0 * (pivot["Global"] - pivot["Platt"]) / pivot["Global"].clip(lower=1.0e-9)
         ax.plot(x, platt, "s--", color="#4477aa", markersize=4, linewidth=1.3, label="Platt")
-        ax.legend(loc="lower right", frameon=False, fontsize=8)
+        ax.legend(loc="upper left", frameon=False, fontsize=8)
     ax.axhline(zero_line, color="#777777", linewidth=0.8, linestyle="--")
     ax.set_xticks(x)
     ax.set_xticklabels([str(int(v)) for v in values.index])
