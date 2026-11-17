@@ -1,7 +1,7 @@
 \section{Experimental Setup}
 \label{sec:experimental_setup}
 
-The experimental evaluation assesses the cross-layout accuracy and ranking quality of the global surrogates on unseen layouts, examines local probability and residual calibration across varying local sample sizes, and benchmarks the complete CASIO framework against full FEA optimization across multiple search algorithms.
+The experimental evaluation comprises three parts: (1) assessing the cross-layout accuracy and ranking quality of the global surrogates on unseen layouts; (2) examining local probability and residual calibration across varying local sample sizes; and (3) benchmarking the complete CASIO framework against full FEA optimization across multiple search algorithms.
 
 \subsection{Dataset and Structural Evaluation}
 \label{subsec:dataset_structural_evaluation}
@@ -86,10 +86,10 @@ For the deployed online optimization framework (Section~\ref{subsec:online_local
 Optimization benchmarks are conducted on 15 unseen test layouts (five per design-condition group) across five random seeds, yielding 75 runs per strategy. Genetic algorithm (GA)~\cite{Goldberg1989} serves as the primary optimizer (population size 48, 15 generations, mutation rate $0.30$, elite size 2), supplemented by particle swarm optimization (PSO)~\cite{Kennedy1995PSO} (swarm size 48, 15 iterations, mutation rate $0.15$) and random search (720 candidates in batches of 48) to test optimizer generality.
 
 Three candidate evaluation strategies are compared under identical design spaces and initial seeds:
-\begin{enumerate}[(1)]
-\item In \textbf{Full FEA}, all generated candidates are evaluated by $\mathcal{E}$ (baseline).
-\item \textbf{Cost ranking} ranks candidates solely by estimated material cost without feasibility screening and submits only the top-quota subset to $\mathcal{E}$.
-\item \textbf{Screen \& ranking} is the full CASIO strategy that combines calibrated feasibility screening, deficit-penalized cost ranking, and quota-based FEA allocation.
-\end{enumerate}
+(1) Full FEA: All generated candidates are evaluated by $\mathcal{E}$ (baseline).
+
+(2) Cost ranking: Candidates are ranked solely by estimated material cost without feasibility screening, submitting only the top-quota subset to $\mathcal{E}$.
+
+(3) Screen \& ranking: The full CASIO strategy combining calibrated feasibility screening, deficit-penalized cost ranking, and quota-based FEA allocation.
 
 For surrogate-informed strategies, the batch quota $n_t$ uses a minimum quota $n_{\min}=8$ (capped by $|\mathcal{P}_t|$) and an evaluation ratio $\theta_t = 0.8$ before the first feasible solution is found, decreasing to $\theta_t = 0.5$ afterward. In the post-discovery stage, $n_t$ is split into 60\% priority-score ranking, 25\% smallest feasibility-score deficit, and 15\% random exploration within $\mathcal{P}_t$. Priority scoring uses $p_{\mathrm{ref}}=0.5$ and $\eta=10^6\text{ CNY}$. Unselected candidates receive $M_{\mathrm{rej}}=10^{12}$, and evaluated infeasible designs use penalty weights $P_{\mathrm{inf}}=10^5$, $\lambda_v=10^7$, and $\lambda_c=0.01$ (\ref{app:implementation_details}). Optimization performance is evaluated by uncached FEA call count, FEA reduction ratio, feasible-solution discovery rate, FEA calls to first feasible design, and paired final material cost ratio (\ref{app:evaluation_metrics}).

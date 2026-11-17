@@ -15,9 +15,9 @@ To address these challenges, this study proposes a calibrated surrogate-informed
 
 The main contributions of this study are summarized as follows:
 \begin{itemize}
-    \item A \textbf{layout-conditioned surrogate model} with a graph-tabular fusion architecture (FuseGNN) is developed to predict structural feasibility and reinforcement demand across varying shear wall layouts prior to FEA.
-    \item A lightweight \textbf{online local calibration} mechanism uses FEA-verified samples from the ongoing optimization to calibrate feasibility scores and correct reinforcement residuals without retraining the global networks.
-    \item A unified screening-and-ranking evaluation interface enables \textbf{decision-oriented FEA allocation} to concentrate limited FEA calls on feasible, low-cost candidates across different search algorithms.
+    \item A layout-conditioned surrogate model with a graph-tabular fusion architecture (FuseGNN) is developed to predict structural feasibility and reinforcement demand across varying shear wall layouts prior to FEA.
+    \item A lightweight online local calibration mechanism uses FEA-verified samples from the ongoing optimization to calibrate feasibility scores and correct reinforcement residuals without retraining the global networks.
+    \item A unified screening-and-ranking evaluation interface enables decision-oriented FEA allocation to concentrate limited FEA calls on feasible, low-cost candidates across different search algorithms.
 \end{itemize}
 
 The remainder of this paper is organized as follows. Section~\ref{sec:problem_surrogate} formulates the optimization problem and details the global surrogate models and local calibration methods. Section~\ref{sec:optimization_framework} presents the CASIO evaluation loop and candidate-selection strategy. Section~\ref{sec:experimental_setup} describes the experimental setup, followed by the results and discussions in Section~\ref{sec:results_discussion} and conclusions in Section~\ref{sec:conclusion}.
