@@ -63,12 +63,17 @@
 \usepackage{threeparttable}
 \usepackage{dblfloatfix}
 
-% 1. 消除独立浮动页 [p] 中两张图之间被强行拉开的空隙
+% Keep single- and double-column float pages top-aligned with fixed gaps.
 \makeatletter
-\setlength{\@fptop}{0pt plus 1fil}
-\setlength{\@fpsep}{14pt} % 固定两图之间的间距为 14pt，不再无限拉伸
+\setlength{\@fptop}{0pt}
+\setlength{\@fpsep}{14pt}
 \setlength{\@fpbot}{0pt plus 1fil}
+\setlength{\@dblfptop}{0pt}
+\setlength{\@dblfpsep}{14pt}
+\setlength{\@dblfpbot}{0pt plus 1fil}
 \makeatother
+\setlength{\floatsep}{14pt plus 2pt minus 2pt}
+\setlength{\dblfloatsep}{14pt plus 2pt minus 2pt}
 
 % 2. 适度控制单页图文比例，避免正文被挤成细条
 \setcounter{topnumber}{3}
@@ -105,10 +110,6 @@
   labelsep=newline          % 如果希望 Table 1 和标题文字分两行显示，请取消此行注释
 }
 
-\makeatletter
-\setlength{\@fptop}{0pt}
-\setlength{\@dblfptop}{0pt}
-\makeatother
 %% The amsthm package provides extended theorem environments
 %% \usepackage{amsthm}
 
@@ -226,6 +227,7 @@ Shear wall structures \sep Structural optimization \sep Surrogate-informed optim
 
 \input{5_results} % discussion
 
+\FloatBarrier
 \input{6_conclusion} % conclusion
 %%%%%%%%%%%%%%%%%%%%%%% main body end %%%%%%%%%%%%%%%%%%%%%%
 

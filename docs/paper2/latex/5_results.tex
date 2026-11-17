@@ -74,13 +74,6 @@ Fig.~\ref{fig:global_surrogate_overview} further diagnoses the error structure o
 \label{fig:local_calibration_effect}
 \end{figure*}
 
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=\textwidth]{calibration_sample_efficiency.pdf}
-\caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods. The dashed feasibility curves show Platt scaling on the same subsets; screening recalls are not matched.}
-\label{fig:calibration_sample_efficiency}
-\end{figure*}
-
 \begin{table}[!t]
 \centering
 \caption{Separate local-calibration comparison and local-only ablation using 100 randomly sampled FEA records per layout.}
@@ -119,6 +112,13 @@ Table~\ref{tab:local_calibration_results} compares calibrating the global surrog
 
 Fig.~\ref{fig:calibration_sample_efficiency} tracks calibration performance from 25 to 500 local samples (detailed values in \ref{app:calibration_results}). Error reductions grow steadily with sample count, and the optimal residual model complexity scales with data availability: ridge regression performs best at 25 samples, Gaussian process regression at 50--100 samples, and LightGBM at 200--500 samples. For feasibility, Platt scaling provides substantial probability calibration even at 25 samples (reducing Brier score by 30.5\%) and tracks the best residual random forest closely without risking small-sample overfitting, supporting its fixed online deployment alongside the sample-scheduled reinforcement residual models.
 
+\begin{figure*}[tbp]
+\centering
+\includegraphics[width=\textwidth]{calibration_sample_efficiency.pdf}
+\caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods. The dashed feasibility curves show Platt scaling on the same subsets; screening recalls are not matched.}
+\label{fig:calibration_sample_efficiency}
+\end{figure*}
+
 
 \subsection{Optimization Efficiency and Solution Quality}
 \label{subsec:optimization_results}
@@ -156,14 +156,14 @@ Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & Firs
 & Screen \& ranking & 75 & 66.7\% & 247 & 65.6\% & 31 & 1.002 \\
 \bottomrule
 \end{tabularx}
-
-\vspace{0.8em}
-
-\includegraphics[width=\textwidth]{optimization_benchmark_results.pdf}
-\captionsetup{labelfont=normalfont,textfont=normalfont,labelsep=colon,justification=centering,singlelinecheck=true}
-\captionof{figure}{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
-\label{fig:optimization_benchmark_results}
 \end{table*}
+
+\begin{figure*}[tbp]
+\centering
+\includegraphics[width=\textwidth]{optimization_benchmark_results.pdf}
+\caption{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
+\label{fig:optimization_benchmark_results}
+\end{figure*}
 
 \begin{figure*}[tbp]
 \centering
@@ -189,14 +189,15 @@ Fig.~\ref{fig:cost_tolerance_analysis} further evaluates the trade-off between c
 \label{fig:candidate_flow_analysis}
 \end{figure*}
 
-\begin{figure*}[!t]
+\begin{figure*}[tbp]
 \centering
 \includegraphics[width=\textwidth]{optimization_case_examples.pdf}
 \caption{Illustrative optimization histories for layouts with different levels of difficulty, taken from exploratory runs distinct from the 15-layout benchmark in Table~\ref{tab:optimization_summary_results}.}
 \label{fig:optimization_case_examples}
+\end{figure*}
 
-\vspace{0.4em}
-
+\begin{figure*}[tbp]
+\centering
 \includegraphics[width=\textwidth]{layout_difficulty_heatmap.pdf}
 \caption{Feasible-solution discovery patterns across test layouts and optimization strategies.}
 \label{fig:layout_difficulty_heatmap}
