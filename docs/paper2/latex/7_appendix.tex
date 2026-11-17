@@ -138,7 +138,7 @@ Room-graph summaries & 7 & Scaled node and directed-edge counts, edge density, n
 \end{tabularx}
 \end{table}
 
-For the room-graph summaries, node and directed-edge counts are normalized by 64 and 256, respectively, and room areas are normalized by the squared layout scale. The tabular encoder processes 49 standardized numerical features (8 design inputs and 41 layout statistics) concatenated with four 4-dimensional categorical embeddings. With graph hidden width $H$, the fused representation concatenates mean- and max-pooled node embeddings ($2H$), mean-pooled edge embeddings ($H/2$), the tabular embedding ($H$), and the seven graph summaries, yielding a vector of dimension $3.5H+7$ (903 for $\Phi_f$ and 455 for $\Phi_s$) passed to a two-layer MLP head with ReLU and dropout.
+For the room-graph summaries, node and directed-edge counts are normalized by 64 and 256, respectively, and room areas are normalized by the squared layout scale. The tabular encoder processes 49 standardized numerical features (8 design inputs and 41 layout statistics) concatenated with four 4-dimensional categorical embeddings. With graph hidden width $H$, the fused representation concatenates mean- and max-pooled node embeddings ($2H$), mean-pooled edge embeddings ($H/2$), the tabular embedding ($H$), and the seven graph summaries, yielding a vector of dimension $3.5H+7$ (903 for $\Phi_f$ and 455 for $\Phi_s$) passed to a two-layer MLP head with rectified linear unit activation and dropout.
 
 \subsection{Online Calibration Models}
 
@@ -154,7 +154,7 @@ Task and model & Activation & Principal settings \\
 \midrule
 Feasibility: Platt scaling & $\ge 25$ labeled records spanning both classes & $L_2$-regularized logistic regression ($C=1.0$, L-BFGS solver). \\
 Reinforcement: ridge & 25--49 valid residual records & $L_2$ penalty coefficient $10.0$. \\
-Reinforcement: Gaussian process & 50--199 valid residual records & RBF kernel + white-noise kernel; normalized targets; diagonal regularization $10^{-6}$. \\
+Reinforcement: Gaussian process & 50--199 valid residual records & Radial basis function kernel + white-noise kernel; normalized targets; diagonal regularization $10^{-6}$. \\
 Reinforcement: LightGBM & $\ge 200$ valid residual records & 300 trees; learning rate 0.03; 31 leaves; min 10 samples/leaf; $L_1/L_2$ penalties $0.1/1.0$; feature fraction 0.9. \\
 \bottomrule
 \end{tabularx}
