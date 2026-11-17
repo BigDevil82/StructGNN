@@ -8,7 +8,7 @@ Tables~\ref{tab:global_feasibility_results} and~\ref{tab:global_steel_results} c
 
 \begin{table*}[!t]
 \centering
-\caption{Feasibility prediction performance of different surrogate input settings. Screening metrics use each model's validation-selected threshold; test-set recalls are not matched.}
+\caption{Feasibility prediction performance of different surrogate input settings. Screening metrics use each model's validation-selected threshold. Test-set recalls are not matched.}
 \label{tab:global_feasibility_results}
 \setlength{\tabcolsep}{5pt}
 \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X
@@ -70,7 +70,7 @@ Fig.~\ref{fig:global_surrogate_overview} further diagnoses the error structure o
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{local_calibration_effect.pdf}
-\caption{Layout-wise local-calibration comparison using 100 randomly sampled FEA records. Each layout reports the best evaluated calibrator for its task; these retrospective comparisons do not represent a single deployed online model.}
+\caption{Layout-wise local-calibration comparison using 100 randomly sampled FEA records. Each layout reports the best evaluated calibrator for its task. These retrospective comparisons do not represent a single deployed online model.}
 \label{fig:local_calibration_effect}
 \end{figure*}
 
@@ -100,7 +100,7 @@ MAPE & 9.26\% & 3.26\% & -- & 1.64\% \\
 
 \begin{tablenotes}[flushleft]
 \footnotesize
-\item \textit{Note:} Global: uncalibrated global surrogate; Local only: model trained directly on current-layout samples without global predictions; Platt: the feasibility calibration family used online; Residual: the retrospectively selected probability-residual random forest and reinforcement-residual Gaussian process. All columns use randomly sampled local records, rather than online search histories; the Global screening threshold is also estimated from the local fitting subset.
+\item \textit{Note.} Global denotes the uncalibrated global surrogate. Local only denotes a model trained directly on current-layout samples without global predictions. Platt is the feasibility calibration family used online. Residual denotes the retrospectively selected probability-residual random forest and reinforcement-residual Gaussian process. All columns use randomly sampled local records, rather than online search histories. The Global screening threshold is also estimated from the local fitting subset.
 \end{tablenotes}
 
 \end{threeparttable}
@@ -108,14 +108,14 @@ MAPE & 9.26\% & 3.26\% & -- & 1.64\% \\
 
 Using 100 randomly sampled local FEA records per layout, Fig.~\ref{fig:local_calibration_effect} illustrates how local adaptation corrects layout-specific prediction errors across all test layouts, with the largest gains occurring on layouts where the uncalibrated global model exhibits severe initial bias.
 
-Table~\ref{tab:local_calibration_results} compares calibrating the global surrogate against training a local model from scratch (`Local only`). Without the global prior, `Local only` suffers a sharp drop in feasibility recall (from 0.9990 to 0.7265) and yields a reinforcement MAE of 4.82~t. By contrast, local calibration retains cross-layout structural knowledge while adapting to the current layout: Platt scaling lowers the feasibility Brier score from 0.0749 to 0.0473 and ECE from 0.0895 to 0.0302 while preserving a 0.9942 recall, and residual Gaussian process regression reduces reinforcement MAE by 82.2\% (from 11.48~t to 2.04~t, $R^2 = 0.994$).
+Table~\ref{tab:local_calibration_results} compares calibrating the global surrogate against training a local model from scratch (`Local only`). Without the global prior, `Local only` suffers a sharp drop in feasibility recall (from 0.9990 to 0.7265) and yields a reinforcement MAE of 4.82~t. By contrast, local calibration retains cross-layout structural knowledge while adapting to the current layout. Platt scaling lowers the feasibility Brier score from 0.0749 to 0.0473 and ECE from 0.0895 to 0.0302 while preserving a 0.9942 recall, and residual Gaussian process regression reduces reinforcement MAE by 82.2\% (from 11.48~t to 2.04~t, $R^2 = 0.994$).
 
-Fig.~\ref{fig:calibration_sample_efficiency} tracks calibration performance from 25 to 500 local samples (detailed values in \ref{app:calibration_results}). Error reductions grow steadily with sample count, and the optimal residual model complexity scales with data availability: ridge regression performs best at 25 samples, Gaussian process regression at 50--100 samples, and LightGBM at 200--500 samples. For feasibility, Platt scaling provides substantial probability calibration even at 25 samples (reducing Brier score by 30.5\%) and tracks the best residual random forest closely without risking small-sample overfitting, supporting its fixed online deployment alongside the sample-scheduled reinforcement residual models.
+Fig.~\ref{fig:calibration_sample_efficiency} tracks calibration performance from 25 to 500 local samples (detailed values in \ref{app:calibration_results}). Error reductions grow steadily with sample count, and the optimal residual model complexity scales with data availability. Ridge regression performs best at 25 samples, Gaussian process regression at 50--100 samples, and LightGBM at 200--500 samples. For feasibility, Platt scaling provides substantial probability calibration even at 25 samples (reducing Brier score by 30.5\%) and tracks the best residual random forest closely without risking small-sample overfitting, supporting its fixed online deployment alongside the sample-scheduled reinforcement residual models.
 
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{calibration_sample_efficiency.pdf}
-\caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods. The dashed feasibility curves show Platt scaling on the same subsets; screening recalls are not matched.}
+\caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods. The dashed feasibility curves show Platt scaling on the same subsets. Screening recalls are not matched.}
 \label{fig:calibration_sample_efficiency}
 \end{figure*}
 
@@ -168,7 +168,7 @@ Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & Firs
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{cost_tolerance_analysis.pdf}
-\caption{Cost-tolerance analysis on the same 15-layout benchmark as Table~\ref{tab:optimization_summary_results}. Panel $n$ counts layout--seed cases where full FEA finds a feasible design (51 GA, 46 PSO, and 51 random-search cases); point labels count qualifying cases for each strategy.}
+\caption{Cost-tolerance analysis on the same 15-layout benchmark as Table~\ref{tab:optimization_summary_results}. Panel $n$ counts layout--seed cases where full FEA finds a feasible design (51 GA, 46 PSO, and 51 random-search cases). Point labels count qualifying cases for each strategy.}
 \label{fig:cost_tolerance_analysis}
 \end{figure*}
 
@@ -205,6 +205,6 @@ Fig.~\ref{fig:cost_tolerance_analysis} further evaluates the trade-off between c
 
 To examine how CASIO allocates evaluations during search, Fig.~\ref{fig:candidate_flow_analysis} tracks the generation-wise status of generated candidates. Across all three optimizers, roughly 20\% of candidates are filtered out by feasibility screening and another 40\% are skipped by cost-oriented quota ranking, leaving approximately 40\% evaluated or cached and maintaining a steady ~20\% feasible fraction among evaluated batches. Retaining some borderline infeasible candidates reflects the intentionally conservative screening threshold designed to prevent false rejection of valid optima.
 
-Fig.~\ref{fig:optimization_case_examples} compares search trajectories on three representative layouts of increasing difficulty (decreasing feasible-region ratio). In the `Easy` and `Medium` layouts, `Cost ranking` alone concentrates evaluations in low-cost regions but still wastes FEA calls on cheap, infeasible designs; adding feasibility screening (`Screen \& ranking`) filters out these violations and converges to comparable optimal costs with far fewer evaluations. The `Hard` layout demonstrates why feasibility screening is indispensable: because feasible designs require thicker sections and higher material costs, `Cost ranking` alone remains trapped in the low-cost infeasible region and fails to locate any valid solution. By rejecting low-feasibility candidates, `Screen \& ranking` steers the search toward thicker, code-compliant configurations and successfully identifies an economical feasible design with less than 40\% of the baseline FEA budget.
+Fig.~\ref{fig:optimization_case_examples} compares search trajectories on three representative layouts of increasing difficulty (decreasing feasible-region ratio). In the `Easy` and `Medium` layouts, `Cost ranking` alone concentrates evaluations in low-cost regions but still wastes FEA calls on cheap, infeasible designs. Adding feasibility screening (`Screen \& ranking`) filters out these violations and converges to comparable optimal costs with far fewer evaluations. The `Hard` layout demonstrates why feasibility screening is indispensable. Because feasible designs require thicker sections and higher material costs, `Cost ranking` alone remains trapped in the low-cost infeasible region and fails to locate any valid solution. By rejecting low-feasibility candidates, `Screen \& ranking` steers the search toward thicker, code-compliant configurations and successfully identifies an economical feasible design with less than 40\% of the baseline FEA budget.
 
 Finally, the layout-by-layout success heatmap in Fig.~\ref{fig:layout_difficulty_heatmap} clarifies the practical scope of the framework. Designs that fail consistently under `Screen \& ranking` (e.g., `Group8-5`) also fail in nearly all Full FEA runs, indicating inherent geometric or design-space infeasibility rather than surrogate false rejection. Consequently, CASIO is most advantageous for practical engineering problems where feasible solutions exist within the sizing space, but exhaustive FEA exploration is computationally prohibitive.

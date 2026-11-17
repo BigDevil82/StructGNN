@@ -4,7 +4,7 @@
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{calibrated_optimization_framework.pdf}
-\caption{CASIO evaluation loop: candidate generation, surrogate-based selection, structural evaluation, and feedback to the optimizer and local calibration models.}
+\caption{CASIO evaluation loop with candidate generation, surrogate-based selection, structural evaluation, and feedback to the optimizer and local calibration models.}
 \label{fig:calibrated_optimization_framework}
 \end{figure*}
 
@@ -28,7 +28,7 @@ Based on these predictions, feasibility screening and cost-oriented ranking sele
 \FOR{$t=0,\ldots,T-1$}
 \STATE Generate and repair candidate batch $\mathcal{B}_t$.
 \STATE Obtain global predictions from $\Phi_f$ and $\Phi_s$.
-\STATE Refit eligible local models if $\mathcal{D}_t$ has changed; otherwise retain the available models or global fallbacks.
+\STATE Refit eligible local models if $\mathcal{D}_t$ has changed. Otherwise, retain the available models or global fallbacks.
 \STATE Compute $p_t$, $m_t$, and screening threshold $\tau_t$.
 \STATE Retain $\mathcal{P}_t=\{x\in\mathcal{B}_t:p_t(x)\geq\tau_t\}$.
 \STATE Select $\mathcal{A}_t\subseteq\mathcal{P}_t$ using the current quota and priority score $\psi_t$.
@@ -47,16 +47,16 @@ Based on these predictions, feasibility screening and cost-oriented ranking sele
 \subsection{Feasibility Screening and Cost-Based Selection}
 \label{subsec:candidate_screening_ranking}
 
-Candidate selection proceeds in two stages: conservative feasibility screening followed by cost-oriented quota allocation. For readability, predictions are written below as functions of $x$, leaving the fixed layout representation implicit.
+Candidate selection proceeds through conservative feasibility screening followed by cost-oriented quota allocation. For readability, predictions are written below as functions of $x$, leaving the fixed layout representation implicit.
 
-First, candidates with $p_t(x) < \tau_t$ are filtered out to avoid wasting FEA calls on designs likely to violate code checks. Before local feasibility calibration is activated, $\tau_t$ equals the validation-selected global threshold. Once calibrated probabilities become available, $\tau_t$ is dynamically adapted from the locally verified feasible designs in $\mathcal{D}_t$:
+First, candidates with $p_t(x) < \tau_t$ are filtered out to avoid wasting FEA calls on designs likely to violate code checks. Before local feasibility calibration is activated, $\tau_t$ equals the validation-selected global threshold. Once calibrated probabilities become available, $\tau_t$ is dynamically adapted using the locally verified feasible designs in $\mathcal{D}_t$ according to
 \begin{equation}
 \tau_t=\alpha Q_{1-\kappa}\!\left(\{p_t(x_i):y_f(x_i)=1\}\right),
 \label{eq:calibrated_threshold}
 \end{equation}
 where $Q_{1-\kappa}$ denotes the empirical $(1-\kappa)$-quantile targeting a nominal feasible recall $\kappa$, and $0<\alpha\leq 1$ applies a conservative margin to prevent false rejection of valid designs. The retained candidate set is $\mathcal{P}_t=\{x\in\mathcal{B}_t:p_t(x)\geq\tau_t\}$.
 
-Second, retained candidates in $\mathcal{P}_t$ are prioritized by combining estimated material cost with a penalty for low predicted passing likelihood:
+Second, retained candidates in $\mathcal{P}_t$ are prioritized using a score that combines estimated material cost with a penalty for low predicted passing likelihood. The score is defined as
 \begin{equation}
 \begin{aligned}
 \widehat C_t(x)&=\pi_s m_t(x)+\pi_c(x)\widetilde m_c(x),\\
@@ -71,11 +71,11 @@ Under a limited evaluation budget, the number of candidates selected from $\math
 n_t=\min\{|\mathcal{P}_t|,\;\max\{n_{\min},\operatorname{round}(\theta_t|\mathcal{P}_t|)\}\},
 \label{eq:evaluation_quota}
 \end{equation}
-where $n_{\min}$ is the minimum batch quota (capped by $|\mathcal{P}_t|$) and $\theta_t$ is the evaluation ratio. Before the first verified feasible design is found, a larger $\theta_t$ is used and all $n_t$ slots are filled by lowest-$\psi_t$ candidates to accelerate feasible-region discovery. Once a feasible solution is obtained, $\theta_t$ is reduced and the quota is partitioned without duplication into three subsets: top-ranked candidates by $\psi_t$ for cost exploitation, candidates with the smallest feasibility-score deficit (ties broken by $\psi_t$) for boundary refinement, and random candidates from $\mathcal{P}_t$ to maintain search diversity. Specific ratios and hyperparameter values are provided in Section~\ref{subsec:optimization_benchmark_settings}.
+where $n_{\min}$ is the minimum batch quota (capped by $|\mathcal{P}_t|$) and $\theta_t$ is the evaluation ratio. Before the first verified feasible design is found, a larger $\theta_t$ is used and all $n_t$ slots are filled by lowest-$\psi_t$ candidates to accelerate feasible-region discovery. Once a feasible solution is obtained, $\theta_t$ is reduced and the quota is divided among three disjoint subsets. Top-ranked candidates by $\psi_t$ support cost exploitation. Candidates with the smallest feasibility-score deficit (ties broken by $\psi_t$) support boundary refinement, while random candidates from $\mathcal{P}_t$ maintain search diversity. Specific ratios and hyperparameter values are provided in Section~\ref{subsec:optimization_benchmark_settings}.
 
 \subsection{Optimizer Feedback and Local Updates}
 \label{subsec:online_update_framework}
 
-Evaluated candidates in $\mathcal{A}_t$ are ranked for the optimizer using a feasibility-first rule: verified feasible designs are always preferred and ordered by their true material cost $C(x)$, whereas evaluated infeasible designs are ordered by a composite penalty combining normalized constraint violations, failed-check indicators, and material cost (\ref{app:implementation_details}). Unselected candidates ($\mathcal{B}_t \setminus \mathcal{A}_t$) receive a large constant rejection value $M_{\mathrm{rej}}$ so that optimizers do not favor unverified designs over confirmed feasible solutions; this placeholder value is excluded from local calibration and final reporting.
+Evaluated candidates in $\mathcal{A}_t$ are ranked for the optimizer using a feasibility-first rule. Verified feasible designs are always preferred and ordered by their true material cost $C(x)$, whereas evaluated infeasible designs are ordered by a composite penalty combining normalized constraint violations, failed-check indicators, and material cost (\ref{app:implementation_details}). Unselected candidates ($\mathcal{B}_t \setminus \mathcal{A}_t$) receive a large constant rejection value $M_{\mathrm{rej}}$ so that optimizers do not favor unverified designs over confirmed feasible solutions. This placeholder value is excluded from local calibration and final reporting.
 
 Once $\mathcal{A}_t$ is evaluated, all new verified outcomes are added to $\mathcal{D}_t$—binary feasibility labels (including analysis failures) update Platt scaling, while valid member-design records update the reinforcement residual model—with the global networks remaining frozen. Throughout the search, CASIO tracks the best FEA-verified feasible design as the incumbent solution. If the optimizer's final returned candidate has not yet been evaluated, it undergoes a final structural verification (counted toward total FEA calls). Thus, while surrogates guide search allocation, final feasibility and optimality remain strictly guaranteed by the true structural evaluator.
