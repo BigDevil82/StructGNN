@@ -138,7 +138,7 @@ Room-graph summaries & 7 & Scaled node and directed-edge counts, edge density, n
 \end{tabularx}
 \end{table}
 
-For the room-graph summaries, node and directed-edge counts are normalized by 64 and 256, respectively, and room areas are normalized by the squared layout scale. The tabular encoder processes 49 standardized numerical features (8 design inputs and 41 layout statistics) concatenated with four 4-dimensional categorical embeddings. With graph hidden width $H$, the fused representation concatenates mean- and max-pooled node embeddings ($2H$), mean-pooled edge embeddings ($H/2$), the tabular embedding ($H$), and the seven graph summaries, yielding a vector of dimension $3.5H+7$ (903 for $\Phi_f$ and 455 for $\Phi_s$) passed to a two-layer MLP head with rectified linear unit activation and dropout.
+For the room-graph summaries, node and directed-edge counts are normalized by 64 and 256, respectively, and room areas are normalized by the squared layout scale. The tabular encoder processes 49 standardized numerical features (8 design inputs and 41 layout statistics) concatenated with four 4-dimensional categorical embeddings. With graph hidden width $H$, the fused representation concatenates mean- and max-pooled node embeddings ($2H$), mean-pooled edge embeddings ($H/2$), the tabular embedding ($H$), and the seven graph summaries, yielding a vector of dimension $3.5H+7$ (903 for $\Phi_f$ and 455 for $\Phi_s$) passed to a two-layer MLP head with rectified linear unit activation (ReLU) and dropout.
 
 \subsection{Online Calibration Models}
 
