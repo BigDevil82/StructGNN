@@ -8,7 +8,7 @@
 \label{fig:calibrated_optimization_framework}
 \end{figure*}
 
-CASIO inserts a surrogate-assisted candidate-selection layer between the search algorithm and the true structural evaluator. This decoupled interface allows the framework to operate with different optimizers while maintaining unified screening, ranking, and online calibration rules.
+CASIO inserts a surrogate-informed candidate-selection layer between the search algorithm and the true structural evaluator. This decoupled interface allows the framework to operate with different optimizers while maintaining unified screening, ranking, and online calibration rules.
 
 \subsection{Evaluation Loop}
 \label{subsec:overall_framework}
@@ -23,7 +23,7 @@ Based on these predictions, feasibility screening and cost-oriented ranking sele
 \label{alg:csa_optimization}
 \begin{algorithmic}[1]
 \REQUIRE Fixed layout and conditions; design space; optimizer; global models $\Phi_f,\Phi_s$; structural evaluator; screening and selection settings; iteration limit $T$.
-\ENSURE Best verified feasible design, or an unsuccessful-search status.
+\ENSURE Best verified feasible design, or an unsuccessful search status.
 \STATE Initialize the optimizer and $\mathcal{D}_0=\emptyset$, with no feasible incumbent.
 \FOR{$t=0,\ldots,T-1$}
 \STATE Generate and repair candidate batch $\mathcal{B}_t$.
@@ -38,7 +38,7 @@ Based on these predictions, feasibility screening and cost-oriented ranking sele
 \STATE Update the optimizer according to its search rule.
 \ENDFOR
 \STATE Verify the provisional returned candidate if it has not been evaluated.
-\RETURN Best verified feasible design, or unsuccessful-search status if none is available.
+\RETURN Best verified feasible design, or unsuccessful search status if none is available.
 \end{algorithmic}
 \end{algorithm}
 
@@ -78,4 +78,4 @@ where $n_{\min}$ is the minimum batch quota (capped by $|\mathcal{P}_t|$) and $\
 
 Evaluated candidates in $\mathcal{A}_t$ are ranked for the optimizer using a feasibility-first rule. Verified feasible designs are always preferred and ordered by their true material cost $C(x)$, whereas evaluated infeasible designs are ordered by a composite penalty combining normalized constraint violations, failed-check indicators, and material cost (\ref{app:implementation_details}). Unselected candidates ($\mathcal{B}_t \setminus \mathcal{A}_t$) receive a large constant rejection value $M_{\mathrm{rej}}$ so that optimizers do not favor unverified designs over confirmed feasible solutions. This placeholder value is excluded from local calibration and final reporting.
 
-Once $\mathcal{A}_t$ is evaluated, all new verified outcomes are added to $\mathcal{D}_t$—binary feasibility labels (including analysis failures) update Platt scaling, while valid member-design records update the reinforcement residual model—with the global networks remaining frozen. Throughout the search, CASIO tracks the best FEA-verified feasible design as the incumbent solution. If the optimizer's final returned candidate has not yet been evaluated, it undergoes a final structural verification (counted toward total FEA calls). Thus, while surrogates guide search allocation, final feasibility and optimality remain strictly guaranteed by the true structural evaluator.
+Once $\mathcal{A}_t$ is evaluated, all new verified outcomes are added to $\mathcal{D}_t$—binary feasibility labels (including analysis failures) update Platt scaling, while valid member-design records update the reinforcement residual model—with the global networks remaining frozen. Throughout the search, CASIO tracks the best FEA-verified feasible design as the incumbent solution. If the optimizer's final returned candidate has not yet been evaluated, it undergoes a final structural verification (counted toward total FEA calls). Thus, while surrogates guide search allocation, the final feasibility decision remains strictly with the true structural evaluator.

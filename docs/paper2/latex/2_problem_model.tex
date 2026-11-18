@@ -8,7 +8,7 @@ CASIO uses two complementary predictions to allocate structural evaluations. Fea
 
 The task is to optimize section dimensions and concrete grade for a prescribed shear wall layout. Let $L$ denote the fixed wall and beam arrangement, $c$ the fixed design conditions, and $x\in\mathcal{X}$ a candidate design. The conditions include the number of stories, story height, seismic intensity, site class, seismic group, and loading assumptions. They remain fixed within each optimization task. The design variables comprise wall thicknesses in three vertical zones, main and secondary beam dimensions, and concrete grade. Their admissible discrete values define $\mathcal{X}$, with wall thicknesses constrained to be nonincreasing with height. Layout topology is not optimized.
 
-Candidate evaluation comprises parametric structural modeling, FEA, reinforcement design, and code-based checking\cite{GB500112010,GB500102010}. The feasibility label $y_f(x)$ equals 1 only if the analysis converges and the implemented structural and member-design checks pass. These checks cover interstory drift, torsional response, shear-to-weight ratio, vertical stiffness regularity, torsional-to-translational period ratio, wall axial compression, and wall and beam shear-compression limits. Analysis failure is treated as infeasibility. Feasibility is defined by this implemented checking scope, rather than a claim of full code compliance. Full checking criteria are detailed in \ref{app:implementation_details}.
+Candidate evaluation comprises parametric structural modeling, FEA, reinforcement design, and code-based checking\cite{GB500112010,GB500102010}. The feasibility label $y_f(x)$ equals 1 only if the analysis converges and the implemented structural and member-design checks pass. These checks cover interstory drift, torsional response, shear-to-weight ratio, vertical stiffness regularity, torsional-to-translational period ratio, wall axial compression, and wall and beam shear-compression limits. Analysis failure is treated as infeasibility. Analysis failure is treated as infeasibility, and the full implemented checking criteria are detailed in \ref{app:implementation_details}.
 
 For a fixed $(L,c)$, the optimization problem is
 \begin{equation}
@@ -20,12 +20,12 @@ For a fixed $(L,c)$, the optimization problem is
 \end{equation}
 where $m_s$ and $m_c$ are reinforcement and concrete masses, $\pi_s$ is the reinforcement unit price, and $\pi_c(x)$ is the mass-based concrete unit price for the selected grade. The dependence on the fixed layout and conditions is omitted for readability. Here $C(x)$ represents the structural material cost, with unit prices and evaluation settings detailed in Section~\ref{sec:experimental_setup}.
 
-Reinforcement demand depends on member forces and design checks and therefore requires structural analysis. Concrete quantity can instead be estimated from member lengths, section dimensions, and story counts. CASIO consequently predicts feasibility and reinforcement mass, and combines the latter with a geometric concrete estimate for candidate ranking. Final design selection uses evaluated quantities and verified feasibility.
+Reinforcement demand depends on member forces and design checks and therefore requires structural analysis. Concrete quantity can instead be estimated analytically from member lengths, section dimensions, and story counts, denoted by $\widetilde{m}_c(x)$. CASIO consequently predicts feasibility and reinforcement mass, and combines the latter with $\widetilde{m}_c(x)$ for candidate ranking. Final design selection uses evaluated quantities and verified feasibility.
 
 \subsection{Layout-Conditioned Candidate Representation}
 \label{subsec:layout_parameter_model}
 
-Each candidate is represented by $z=(G,d,q)$, where $G$ is a room-adjacency graph, $d$ contains the design parameters and conditions, and $q$ contains global layout descriptors. For a fixed design task, $G$ and $q$ remain unchanged, and only the section and material entries of $d$ vary during optimization.
+Each candidate is represented by $z=(G,d,q)$, where $G$ is a room-adjacency graph, $d$ contains the design parameters and conditions, and $q$ contains global layout descriptors (Fig.~\ref{fig:representation_variables}). For a fixed design task, $G$ and $q$ remain unchanged; only the section and material entries of $d$ vary during optimization.
 
 The graph construction follows our earlier room-level representation for shear wall layout generation\cite{LengRoomGNN2026}. Rooms form the nodes and shared boundaries define directed adjacency edges. The present task differs in that the wall arrangement is already known. The boundary-wise wall descriptors that served as generation targets in the earlier work are therefore included as inputs here. Each node has 41 features comprising nine normalized geometric descriptors, 16 boundary-availability indicators, and 16 descriptors of the prescribed wall arrangement. Each edge has eight attributes describing shared-boundary geometry, relative direction, and orientation. This representation associates the existing walls with the architectural spaces they bound, rather than treating room adjacency alone as a structural description.
 
@@ -33,9 +33,9 @@ The design vector contains eight numerical inputs (story count and seven section
 
 \begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{layout_parameter_surrogate.pdf}
-\caption{Layout-conditioned surrogate modeling for feasibility and reinforcement prediction. The two tasks use separately trained networks with independent parameters.}
-\label{fig:layout_parameter_surrogate}
+\includegraphics[width=\textwidth]{representation_variables.pdf}
+\caption{Illustration of structural design variables ($d$) and room-level graph representation ($G$). (a) Vertical wall-thickness zones ($w_b, w_m, w_t$), concrete grade ($f_c$), and beam cross-sections ($h_m \times b_m$, $h_s \times b_s$); (b) mapping from adjacent rooms and prescribed shear walls to graph nodes ($v_i$) and shared-wall edges ($e_{ij}$).}
+\label{fig:representation_variables}
 \end{figure*}
 
 \subsection{Global Surrogate Models}
@@ -62,14 +62,16 @@ where mass is expressed in kilograms and $\mu_s$ and $\sigma_s$ are calculated f
 \subsection{Online Local Adaptation}
 \label{subsec:online_local_calibration}
 
-A global surrogate trained across diverse layouts can exhibit systematic bias when applied to an unseen building, particularly as the optimization search concentrates within a local region of the design space. To mitigate this bias without retraining the global networks, CASIO updates lightweight local calibration models using FEA-verified samples accumulated during the current optimization run (Fig.~\ref{fig:online_calibration}). At iteration $t$, let $\mathcal{D}_t$ denote the archive of unique designs evaluated so far along with their global predictions and true structural responses. Whenever new evaluations are added to $\mathcal{D}_t$, the local calibrators are refitted prior to assessing the next candidate batch.
+A global surrogate trained across diverse layouts can exhibit systematic bias when applied to an unseen building, particularly as the optimization search concentrates within a local region of the design space. To mitigate this bias without retraining the global networks, CASIO updates lightweight local calibration models using FEA-verified samples accumulated during the current optimization run. At iteration $t$, let $\mathcal{D}_t$ denote the archive of unique designs evaluated so far along with their global predictions and true structural responses. Whenever new evaluations are added to $\mathcal{D}_t$, the local calibrators are refitted prior to assessing the next candidate batch.
 
 \begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{online_local_calibration.pdf}
-\caption{Local adaptation of frozen global surrogates using evaluated candidates from the current design task. Feasibility calibration and reinforcement residual correction are fitted separately.}
-\label{fig:online_calibration}
+\includegraphics[width=\textwidth]{layout_parameter_surrogate.pdf}
+\caption{Layout-conditioned surrogate modeling for feasibility and reinforcement prediction. The two tasks use separately trained networks with independent parameters.}
+\label{fig:layout_parameter_surrogate}
 \end{figure*}
+
+
 
 \subsubsection{Feasibility calibration}
 \label{subsubsec:feasibility_calibration}
@@ -79,7 +81,7 @@ To align global feasibility scores with the actual pass rate of the current layo
 p_t(z)=\sigma\!\left(a_t\operatorname{logit}(p_g(z))+b_t\right),
 \label{eq:calibrated_probability}
 \end{equation}
-where $a_t$ and $b_t$ are fitted to the local feasibility labels in $\mathcal{D}_t$ using $L_2$-regularized logistic regression. Because it estimates only two scalar parameters, Platt scaling prevents overfitting under limited online samples while effectively recalibrating the probability scale and screening threshold (Section~\ref{subsec:candidate_screening_ranking}). Calibration is activated once $\mathcal{D}_t$ contains at least 25 evaluated designs spanning both feasible and infeasible classes. Before activation, the global score is retained ($p_t = p_g$).
+where $a_t$ and $b_t$ are fitted to the local feasibility labels in $\mathcal{D}_t$ using $L_2$-regularized logistic regression, and the subscript $t$ denotes the calibrated prediction at iteration $t$. Because it estimates only two scalar parameters, Platt scaling is less prone to overfitting under limited online samples while effectively recalibrating the probability scale and screening threshold (Section~\ref{subsec:candidate_screening_ranking}). Calibration is activated once $\mathcal{D}_t$ contains at least 25 evaluated designs spanning both feasible and infeasible classes. Before activation, the global score is retained ($p_t = p_g$).
 
 \subsubsection{Reinforcement residual correction}
 \label{subsubsec:steel_calibration}

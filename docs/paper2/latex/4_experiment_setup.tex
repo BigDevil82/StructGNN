@@ -8,7 +8,7 @@ The experimental evaluation comprises three parts: (1) assessing the cross-layou
 
 The dataset consists of 143 real-world engineering shear wall layouts collected from architectural design practice~\cite{LengRoomGNN2026}. Following Chinese seismic and tall-building design codes~\cite{GB500112010,GB500102010}, these layouts are categorized into three source groups: Group7-H1 (seismic intensity 7, peak ground acceleration (PGA) $0.10\text{ g}$, height $H \leq 50\text{ m}$), Group7-H2 (intensity 7, $H > 50\text{ m}$), and Group8 (intensity 8, PGA $0.20\text{ g}$).
 
-For each layout, 5,000 design variants are sampled from the discrete parameter space in Table~\ref{tab:parameter_space}, enforcing nonincreasing wall thicknesses with height ($w_t \le w_m \le w_b$). Each candidate is evaluated by an automated structural evaluator $\mathcal{E}$ that builds the finite element model in OpenSees~\cite{McKenna2011OpenSees} (Fig.~\ref{fig:model_cases}), extracts global responses and member forces, and performs code-based reinforcement design and checking to obtain the binary feasibility label $y_f$ and reinforcement mass $m_s$. After discarding 28 non-convergent runs, 714,972 valid samples remain and are split at the layout level into 100 training, 21 validation, and 22 testing layouts (Table~\ref{tab:dataset_split}).
+For each layout, 5,000 design variants are sampled from the discrete parameter space in Table~\ref{tab:parameter_space}, enforcing nonincreasing wall thicknesses with height ($w_t \le w_m \le w_b$). Each candidate is evaluated by an automated structural evaluator $\mathcal{E}$ that builds the finite element model in OpenSees~\cite{McKenna2011OpenSees} (Fig.~\ref{fig:model_cases}), extracts global responses and member forces, and performs code-based reinforcement design and checking to obtain the binary feasibility label $y_f$ and reinforcement mass $m_s$. After discarding 28 non-convergent runs, 714,972 valid samples remain and are split at the layout level into 100 training, 22 validation, and 21 testing layouts (Table~\ref{tab:dataset_split}).
 
 \begin{table}[tp]
 \centering
@@ -56,8 +56,8 @@ Seismic group & $S_G$ & - & 1, 2, 3 \\
 Subset & No. of layouts & No. of samples & Group ratio (Group7-H1 / Group7-H2 / Group8) \\
 \midrule
 Training & 100 & 499,977 & 19.0\% / 38.0\% / 43.0\% \\
-Validation & 21 & 104,999 & 33.3\% / 47.6\% / 19.0\% \\
-Testing & 22 & 109,996 & 31.8\% / 18.2\% / 50.0\% \\
+Validation & 22 & 109,996 & 31.8\% / 18.2\% / 50.0\% \\
+Testing & 21 & 104,999 & 33.3\% / 47.6\% / 19.0\% \\
 \midrule
 Total & 143 & 714,972 & 23.1\% / 36.4\% / 40.6\% \\
 \bottomrule
@@ -73,7 +73,7 @@ The contribution of structural layout representations is evaluated by comparing 
 
 Both FuseGNN networks use three GraphSAGE layers trained independently with AdamW and batch size 512. The feasibility classifier $\Phi_f$ (hidden width 256, dropout 0.35, learning rate $2\times10^{-4}$, weight decay $3\times10^{-4}$) is trained with positive-weighted binary cross-entropy. Early stopping maximizes the validation rejection rate at a target feasible recall of $0.995$, yielding a global screening threshold of $0.004$. The reinforcement regressor $\Phi_s$ (hidden width 128, dropout 0.1, learning rate $5\times10^{-4}$, weight decay $10^{-4}$) minimizes Smooth L1 loss on log-transformed mass and uses validation mean absolute error (MAE) for early stopping.
 
-Global models are evaluated on the 22 test layouts. Classification and screening are assessed using the area under the receiver operating characteristic curve (ROC-AUC), area under the precision--recall curve (PR-AUC), F1 score, rejection rate, feasibility recall, and false-reject count. Regression and ranking are assessed using MAE, root mean square error (RMSE), $R^2$, mean absolute percentage error (MAPE), bias, pairwise ranking accuracy, Spearman correlation, and top-10\% recall, as defined in \ref{app:evaluation_metrics}.
+Global models are evaluated on the 21 test layouts. Classification and screening are assessed using the area under the receiver operating characteristic curve (ROC-AUC), area under the precision--recall curve (PR-AUC), F1 score, rejection rate, feasibility recall, and false-reject count. Regression and ranking are assessed using MAE, root mean square error (RMSE), $R^2$, mean absolute percentage error (MAPE), bias, pairwise ranking accuracy, Spearman correlation, and top-10\% recall, as defined in \ref{app:evaluation_metrics}.
 
 \subsection{Local Calibration Comparison and Online Configuration}
 \label{subsec:local_calibration_settings}
