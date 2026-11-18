@@ -3,6 +3,74 @@
 \renewcommand{\thetable}{A.\arabic{table}}
 \renewcommand{\theHtable}{A.\arabic{table}}
 
+
+\section{Representation and Online Implementation Details}
+\label{app:implementation_details}
+\setcounter{table}{0}
+\renewcommand{\thetable}{A.\arabic{table}}
+\renewcommand{\theHtable}{A.\arabic{table}}
+
+\subsection{Input Features and Network Fusion}
+
+Table~\ref{tab:input_features} summarizes the input feature groups for the global surrogates. Graph construction and boundary-wise wall encoding follow our earlier room-level representation~\cite{LengRoomGNN2026}, with the 16 prescribed-wall descriptors supplied as known inputs.
+
+\begin{table}[H]
+\centering
+\caption{Input feature groups for the global surrogates.}
+\label{tab:input_features}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.21\textwidth}>{\centering\arraybackslash}p{0.10\textwidth}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Feature group & Dimension & Content \\
+\midrule
+Node geometry & 9 & Normalized bounding-box coordinates, width, height, area, and center coordinates. \\
+Boundary availability & 16 & Buildable-boundary indicators inherited from the room representation. \\
+Prescribed wall arrangement & 16 & Boundary-wise descriptors of the existing shear walls. \\
+Edge attributes & 8 & Shared-boundary length and center, four relative-direction indicators, and orientation. \\
+Design inputs & 12 & Eight numerical inputs (story count and seven section dimensions) and four categorical inputs (concrete grade, seismic intensity, site class, and seismic group). \\
+Layout statistics & 41 & Plan dimensions; wall counts, lengths, directional balance, spatial distribution, eccentricity and geometric moments; beam quantities; member connectivity; boundary-wall proportion. \\
+Room-graph summaries & 7 & Scaled node and directed-edge counts, edge density, normalized total and mean room area, and two normalized aggregate wall-distribution summaries. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For the room-graph summaries, node and directed-edge counts are normalized by 64 and 256, respectively, and room areas are normalized by the squared layout scale. The tabular encoder processes 49 standardized numerical features (8 design inputs and 41 layout statistics) concatenated with four 4-dimensional categorical embeddings. With graph hidden width $H$, the fused representation concatenates mean- and max-pooled node embeddings ($2H$), mean-pooled edge embeddings ($H/2$), the tabular embedding ($H$), and the seven graph summaries, yielding a vector of dimension $3.5H+7$ (903 for $\Phi_f$ and 455 for $\Phi_s$) passed to a two-layer MLP head with rectified linear unit activation (ReLU) and dropout.
+
+\subsection{Online Calibration Models}
+
+Table~\ref{tab:online_calibrators} lists the hyperparameters of the deployed online calibrators. Numeric inputs to ridge and Gaussian process residual models are standardized and categorical inputs are one-hot encoded, alongside $m_g$ and $\ln(1+m_g)$. Platt scaling operates on the global feasibility logit with probabilities clipped to $[10^{-6},1-10^{-6}]$.
+
+\begin{table}[H]
+\centering
+\caption{Deployed online calibration configuration.}
+\label{tab:online_calibrators}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.19\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Task and model & Activation & Principal settings \\
+\midrule
+Feasibility: Platt scaling & $\ge 25$ labeled records spanning both classes & $L_2$-regularized logistic regression ($C=1.0$, L-BFGS solver). \\
+Reinforcement: ridge & 25--49 valid residual records & $L_2$ penalty coefficient $10.0$. \\
+Reinforcement: Gaussian process & 50--199 valid residual records & Radial basis function kernel + white-noise kernel; normalized targets; diagonal regularization $10^{-6}$. \\
+Reinforcement: LightGBM & $\ge 200$ valid residual records & 300 trees; learning rate 0.03; 31 leaves; min 10 samples/leaf; $L_1/L_2$ penalties $0.1/1.0$; feature fraction 0.9. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Evaluated Fitness and Code-Checking Scope}
+
+For an evaluated candidate with valid material quantities, the scalar fitness returned to the optimizer is
+\begin{equation}
+F(x)=
+\begin{cases}
+C(x), & y_f(x)=1,\\
+P_{\mathrm{inf}}+\lambda_v V(x)+\lambda_c C(x), & y_f(x)=0,
+\end{cases}
+\label{eq:true_fitness}
+\end{equation}
+where $V(x)$ sums normalized upper-bound violations $\max\{0,(a-\ell)/\ell\}$, lower-bound violations $\max\{0,(\ell-a)/\ell\}$, and binary failed-check indicators.
+
+The automated structural check enforces a torsional response ratio limit of 1.5, an interstory drift limit of $1/1000$, adjacent- and three-story-average stiffness ratio lower limits of 0.7 and 0.8, a torsional-to-translational period ratio limit of 0.9, and minimum shear-to-weight ratios of 0.008, 0.016, 0.024, and 0.032 for seismic intensities 6, 7, 7.5, and 8, respectively, together with code-specified wall axial compression and wall/beam shear-compression checks~\cite{GB500112010,GB500102010}.
+
+
 \section{Definition of Decision and Optimization Metrics}
 \label{app:evaluation_metrics}
 
@@ -40,8 +108,8 @@ where $N_{\mathrm{new},t}$ counts uncached structural evaluations in iteration $
 \section{Additional Calibration Results}
 \label{app:calibration_results}
 \setcounter{table}{0}
-\renewcommand{\thetable}{B.\arabic{table}}
-\renewcommand{\theHtable}{B.\arabic{table}}
+\renewcommand{\thetable}{C.\arabic{table}}
+\renewcommand{\theHtable}{C.\arabic{table}}
 
 Tables~\ref{tab:appendix_feasibility_calibrator}--\ref{tab:appendix_platt} report the numerical results corresponding to Fig.~\ref{fig:calibration_sample_efficiency} across local sample counts from 25 to 500 under random local sampling. Feasibility averages exclude layout L17\_157, which contains no feasible examples in its evaluation subsets.
 
@@ -107,70 +175,3 @@ Local samples & Brier & ECE & Screen reject & Screen recall \\
 \bottomrule
 \end{tabularx}
 \end{table}
-
-
-\section{Representation and Online Implementation Details}
-\label{app:implementation_details}
-\setcounter{table}{0}
-\renewcommand{\thetable}{C.\arabic{table}}
-\renewcommand{\theHtable}{C.\arabic{table}}
-
-\subsection{Input Features and Network Fusion}
-
-Table~\ref{tab:input_features} summarizes the input feature groups for the global surrogates. Graph construction and boundary-wise wall encoding follow our earlier room-level representation~\cite{LengRoomGNN2026}, with the 16 prescribed-wall descriptors supplied as known inputs.
-
-\begin{table}[H]
-\centering
-\caption{Input feature groups for the global surrogates.}
-\label{tab:input_features}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.21\textwidth}>{\centering\arraybackslash}p{0.10\textwidth}>{\raggedright\arraybackslash}X@{}}
-\toprule
-Feature group & Dimension & Content \\
-\midrule
-Node geometry & 9 & Normalized bounding-box coordinates, width, height, area, and center coordinates. \\
-Boundary availability & 16 & Buildable-boundary indicators inherited from the room representation. \\
-Prescribed wall arrangement & 16 & Boundary-wise descriptors of the existing shear walls. \\
-Edge attributes & 8 & Shared-boundary length and center, four relative-direction indicators, and orientation. \\
-Design inputs & 12 & Eight numerical inputs (story count and seven section dimensions) and four categorical inputs (concrete grade, seismic intensity, site class, and seismic group). \\
-Layout statistics & 41 & Plan dimensions; wall counts, lengths, directional balance, spatial distribution, eccentricity and geometric moments; beam quantities; member connectivity; boundary-wall proportion. \\
-Room-graph summaries & 7 & Scaled node and directed-edge counts, edge density, normalized total and mean room area, and two normalized aggregate wall-distribution summaries. \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-For the room-graph summaries, node and directed-edge counts are normalized by 64 and 256, respectively, and room areas are normalized by the squared layout scale. The tabular encoder processes 49 standardized numerical features (8 design inputs and 41 layout statistics) concatenated with four 4-dimensional categorical embeddings. With graph hidden width $H$, the fused representation concatenates mean- and max-pooled node embeddings ($2H$), mean-pooled edge embeddings ($H/2$), the tabular embedding ($H$), and the seven graph summaries, yielding a vector of dimension $3.5H+7$ (903 for $\Phi_f$ and 455 for $\Phi_s$) passed to a two-layer MLP head with rectified linear unit activation (ReLU) and dropout.
-
-\subsection{Online Calibration Models}
-
-Table~\ref{tab:online_calibrators} lists the hyperparameters of the deployed online calibrators. Numeric inputs to ridge and Gaussian process residual models are standardized and categorical inputs are one-hot encoded, alongside $m_g$ and $\ln(1+m_g)$. Platt scaling operates on the global feasibility logit with probabilities clipped to $[10^{-6},1-10^{-6}]$.
-
-\begin{table}[H]
-\centering
-\caption{Deployed online calibration configuration.}
-\label{tab:online_calibrators}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.19\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}X@{}}
-\toprule
-Task and model & Activation & Principal settings \\
-\midrule
-Feasibility: Platt scaling & $\ge 25$ labeled records spanning both classes & $L_2$-regularized logistic regression ($C=1.0$, L-BFGS solver). \\
-Reinforcement: ridge & 25--49 valid residual records & $L_2$ penalty coefficient $10.0$. \\
-Reinforcement: Gaussian process & 50--199 valid residual records & Radial basis function kernel + white-noise kernel; normalized targets; diagonal regularization $10^{-6}$. \\
-Reinforcement: LightGBM & $\ge 200$ valid residual records & 300 trees; learning rate 0.03; 31 leaves; min 10 samples/leaf; $L_1/L_2$ penalties $0.1/1.0$; feature fraction 0.9. \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\subsection{Evaluated Fitness and Code-Checking Scope}
-
-For an evaluated candidate with valid material quantities, the scalar fitness returned to the optimizer is
-\begin{equation}
-F(x)=
-\begin{cases}
-C(x), & y_f(x)=1,\\
-P_{\mathrm{inf}}+\lambda_v V(x)+\lambda_c C(x), & y_f(x)=0,
-\end{cases}
-\label{eq:true_fitness}
-\end{equation}
-where $V(x)$ sums normalized upper-bound violations $\max\{0,(a-\ell)/\ell\}$, lower-bound violations $\max\{0,(\ell-a)/\ell\}$, and binary failed-check indicators.
-
-The automated structural check enforces a torsional response ratio limit of 1.5, an interstory drift limit of $1/1000$, adjacent- and three-story-average stiffness ratio lower limits of 0.7 and 0.8, a torsional-to-translational period ratio limit of 0.9, and minimum shear-to-weight ratios of 0.008, 0.016, 0.024, and 0.032 for seismic intensities 6, 7, 7.5, and 8, respectively, together with code-specified wall axial compression and wall/beam shear-compression checks~\cite{GB500112010,GB500102010}.
