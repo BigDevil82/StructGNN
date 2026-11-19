@@ -57,7 +57,7 @@ More importantly, FuseGNN aligns well with decision-oriented screening and ranki
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{global_surrogate_overview.pdf}
-\caption{Overall performance and error patterns of the global surrogate model.}
+\caption{Overall test performance and systematic error patterns of the global FuseGNN surrogates across 21 unseen layouts.}
 \label{fig:global_surrogate_overview}
 \end{figure*}
 
@@ -70,7 +70,7 @@ Fig.~\ref{fig:global_surrogate_overview} further diagnoses the error structure o
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{local_calibration_effect.pdf}
-\caption{Layout-wise local-calibration comparison using 100 randomly sampled FEA records. Each layout reports the best evaluated calibrator for its task. These retrospective comparisons do not represent a single deployed online model.}
+\caption{Layout-wise local calibration comparison using 100 randomly sampled FEA records per test layout.}
 \label{fig:local_calibration_effect}
 \end{figure*}
 
@@ -115,7 +115,7 @@ Fig.~\ref{fig:calibration_sample_efficiency} tracks calibration performance from
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{calibration_sample_efficiency.pdf}
-\caption{Local-calibration performance versus sample count. At each count, the displayed calibrator minimizes mean holdout Brier score for feasibility or MAE for reinforcement among the compared methods. The dashed feasibility curves show Platt scaling on the same subsets. Screening recalls are not matched.}
+\caption{Offline local calibration performance versus local FEA sample count.}
 \label{fig:calibration_sample_efficiency}
 \end{figure*}
 
@@ -161,14 +161,14 @@ Algorithm & Method & Runs & Success rate & Mean FEA calls & FEA reduction & Firs
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{optimization_benchmark_results.pdf}
-\caption{Optimization efficiency and solution quality under different optimizers and candidate evaluation strategies.}
+\caption{Optimization efficiency and solution quality across three optimizers and three candidate evaluation strategies.}
 \label{fig:optimization_benchmark_results}
 \end{figure*}
 
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{cost_tolerance_analysis.pdf}
-\caption{Cost-tolerance analysis on the same 15-layout benchmark as Table~\ref{tab:optimization_summary_results}. Panel $n$ counts layout--seed cases where full FEA finds a feasible design (51 GA, 46 PSO, and 51 random-search cases). Point labels count qualifying cases for each strategy.}
+\caption{Cost-tolerance analysis on the 15-layout optimization benchmark ($n$ denotes baseline feasible runs out of 75).}
 \label{fig:cost_tolerance_analysis}
 \end{figure*}
 
@@ -185,14 +185,14 @@ Fig.~\ref{fig:cost_tolerance_analysis} further evaluates the trade-off between c
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth,height=0.25\textheight,keepaspectratio]{candidate_flow_analysis.pdf}
-\caption{Candidate flow in the calibrated surrogate-informed optimization process.}
+\caption{Generation-wise candidate allocation in CASIO across GA, PSO, and random search.}
 \label{fig:candidate_flow_analysis}
 \end{figure*}
 
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{optimization_case_examples.pdf}
-\caption{Illustrative optimization histories for layouts with different levels of difficulty, taken from exploratory runs distinct from the 15-layout benchmark in Table~\ref{tab:optimization_summary_results}.}
+\caption{Illustrative optimization trajectories across three layouts of increasing difficulty.}
 \label{fig:optimization_case_examples}
 \end{figure*}
 
@@ -203,7 +203,7 @@ Fig.~\ref{fig:cost_tolerance_analysis} further evaluates the trade-off between c
 \label{fig:layout_difficulty_heatmap}
 \end{figure*}
 
-To examine how CASIO allocates evaluations during search, Fig.~\ref{fig:candidate_flow_analysis} tracks the generation-wise status of generated candidates. In GA and PSO, roughly 20\% of candidates are filtered out by feasibility screening and another 40\% are skipped by cost-oriented ranking, leaving approximately 40\% evaluated or cached (with ~20\% of all candidates confirmed feasible). In random search, the corresponding fractions are roughly 35\% rejected, 30\% skipped, and 33\% evaluated or cached. Retaining some borderline infeasible candidates reflects the intentionally conservative screening threshold designed to prevent false rejection of valid optima.
+To examine how CASIO allocates evaluations during search, Fig.~\ref{fig:candidate_flow_analysis} tracks the generation-wise status of generated candidates. In GA and PSO, roughly 20\% of candidates are filtered out by feasibility screening and another 40\% are skipped by cost-oriented ranking, leaving approximately 40\% evaluated or cached (with $\approx 20\%$ of all candidates confirmed feasible). In random search, the corresponding fractions are roughly 35\% rejected, 30\% skipped, and 33\% evaluated or cached. Retaining some borderline infeasible candidates reflects the intentionally conservative screening threshold designed to prevent false rejection of valid optima.
 
 Fig.~\ref{fig:optimization_case_examples} compares search trajectories on three representative layouts of increasing difficulty (decreasing feasible-region ratio). In the \textit{Easy} and \textit{Medium} layouts, \textit{Cost ranking} alone concentrates evaluations in low-cost regions but still wastes FEA calls on cheap, infeasible designs. Adding feasibility screening (\textit{Screen \& ranking}) filters out these violations and converges to comparable optimal costs with far fewer evaluations. The \textit{Hard} layout demonstrates why feasibility screening is indispensable. Because feasible designs require thicker sections and higher material costs, \textit{Cost ranking} alone remains trapped in the low-cost infeasible region and fails to locate any valid solution. By rejecting low-feasibility candidates, \textit{Screen \& ranking} steers the search toward thicker, code-compliant configurations and successfully identifies an economical feasible design with less than 40\% of the baseline FEA budget.
 

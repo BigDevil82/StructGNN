@@ -6,7 +6,7 @@ The experimental evaluation comprises three parts: (1) assessing the cross-layou
 \subsection{Dataset and Structural Evaluation}
 \label{subsec:dataset_structural_evaluation}
 
-The dataset consists of 143 real-world engineering shear wall layouts collected from architectural design practice~\cite{LengRoomGNN2026}. Following Chinese seismic and tall-building design codes~\cite{GB500112010,GB500102010}, these layouts are categorized into three source groups: Group7-H1 (seismic intensity 7, peak ground acceleration (PGA) $0.10\text{ g}$, height $H \leq 50\text{ m}$), Group7-H2 (intensity 7, $H > 50\text{ m}$), and Group8 (intensity 8, PGA $0.20\text{ g}$).
+The dataset consists of 143 real-world engineering shear wall layouts collected from architectural design practice~\cite{LengRoomGNN2026}. Following the dataset grouping and naming convention established in the previous study~\cite{Liao2021}, these layouts are categorized into three source groups: Group7-H1 (seismic intensity 7, peak ground acceleration (PGA) $0.10\text{ g}$, height $H \leq 50\text{ m}$), Group7-H2 (intensity 7, $H > 50\text{ m}$), and Group8 (intensity 8, PGA $0.20\text{ g}$).
 
 For each layout, 5,000 design variants are sampled from the discrete parameter space in Table~\ref{tab:parameter_space}, enforcing nonincreasing wall thicknesses with height ($w_t \le w_m \le w_b$). Each candidate is evaluated by an automated structural evaluator $\mathcal{E}$ that builds the finite element model in OpenSees~\cite{McKenna2011OpenSees} (Fig.~\ref{fig:model_cases}), extracts global responses and member forces, and performs code-based reinforcement design and checking to obtain the binary feasibility label $y_f$ and reinforcement mass $m_s$. After discarding 28 non-convergent runs, 714,972 valid samples remain and are split at the layout level into 100 training, 22 validation, and 21 testing layouts (Table~\ref{tab:dataset_split}).
 
@@ -20,7 +20,7 @@ For each layout, 5,000 design variants are sampled from the discrete parameter s
 Parameter & Symbol & Unit & Sampling values \\
 \midrule
 Number of stories & $N_{\mathrm{stories}}$ & - & 18--33 \\
-Story height & $h_{story}$ & m & 2.9 \\
+Story height & $h_{\mathrm{story}}$ & m & 2.9 \\
 Bottom wall thickness & $w_b$ & mm & 200, 250, 300, 350, 400 \\
 Middle wall thickness & $w_m$ & mm & 160, 180, 200, 250, 300 \\
 Top wall thickness & $w_t$ & mm & 160, 180, 200, 250 \\
@@ -39,7 +39,7 @@ Seismic group & $S_G$ & - & 1, 2, 3 \\
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{model_cases.pdf}
-\caption{Representative finite element models of shear wall structures under different sampled design parameters and design conditions.}
+\caption{Representative finite element models of shear wall structures under three sampled parameter combinations.}
 \label{fig:model_cases}
 \end{figure*}
 
@@ -78,7 +78,7 @@ Global models are evaluated on the 21 test layouts. Classification and screening
 \subsection{Local Calibration Comparison and Online Configuration}
 \label{subsec:local_calibration_settings}
 
-To analyze sample efficiency prior to online deployment, an offline local-calibration study randomly samples $25, 50, 100, 200,$ or $500$ records from each test layout (repeated three times) to fit local calibrators, evaluating them on the remaining held-out records of that layout. Candidate feasibility calibrators include Platt scaling~\cite{Platt1999}, isotonic regression~\cite{Zadrozny2002}, logistic regression, probability-residual models (ridge regression, random forest, LightGBM), and a probability-averaging ensemble~\cite{Bella2013}. Candidate reinforcement residual models include ridge regression~\cite{Hoerl1970Ridge}, Gaussian process regression~\cite{Rasmussen2006GPML}, LightGBM~\cite{Ke2017LightGBM}, and $k$-nearest neighbors~\cite{Cover1967KNN}. Probability reliability is measured by Brier score~\cite{Brier1950} and expected calibration error (ECE)~\cite{Naeini2015}, alongside screening and regression metrics.
+To analyze sample efficiency prior to online deployment, an offline local-calibration study randomly samples $25, 50, 100, 200,$ or $500$ records from each test layout (repeated three times) to fit local calibrators, evaluating them on the remaining held-out records of that layout. Candidate feasibility calibrators include Platt scaling, isotonic regression~\cite{Zadrozny2002}, logistic regression, probability-residual models (ridge regression, random forest, LightGBM), and a probability-averaging ensemble~\cite{Bella2013}. Candidate reinforcement residual models include ridge regression~\cite{Hoerl1970Ridge}, Gaussian process regression~\cite{Rasmussen2006GPML}, LightGBM, and $k$-nearest neighbors~\cite{Cover1967KNN}. Probability reliability is measured by Brier score~\cite{Brier1950} and expected calibration error (ECE)~\cite{Naeini2015}, alongside screening and regression metrics.
 
 For the deployed online optimization framework (Section~\ref{subsec:online_local_calibration}), feasibility calibration uses Platt scaling once at least 25 evaluated records spanning both classes are collected, with adaptive screening parameters $\kappa=0.995$ and $\alpha=0.1$. Reinforcement residual correction uses ridge regression for 25--49 valid residual records, Gaussian process regression for 50--199 records, and LightGBM for $\ge 200$ records. Full model hyperparameters are listed in \ref{app:implementation_details}.
 
@@ -88,6 +88,7 @@ For the deployed online optimization framework (Section~\ref{subsec:online_local
 Optimization benchmarks are conducted on 15 unseen test layouts (five per design-condition group) across five random seeds, yielding 75 runs per strategy. Genetic algorithm (GA)~\cite{Goldberg1989} serves as the primary optimizer (population size 48, 15 generations, mutation rate $0.30$, elite size 2), supplemented by particle swarm optimization (PSO)~\cite{Kennedy1995PSO} (swarm size 48, 15 iterations, mutation rate $0.15$) and random search (720 candidates in batches of 48) to test optimizer generality.
 
 Three candidate evaluation strategies are compared under identical design spaces and initial seeds:
+
 (1) Full FEA: All generated candidates are evaluated by $\mathcal{E}$ (baseline).
 
 (2) Cost ranking: Candidates are ranked solely by estimated material cost without feasibility screening, submitting only the top-quota subset to $\mathcal{E}$.

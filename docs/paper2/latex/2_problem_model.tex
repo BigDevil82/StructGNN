@@ -8,7 +8,7 @@ CASIO uses two complementary predictions to allocate structural evaluations. Fea
 
 The task is to optimize section dimensions and concrete grade for a prescribed shear wall layout. Let $L$ denote the fixed wall and beam arrangement, $c$ the fixed design conditions, and $x\in\mathcal{X}$ a candidate design. The conditions include the number of stories, story height, seismic intensity, site class, seismic group, and loading assumptions. They remain fixed within each optimization task. The design variables comprise wall thicknesses in three vertical zones, main and secondary beam dimensions, and concrete grade. Their admissible discrete values define $\mathcal{X}$, with wall thicknesses constrained to be nonincreasing with height. Layout topology is not optimized.
 
-Candidate evaluation comprises parametric structural modeling, FEA, reinforcement design, and code-based checking\cite{GB500112010,GB500102010}. The feasibility label $y_f(x)$ equals 1 only if the analysis converges and the implemented structural and member-design checks pass. These checks cover interstory drift, torsional response, shear-to-weight ratio, vertical stiffness regularity, torsional-to-translational period ratio, wall axial compression, and wall and beam shear-compression limits. Analysis failure is treated as infeasibility, and the full implemented checking criteria are detailed in \ref{app:implementation_details}.
+Candidate evaluation comprises parametric structural modeling, FEA, reinforcement design, and code-based checking~\cite{GB500112010,GB500102010}. The feasibility label $y_f(x)$ equals 1 only if the analysis converges and the implemented structural and member-design checks pass. These checks cover interstory drift, torsional response, shear-to-weight ratio, vertical stiffness regularity, torsional-to-translational period ratio, wall axial compression, and wall and beam shear-compression limits. Analysis failure is treated as infeasibility, and the full implemented checking criteria are detailed in \ref{app:implementation_details}.
 
 For a fixed $(L,c)$, the optimization problem is
 \begin{equation}
@@ -27,14 +27,14 @@ Reinforcement demand depends on member forces and design checks and therefore re
 
 Each candidate is represented by $z=(G,d,q)$, where $G$ is a room-adjacency graph, $d$ contains the design parameters and conditions, and $q$ contains global layout descriptors (Fig.~\ref{fig:representation_variables}). For a fixed design task, $G$ and $q$ remain unchanged; only the section and material entries of $d$ vary during optimization.
 
-The graph construction follows our earlier room-level representation for shear wall layout generation\cite{LengRoomGNN2026}. Rooms form the nodes and shared boundaries define directed adjacency edges. The present task differs in that the wall arrangement is already known. The boundary-wise wall descriptors that served as generation targets in the earlier work are therefore included as inputs here. Each node has 41 features comprising nine normalized geometric descriptors, 16 boundary-availability indicators, and 16 descriptors of the prescribed wall arrangement. Each edge has eight attributes describing shared-boundary geometry, relative direction, and orientation. This representation associates the existing walls with the architectural spaces they bound, rather than treating room adjacency alone as a structural description.
+The graph construction follows our earlier room-level representation for shear wall layout generation~\cite{LengRoomGNN2026}. Rooms form the nodes and shared boundaries define directed adjacency edges. The present task differs in that the wall arrangement is already known. The boundary-wise wall descriptors that served as generation targets in the earlier work are therefore included as inputs here. Each node has 41 features comprising nine normalized geometric descriptors, 16 boundary-availability indicators, and 16 descriptors of the prescribed wall arrangement. Each edge has eight attributes describing shared-boundary geometry, relative direction, and orientation. This representation associates the existing walls with the architectural spaces they bound, rather than treating room adjacency alone as a structural description.
 
 The design vector contains eight numerical inputs (story count and seven section dimensions) and four categorical inputs (concrete grade, seismic intensity, site class, and seismic group). Numerical features are standardized using training-set statistics, and categorical variables are mapped to learned embeddings. Global context is supplied by 41 geometric and structural layout statistics, including building dimensions, directional wall lengths, wall eccentricity, beam quantities, and connectivity measures, together with seven room-graph summaries. The latter describe graph size, density, normalized room area, and aggregate wall distribution. These complementary descriptors connect local room organization with the overall structural configuration.
 
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{representation_variables.pdf}
-\caption{Illustration of structural design variables ($d$) and room-level graph representation ($G$). (a) Vertical wall-thickness zones ($w_b, w_m, w_t$), concrete grade ($f_c$), and beam cross-sections ($h_m \times b_m$, $h_s \times b_s$); (b) mapping from adjacent rooms and prescribed shear walls to graph nodes ($v_i$) and shared-wall edges ($e_{ij}$).}
+\caption{Structural design variables ($d$) and room-level graph representation ($G$).}
 \label{fig:representation_variables}
 \end{figure*}
 
@@ -48,7 +48,7 @@ p_g(z)=\Phi_f(z),\qquad m_g(z)=\Phi_s(z),
 \end{equation}
 where $p_g$ is the global feasibility score in $[0,1]$ and $m_g$ is the predicted reinforcement mass.
 
-The graph encoder applies three GraphSAGE layers\cite{Hamilton2017GraphSAGE}, with residual connections and batch normalization. Mean and maximum pooling aggregate the node embeddings. A separate multilayer perceptron (MLP) encodes the edge attributes, which are mean-pooled to supplement the node representation. The tabular encoder jointly processes the design variables and the 41 layout statistics. Its output is concatenated with the pooled node and edge embeddings and the seven room-graph summaries, and an MLP head produces a scalar prediction. A sigmoid maps the classifier output to $p_g$, while the regressor output is transformed back to reinforcement mass. Fig.~\ref{fig:layout_parameter_surrogate} summarizes the prediction tasks. Network widths and training settings are specified in Section~\ref{subsec:global_surrogate_training}.
+The graph encoder applies three GraphSAGE layers~\cite{Hamilton2017GraphSAGE}, with residual connections and batch normalization. Mean and maximum pooling aggregate the node embeddings. A separate multilayer perceptron (MLP) encodes the edge attributes, which are mean-pooled to supplement the node representation. The tabular encoder jointly processes the design variables and the 41 layout statistics. Its output is concatenated with the pooled node and edge embeddings and the seven room-graph summaries, and an MLP head produces a scalar prediction. A sigmoid maps the classifier output to $p_g$, while the regressor output is transformed back to reinforcement mass. Fig.~\ref{fig:layout_parameter_surrogate} summarizes the prediction tasks. Network widths and training settings are specified in Section~\ref{subsec:global_surrogate_training}.
 
 The classifier uses binary cross-entropy with the positive-class weight set to the ratio of negative to positive training samples. Since class weighting does not ensure calibrated probabilities, $p_g$ is initially used as a screening score. Its global screening threshold is selected on validation layouts to maximize the rejection rate while meeting a prescribed empirical recall for feasible candidates.
 
@@ -67,7 +67,7 @@ A global surrogate trained across diverse layouts can exhibit systematic bias wh
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{layout_parameter_surrogate.pdf}
-\caption{Layout-conditioned surrogate modeling for feasibility and reinforcement prediction. The two tasks use separately trained networks with independent parameters.}
+\caption{Architecture of the layout-conditioned global surrogate model (FuseGNN).}
 \label{fig:layout_parameter_surrogate}
 \end{figure*}
 
@@ -81,7 +81,7 @@ To align global feasibility scores with the actual pass rate of the current layo
 p_t(z)=\sigma\!\left(a_t\operatorname{logit}(p_g(z))+b_t\right),
 \label{eq:calibrated_probability}
 \end{equation}
-where $a_t$ and $b_t$ are fitted to the local feasibility labels in $\mathcal{D}_t$ using $L_2$-regularized logistic regression, and the subscript $t$ denotes the calibrated prediction at iteration $t$. Because it estimates only two scalar parameters, Platt scaling is less prone to overfitting under limited online samples while effectively recalibrating the probability scale and screening threshold (Section~\ref{subsec:candidate_screening_ranking}). Calibration is activated once $\mathcal{D}_t$ contains at least 25 evaluated designs spanning both feasible and infeasible classes. Before activation, the global score is retained ($p_t = p_g$).
+where $a_t$ and $b_t$ are fitted to the local feasibility labels in $\mathcal{D}_t$ using $L_2$-regularized logistic regression, and the subscript $t$ denotes the calibrated prediction at iteration $t$. Because it estimates only two scalar parameters, Platt scaling is less prone to overfitting under limited online samples while effectively recalibrating the probability scale and screening threshold. Calibration is activated once $\mathcal{D}_t$ contains at least 25 evaluated designs spanning both feasible and infeasible classes. Before activation, the global score is retained ($p_t = p_g$).
 
 \subsubsection{Reinforcement residual correction}
 \label{subsubsec:steel_calibration}
@@ -93,12 +93,12 @@ m_t(z)=\max\{0,\;m_g(z)+\delta_t(d_{\mathrm{var}},m_g(z),\ln(1+m_g(z)))\},
 \end{equation}
 where $d_{\mathrm{var}}$ denotes the active section and material variables for the current task. By learning only the layout-specific residual, $\delta_t$ preserves the cross-layout structural knowledge encoded in $m_g$ while correcting local systematic errors.
 
-To balance model expressiveness against sample efficiency as $\mathcal{D}_t$ grows, $\delta_t$ follows a sample-count schedule in which ridge regression is used for small sample sets, Gaussian process regression for intermediate sets, and LightGBM for larger sets (thresholds and hyperparameters are detailed in Section~\ref{subsec:local_calibration_settings}). Prior to reaching the minimum activation sample count, the global prediction is used directly ($m_t = m_g$).
+To balance model expressiveness against sample efficiency as $\mathcal{D}_t$ grows, $\delta_t$ follows a sample-count schedule in which ridge regression is used for small sample sets, Gaussian process regression for intermediate sets, and LightGBM~\cite{Ke2017LightGBM} for larger sets. Prior to reaching the minimum activation sample count, the global prediction is used directly ($m_t = m_g$).
 
 % Queue the Section 3 workflow figure early for the next page top.
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{calibrated_optimization_framework.pdf}
-\caption{CASIO evaluation loop with candidate generation, surrogate-based selection, structural evaluation, and feedback to the optimizer and local calibration models.}
+\caption{Closed-loop workflow of the calibrated surrogate-informed optimization (CASIO) framework.}
 \label{fig:calibrated_optimization_framework}
 \end{figure*}
