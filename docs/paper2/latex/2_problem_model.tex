@@ -94,3 +94,11 @@ m_t(z)=\max\{0,\;m_g(z)+\delta_t(d_{\mathrm{var}},m_g(z),\ln(1+m_g(z)))\},
 where $d_{\mathrm{var}}$ denotes the active section and material variables for the current task. By learning only the layout-specific residual, $\delta_t$ preserves the cross-layout structural knowledge encoded in $m_g$ while correcting local systematic errors.
 
 To balance model expressiveness against sample efficiency as $\mathcal{D}_t$ grows, $\delta_t$ follows a sample-count schedule in which ridge regression is used for small sample sets, Gaussian process regression for intermediate sets, and LightGBM for larger sets (thresholds and hyperparameters are detailed in Section~\ref{subsec:local_calibration_settings}). Prior to reaching the minimum activation sample count, the global prediction is used directly ($m_t = m_g$).
+
+% Queue the Section 3 workflow figure early for the next page top.
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{calibrated_optimization_framework.pdf}
+\caption{CASIO evaluation loop with candidate generation, surrogate-based selection, structural evaluation, and feedback to the optimizer and local calibration models.}
+\label{fig:calibrated_optimization_framework}
+\end{figure*}

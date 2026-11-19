@@ -8,14 +8,6 @@ CASIO inserts a surrogate-informed candidate-selection layer between the search 
 
 Fig.~\ref{fig:calibrated_optimization_framework} and Algorithm~\ref{alg:csa_optimization} summarize the CASIO evaluation loop. At iteration $t$, the optimizer proposes a candidate batch $\mathcal{B}_t$ after enforcing discrete parameter bounds and nonincreasing wall thicknesses along the building height. Each candidate is encoded via $z=(G,d,q)$ and evaluated by the current surrogates to obtain $p_t$ and $m_t$, falling back to the global predictions whenever a local calibrator has not yet met its activation condition.
 
-% Keep the workflow figure next to its first reference.
-\begin{strip}
-\centering
-\includegraphics[width=\textwidth]{calibrated_optimization_framework.pdf}
-\captionof{figure}{CASIO evaluation loop with candidate generation, surrogate-based selection, structural evaluation, and feedback to the optimizer and local calibration models.}
-\label{fig:calibrated_optimization_framework}
-\end{strip}
-
 Based on these predictions, feasibility screening and cost-oriented ranking select a high-priority subset $\mathcal{A}_t \subseteq \mathcal{B}_t$ for true structural evaluation. Cached results are reused for previously visited designs, whereas new evaluations provide verified feasibility labels, material quantities, and constraint violations. These records are returned to the optimizer and appended to the local archive $\mathcal{D}_t$ to update the calibration models prior to the next iteration.
 
 
